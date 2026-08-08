@@ -1,0 +1,67 @@
+name: inspect-hub
+services:
+  # ---------------------------------------------------------------------------
+  # Baza Danych PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: inspect-hub-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inspect_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inspect_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-inspect_hub_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inspect_user} -d ${POSTGRES_DB:-inspect_hub_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Object Storage MinIO (S3-compatible do zdjęć/instrukcji)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: inspect-hub-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_password_123}
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # MinIO Console (Web UI)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Inicjalizator MinIO - automatycznie tworzy bucket 'inspection-media'
+  # ---------------------------------------------------------------------------
+  createbuckets:
+    image: minio/mc:latest
+    container_name: inspect-hub-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minio_admin} ${MINIO_ROOT_PASSWORD:-minio_password_123};
+      /usr/bin/mc mb myminio/inspection-media --ignore-existing;
+      /usr/bin/mc anonymous set download myminio/inspection-media;
+      exit 0;
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
