@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+}
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String
+  role              Role               @default(OPERATOR)
+  name              String
+  createdAt         DateTime           @default(now())
+  inspectionResults InspectionResult[] @relation("OperatorInspections")
+}
+
+model Form {
+  id                String             @id @default(cuid())
+  title             String
+  code              String
+  version           Int                @default(1)
+  allowedStatuses   Json
+  questions         Json
+  processes         Process[]          @relation("FormProcesses")
+  createdAt         DateTime           @default(now())
+  inspectionResults InspectionResult[]
+
+  @@unique([code, version])
+  @@index([code])
+}
+
+model Process {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  stations Station[]
+  forms    Form[]    @relation("FormProcesses")
+}
+
+model Station {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  ipAddress       String?  @unique
+  deviceTokenHash String?  @unique
+  processId       String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  process         Process? @relation(fields: [processId], references: [id])
+
+  @@index([active])
+  @@index([processId])
+}
+
+model InspectionResult {
+  id                String   @id @default(cuid())
+  formId            String
+  vinOrSerialNumber String
+  stationId         String
+  operatorId        String
+  status            String
+  answers           Json
+  mesSynced         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  form              Form     @relation(fields: [formId], references: [id])
+  operator          User     @relation("OperatorInspections", fields: [operatorId], references: [id])
+
+  @@index([formId])
+  @@index([operatorId])
+  @@index([vinOrSerialNumber])
+  @@index([mesSynced])
+}
