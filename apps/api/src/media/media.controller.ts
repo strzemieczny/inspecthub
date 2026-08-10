@@ -51,6 +51,9 @@ export class MediaController {
   async getObject(@Query('name') objectName?: string) {
     if (!objectName) throw new BadRequestException('Wymagana jest nazwa pliku');
     const { stream, contentType } = await this.media.getObject(objectName);
-    return new StreamableFile(stream, { type: contentType });
+    return new StreamableFile(stream, {
+      type: contentType,
+      disposition: 'inline',
+    });
   }
 }

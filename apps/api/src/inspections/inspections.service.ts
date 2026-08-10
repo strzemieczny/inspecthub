@@ -733,8 +733,13 @@ export class InspectionsService {
       ['answers', 'Odpowiedzi'],
     ] as const;
     if (format === 'csv') {
-      const escape = (value: unknown) =>
-        `"${String(value instanceof Date ? value.toISOString() : value).replaceAll('"', '""')}"`;
+      const escape = (value: unknown) => {
+        const text = String(
+          value instanceof Date ? value.toISOString() : value,
+        );
+        const safeText = /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+        return `"${safeText.replaceAll('"', '""')}"`;
+      };
       const csv = [
         columns.map(([, label]) => escape(label)).join(';'),
         ...exportRows.map((row) =>

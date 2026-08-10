@@ -155,10 +155,13 @@ model InspectionResult {
   operator             User?              @relation("OperatorInspections", fields: [operatorId], references: [id])
 
   @@index([formId])
+  @@index([formId, createdAt])
   @@index([operatorId])
   @@index([vinOrSerialNumber])
   @@index([originalInspectionId])
   @@index([mesSynced])
+  @@index([createdAt])
+  @@index([stationId, createdAt])
 }
 
 model ScadaSettings {
