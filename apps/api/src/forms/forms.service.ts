@@ -15,7 +15,7 @@ export class FormsService {
         code: dto.code.trim().toUpperCase(),
         version: 1,
         allowedStatuses: dto.allowedStatuses,
-        questions: dto.questions as unknown as Prisma.InputJsonValue,
+        questions: this.portableQuestions(dto.questions),
         processes: {
           connect: dto.processIds.map((id) => ({ id })),
         },
@@ -82,7 +82,7 @@ export class FormsService {
           (dto.allowedStatuses as Prisma.InputJsonValue | undefined) ??
           (latest.allowedStatuses as Prisma.InputJsonValue),
         questions:
-          (dto.questions as unknown as Prisma.InputJsonValue | undefined) ??
+          (dto.questions ? this.portableQuestions(dto.questions) : undefined) ??
           (latest.questions as Prisma.InputJsonValue),
         processes: {
           connect: (
@@ -145,5 +145,29 @@ export class FormsService {
       createdAt: form.createdAt.toISOString(),
       archivedAt: form.archivedAt?.toISOString() ?? null,
     };
+  }
+
+  private portableQuestions(
+    questions: InspectionQuestion[],
+  ): Prisma.InputJsonValue {
+    return questions.map((question) => ({
+      ...question,
+      instructionImageUrl: this.portableMediaUrl(question.instructionImageUrl),
+      okImageUrl: this.portableMediaUrl(question.okImageUrl),
+      nokImageUrl: this.portableMediaUrl(question.nokImageUrl),
+    })) as unknown as Prisma.InputJsonValue;
+  }
+
+  private portableMediaUrl(url?: string): string | undefined {
+    if (!url) return undefined;
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname === '/api/media/object') {
+        return `${parsed.pathname}${parsed.search}`;
+      }
+    } catch {
+      // Już zapisany adres względny pozostaje bez zmian.
+    }
+    return url;
   }
 }

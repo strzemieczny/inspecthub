@@ -20,11 +20,17 @@ export class MediaController {
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 20 * 1024 * 1024 },
       fileFilter: (_request, file, callback) =>
         callback(
           null,
-          ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype),
+          [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif',
+          ].includes(file.mimetype),
         ),
     }),
   )
@@ -33,7 +39,9 @@ export class MediaController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file)
-      throw new BadRequestException('Wymagany jest obraz JPEG, PNG lub WebP');
+      throw new BadRequestException(
+        'Wymagany jest obraz JPEG, PNG, WebP, HEIC lub HEIF',
+      );
     const { objectName } = await this.media.upload(file);
     const url = `${request.protocol}://${request.get('host')}/api/media/object?name=${encodeURIComponent(objectName)}`;
     return { objectName, url };
