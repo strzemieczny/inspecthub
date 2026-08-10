@@ -1,8 +1,5 @@
 # Inspect Hub
 
-Pełna dokumentacja techniczna i operacyjna znajduje się w
-[`docs/README.md`](docs/README.md).
-
 Inspect Hub to aplikacja do cyfrowej obsługi kontroli jakości na stanowiskach
 produkcyjnych. Łączy konfigurowalne formularze inspekcji, identyfikację
 stanowisk i operatorów oraz publiczny dashboard wyników w jednym systemie.
@@ -10,6 +7,53 @@ stanowisk i operatorów oraz publiczny dashboard wyników w jednym systemie.
 Projekt jest monorepo opartym na Turborepo. Frontend powstał w React i Vite,
 API w NestJS, a warstwa danych korzysta z PostgreSQL i Prisma. Zdjęcia z
 inspekcji są przechowywane w kompatybilnym z S3 MinIO.
+
+## Dokumentacja
+
+Główny README pozwala szybko uruchomić i ocenić projekt. Szczegółowa
+dokumentacja techniczna i operacyjna znajduje się w katalogu
+[`docs/`](docs/README.md).
+
+| Obszar                             | Dokument                                   |
+| ---------------------------------- | ------------------------------------------ |
+| Komponenty i przepływy             | [Architektura](docs/architecture.md)       |
+| Encje i reguły biznesowe           | [Model domenowy](docs/domain-model.md)     |
+| Endpointy, uprawnienia i przykłady | [API REST](docs/api.md)                    |
+| Zmienne środowiskowe               | [Konfiguracja](docs/configuration.md)      |
+| Uruchomienie i standardy pracy     | [Rozwój i testowanie](docs/development.md) |
+| Granice zaufania i hardening       | [Bezpieczeństwo](docs/security.md)         |
+| Release, migracje i rollback       | [Wdrożenie](docs/deployment.md)            |
+| Monitoring, backup i incydenty     | [Operacje](docs/operations.md)             |
+| SCADA, APACS, MinIO i WebSocket    | [Integracje](docs/integrations.md)         |
+
+Sugerowane ścieżki:
+
+- developer: [rozwój](docs/development.md) → [architektura](docs/architecture.md)
+  → [API](docs/api.md),
+- administrator systemu: [konfiguracja](docs/configuration.md) →
+  [operacje](docs/operations.md),
+- release manager: [wdrożenie](docs/deployment.md) →
+  [bezpieczeństwo](docs/security.md).
+
+## Status release
+
+Repozytorium zawiera produkcyjną walidację konfiguracji, migracje Prisma,
+prywatną konfigurację MinIO oraz zamrożony lockfile bez znanych podatności
+produkcyjnych w ostatniej bramce release. Przed każdym wdrożeniem należy
+ponownie wykonać:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm exec prettier --check "**/*.{ts,tsx,md}"
+pnpm check-types
+pnpm lint
+pnpm build
+pnpm --filter api test -- --runInBand
+pnpm audit --prod
+```
+
+Szczegółowa checklista przedwdrożeniowa znajduje się w
+[dokumentacji wdrożenia](docs/deployment.md#warunki-releaseu).
 
 ## Możliwości
 
@@ -20,8 +64,9 @@ inspekcji są przechowywane w kompatybilnym z S3 MinIO.
 - identyfikacja stanowiska na podstawie kodu oraz zapamiętanie urządzenia,
 - zarządzanie stanowiskami, użytkownikami i rolami z panelu administratora,
 - uwierzytelnianie JWT i autoryzacja oparta na rolach `ADMIN` / `OPERATOR`,
-- route check i przekazywanie wyników do systemu SCADA.
-- ustrukturyzowane logi techniczne i trwały dziennik zdarzeń jakościowych/audytowych.
+- route check i przekazywanie wyników do systemu SCADA,
+- ustrukturyzowane logi techniczne i trwały dziennik zdarzeń
+  jakościowych/audytowych,
 - dashboard alertów jakościowych w czasie rzeczywistym: serie NOK i krytyczne
   niezgodności z pytań oznaczonych jako cechy krytyczne.
 
