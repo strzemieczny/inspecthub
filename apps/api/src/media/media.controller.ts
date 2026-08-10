@@ -1,24 +1,23 @@
 import {
   BadRequestException,
   Controller,
+  Get,
   Post,
+  Query,
+  Req,
+  StreamableFile,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import type { Request } from 'express';
 import { MediaService } from './media.service';
 
 @Controller('media')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post('upload')
-  @Roles('ADMIN', 'OPERATOR')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -29,9 +28,21 @@ export class MediaController {
         ),
     }),
   )
-  upload(@UploadedFile() file?: Express.Multer.File) {
+  async upload(
+    @Req() request: Request,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     if (!file)
       throw new BadRequestException('Wymagany jest obraz JPEG, PNG lub WebP');
-    return this.media.upload(file);
+    const { objectName } = await this.media.upload(file);
+    const url = `${request.protocol}://${request.get('host')}/api/media/object?name=${encodeURIComponent(objectName)}`;
+    return { objectName, url };
+  }
+
+  @Get('object')
+  async getObject(@Query('name') objectName?: string) {
+    if (!objectName) throw new BadRequestException('Wymagana jest nazwa pliku');
+    const { stream, contentType } = await this.media.getObject(objectName);
+    return new StreamableFile(stream, { type: contentType });
   }
 }

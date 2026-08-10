@@ -8,7 +8,10 @@ async function bootstrap() {
   if (process.env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? (process.env.WEB_ORIGIN ?? false)
+        : true,
     credentials: true,
   });
   app.useGlobalPipes(
@@ -18,6 +21,6 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 3000, process.env.HOST ?? 'localhost');
 }
 void bootstrap();

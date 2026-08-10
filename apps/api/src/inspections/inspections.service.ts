@@ -3,20 +3,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '@inspect-hub/database';
 import type {
+  InspectionAnswer,
   InspectionQuestion,
-  MesTraceabilityPayload,
+  PublicAnswerAssessment,
+  PublicInspectionReport,
 } from '@inspect-hub/types';
 import { DatabaseService } from '../database/database.service';
-import { MesConnectorService } from '../mes-connector/mes-connector.service';
+import { ScadaConnectorService } from '../scada-connector/scada-connector.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 
 @Injectable()
 export class InspectionsService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly mesConnector: MesConnectorService,
+    private readonly scadaConnector: ScadaConnectorService,
   ) {}
 
   async getPublicDashboard() {
@@ -38,10 +41,9 @@ export class InspectionsService {
         },
       }),
       this.database.inspectionResult.findMany({
-        take: 7,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true,
+          publicReportId: true,
           vinOrSerialNumber: true,
           stationId: true,
           status: true,
@@ -122,7 +124,7 @@ export class InspectionsService {
     };
   }
 
-  async create(dto: CreateInspectionDto, operatorId: string) {
+  async create(dto: CreateInspectionDto, operatorId: string | null) {
     const form = await this.database.form.findUnique({
       where: { id: dto.formId },
       include: { processes: true },
@@ -151,6 +153,35 @@ export class InspectionsService {
       );
     }
 
+    const scadaSettings = await this.scadaConnector.getSettings();
+    const routeCheck = dto.routeCheckId
+      ? await this.database.routeCheck.findUnique({
+          where: { id: dto.routeCheckId },
+        })
+      : null;
+    const scadaRequired =
+      scadaSettings.enabled ||
+      (process.env.NODE_ENV !== 'production' &&
+        process.env.NODE_ENV !== 'test');
+    if (scadaRequired) {
+      if (!routeCheck?.allowed) {
+        throw new BadRequestException('Brak ważnej zgody SCADA na inspekcję');
+      }
+      if (
+        routeCheck.serialNumber !== dto.vinOrSerialNumber.trim() ||
+        routeCheck.stationCode !== stationId ||
+        routeCheck.processName !== managedStation.process!.name
+      ) {
+        throw new BadRequestException('Zgoda SCADA nie dotyczy tej inspekcji');
+      }
+      const existing = await this.database.inspectionResult.findUnique({
+        where: { routeCheckId: routeCheck.id },
+        select: { id: true },
+      });
+      if (existing)
+        throw new BadRequestException('Zgoda SCADA została już wykorzystana');
+    }
+
     const statuses = form.allowedStatuses as string[];
     if (!statuses.includes(dto.status)) {
       throw new BadRequestException(
@@ -172,38 +203,180 @@ export class InspectionsService {
       );
     }
 
-    const result = await this.database.inspectionResult.create({
-      data: {
-        formId: form.id,
-        vinOrSerialNumber: dto.vinOrSerialNumber,
-        stationId,
-        operatorId,
-        status: dto.status,
-        answers: dto.answers as unknown as Prisma.InputJsonValue,
+    const publicReportId = randomUUID();
+    const resultValue = this.isPassed(dto.status) ? 'PASS' : 'FAIL';
+    const reportUrl = `${scadaSettings.publicWebUrl.replace(/\/+$/, '')}/reports/${publicReportId}`;
+    const result = await this.database.$transaction(async (database) => {
+      const created = await database.inspectionResult.create({
+        data: {
+          publicReportId,
+          formId: form.id,
+          vinOrSerialNumber: dto.vinOrSerialNumber.trim(),
+          stationId,
+          operatorId,
+          status: dto.status,
+          answers: dto.answers as unknown as Prisma.InputJsonValue,
+          routeCheckId: routeCheck?.id,
+          partNumber: routeCheck?.partNumber,
+          productFamily: routeCheck?.productFamily,
+          scadaServerUrl: routeCheck?.serverUrl,
+          mesSynced: !scadaSettings.enabled,
+        },
+      });
+      if (scadaSettings.enabled) {
+        await database.scadaDelivery.create({
+          data: {
+            inspectionResultId: created.id,
+            payload: {
+              serialNumber: created.vinOrSerialNumber,
+              processName: managedStation.process!.name,
+              result: resultValue,
+              reportUrl,
+            },
+          },
+        });
+      }
+      return created;
+    });
+    if (scadaSettings.enabled) void this.scadaConnector.processPending();
+    return result;
+  }
+
+  async getPublicReport(
+    publicReportId: string,
+  ): Promise<PublicInspectionReport> {
+    const result = await this.database.inspectionResult.findUnique({
+      where: { publicReportId },
+      select: {
+        publicReportId: true,
+        vinOrSerialNumber: true,
+        stationId: true,
+        status: true,
+        answers: true,
+        mesSynced: true,
+        partNumber: true,
+        productFamily: true,
+        scadaServerUrl: true,
+        createdAt: true,
+        operator: { select: { name: true } },
+        form: {
+          select: {
+            code: true,
+            title: true,
+            version: true,
+            questions: true,
+          },
+        },
       },
     });
+    if (!result) throw new NotFoundException('Nie znaleziono raportu');
 
-    const passedCount = dto.answers.filter(
-      (answer) => answer.value === true,
-    ).length;
-    const failedCount = dto.answers.filter(
-      (answer) => answer.value === false,
-    ).length;
-    const payload: MesTraceabilityPayload = {
-      vinOrSerialNumber: result.vinOrSerialNumber,
-      stationId: result.stationId,
-      operatorId,
-      formCode: form.code,
-      status: result.status,
-      summary: { totalQuestions: questions.length, passedCount, failedCount },
-      completedAt: result.createdAt,
+    const station = await this.database.station.findUnique({
+      where: { code: result.stationId },
+      select: {
+        name: true,
+        process: { select: { name: true } },
+      },
+    });
+    const questions = result.form.questions as unknown as InspectionQuestion[];
+    const savedAnswers = result.answers as unknown as InspectionAnswer[];
+    const answerMap = new Map(
+      savedAnswers.map((answer) => [answer.questionId, answer.value]),
+    );
+    const answers = questions.map((question) => {
+      const value = answerMap.get(question.id) ?? null;
+      return {
+        questionId: question.id,
+        label: question.label,
+        type: question.type,
+        value,
+        assessment: this.assessAnswer(question, value),
+        imageUrl:
+          question.type === 'PHOTO_UPLOAD' && typeof value === 'string'
+            ? value
+            : null,
+      };
+    });
+
+    return {
+      publicReportId: result.publicReportId,
+      serialNumber: result.vinOrSerialNumber,
+      result: result.status,
+      completedAt: result.createdAt.toISOString(),
+      station: { code: result.stationId, name: station?.name ?? null },
+      process: station?.process?.name ?? null,
+      // Operator names are already presented as report data in the station UI.
+      operatorName: result.operator?.name ?? null,
+      form: {
+        code: result.form.code,
+        name: result.form.title,
+        version: result.form.version,
+      },
+      partNumber: result.partNumber,
+      productFamily: result.productFamily,
+      scadaUnitHistoryUrl: this.scadaUnitHistoryUrl(
+        result.scadaServerUrl,
+        result.vinOrSerialNumber,
+      ),
+      answers,
+      summary: {
+        total: questions.length,
+        passed: answers.filter((answer) => answer.assessment === 'OK').length,
+        failed: answers.filter((answer) => answer.assessment === 'NOK').length,
+      },
+      externalSyncStatus: result.mesSynced ? 'SYNCED' : 'PENDING',
     };
-    await this.mesConnector.sendTraceabilityData(result.id, payload);
+  }
 
-    return { ...result, mesSynced: true };
+  private assessAnswer(
+    question: InspectionQuestion,
+    value: InspectionAnswer['value'],
+  ): PublicAnswerAssessment {
+    if (question.type === 'CHECKBOX' && typeof value === 'boolean') {
+      return value ? 'OK' : 'NOK';
+    }
+    if (
+      question.type === 'NUMBER_RANGE' &&
+      typeof value === 'number' &&
+      question.range
+    ) {
+      return value >= question.range.min && value <= question.range.max
+        ? 'OK'
+        : 'NOK';
+    }
+    if (question.expectedValue !== undefined && value !== null) {
+      return value === question.expectedValue ? 'OK' : 'NOK';
+    }
+    return null;
+  }
+
+  private scadaUnitHistoryUrl(
+    serverUrl: string | null,
+    serialNumber: string,
+  ): string | null {
+    if (!serverUrl?.trim()) return null;
+    const normalizedServerUrl = /^https?:\/\//i.test(serverUrl)
+      ? serverUrl
+      : `http://${serverUrl}`;
+    try {
+      const historyUrl = new URL(
+        'unithistory',
+        `${normalizedServerUrl.replace(/\/+$/, '')}/`,
+      );
+      historyUrl.searchParams.set('unit', serialNumber);
+      return historyUrl.toString();
+    } catch {
+      return null;
+    }
   }
 
   private hasValue(value: unknown): boolean {
     return value !== undefined && value !== null && value !== '';
+  }
+
+  private isPassed(status: string): boolean {
+    return ['PASSED', 'PASS', 'OK', 'ZDAŁ', 'ZDAL'].includes(
+      status.toUpperCase(),
+    );
   }
 }

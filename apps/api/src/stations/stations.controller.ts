@@ -23,18 +23,17 @@ import {
 import { StationsService } from './stations.service';
 
 @Controller('stations')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class StationsController {
   constructor(private readonly stations: StationsService) {}
 
   @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'OPERATOR')
   findAll() {
     return this.stations.findAll();
   }
 
   @Get('current')
-  @Roles('ADMIN', 'OPERATOR')
   async current(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
@@ -48,7 +47,6 @@ export class StationsController {
   }
 
   @Post('identify')
-  @Roles('ADMIN', 'OPERATOR')
   async identify(
     @Body() dto: IdentifyStationDto,
     @Req() request: Request,
@@ -63,18 +61,21 @@ export class StationsController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   create(@Body() dto: CreateStationDto) {
     return this.stations.create(dto);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   update(@Param('id') id: string, @Body() dto: UpdateStationDto) {
     return this.stations.update(id, dto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @HttpCode(204)
   remove(@Param('id') id: string) {

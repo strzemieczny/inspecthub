@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
+import type { Readable } from 'node:stream';
 
 @Injectable()
 export class MediaService implements OnModuleInit {
@@ -26,9 +27,7 @@ export class MediaService implements OnModuleInit {
     }
   }
 
-  async upload(
-    file: Express.Multer.File,
-  ): Promise<{ objectName: string; url: string }> {
+  async upload(file: Express.Multer.File): Promise<{ objectName: string }> {
     const extension = extname(file.originalname).toLowerCase();
     const objectName = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}${extension}`;
     await this.client.putObject(
@@ -40,11 +39,22 @@ export class MediaService implements OnModuleInit {
         'Content-Type': file.mimetype,
       },
     );
-    const url = await this.client.presignedGetObject(
-      this.bucket,
-      objectName,
-      24 * 60 * 60,
-    );
-    return { objectName, url };
+    return { objectName };
+  }
+
+  async getObject(
+    objectName: string,
+  ): Promise<{ stream: Readable; contentType: string }> {
+    const stat = await this.client.statObject(this.bucket, objectName);
+    const stream = await this.client.getObject(this.bucket, objectName);
+    const metadata = stat.metaData as Record<string, unknown> | undefined;
+    const storedContentType = metadata?.['content-type'];
+    return {
+      stream,
+      contentType:
+        typeof storedContentType === 'string'
+          ? storedContentType
+          : 'application/octet-stream',
+    };
   }
 }

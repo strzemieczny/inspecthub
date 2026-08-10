@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDefined, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsDefined,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 export class InspectionAnswerDto {
   @IsString()
@@ -10,6 +16,10 @@ export class InspectionAnswerDto {
 }
 
 export class CreateInspectionDto {
+  @IsOptional()
+  @IsString()
+  routeCheckId?: string;
+
   @IsString()
   formId!: string;
 
