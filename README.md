@@ -167,9 +167,25 @@ Operacje bazodanowe:
 ```sh
 pnpm --filter @inspect-hub/database db:generate
 pnpm --filter @inspect-hub/database db:migrate
+pnpm --filter @inspect-hub/database db:migrate:deploy # produkcja / CI
 pnpm --filter @inspect-hub/database db:push
 pnpm --filter @inspect-hub/database db:studio
 ```
+
+## Wdrożenie produkcyjne
+
+Do infrastruktury produkcyjnej używaj `docker-compose.production.yaml`, nie
+lokalnego `docker-compose.yaml`. Konfiguracja produkcyjna nie publikuje portów
+PostgreSQL ani MinIO, wyłącza anonimowy dostęp do bucketu i wymaga jawnego
+podania wersjonowanych obrazów oraz sekretów. Przykład walidacji konfiguracji:
+
+```sh
+docker compose --env-file .env.production -f docker-compose.production.yaml config
+NODE_ENV=production pnpm --filter @inspect-hub/database db:migrate:deploy
+```
+
+API w trybie `NODE_ENV=production` odmawia startu, jeśli brakuje bezpiecznego
+`JWT_SECRET`, danych MinIO, `DATABASE_URL` lub poprawnego `WEB_ORIGIN`.
 
 ## Role i przepływ pracy
 

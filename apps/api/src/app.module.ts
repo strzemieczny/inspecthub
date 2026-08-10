@@ -11,12 +11,14 @@ import { ScadaConnectorModule } from './scada-connector/scada-connector.module';
 import { StationsModule } from './stations/stations.module';
 import { UsersModule } from './users/users.module';
 import { ObservabilityModule } from './observability/observability.module';
+import { validateEnvironment } from './config/environment.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['../../.env', '.env'],
+      validate: validateEnvironment,
     }),
     DatabaseModule,
     AuthModule,
