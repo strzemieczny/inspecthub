@@ -130,6 +130,9 @@ export class InspectionsService {
       include: { processes: true },
     });
     if (!form) throw new NotFoundException('Nie znaleziono formularza');
+    if (form.archivedAt) {
+      throw new BadRequestException('Formularz jest zarchiwizowany');
+    }
 
     const stationId = dto.stationId.trim().toUpperCase();
     const managedStation = await this.database.station.findUnique({

@@ -34,9 +34,7 @@ export interface InspectionQuestion {
   expectedValue?: Exclude<InspectionAnswerValue, null>;
   range?: NumberRange;
   /** Optional display copy keyed by ISO language code; Polish fields above are the source. */
-  translations?: Partial<
-    Record<"en" | "uk", InspectionQuestionTranslation>
-  >;
+  translations?: Partial<Record<"en" | "uk", InspectionQuestionTranslation>>;
 }
 
 export interface InspectionForm {
@@ -50,6 +48,8 @@ export interface InspectionForm {
   processIds: string[];
   /** Publication date of this immutable revision. */
   createdAt: string;
+  /** Date when the form and all its revisions were archived. */
+  archivedAt: string | null;
 }
 
 export interface InspectionProcess {

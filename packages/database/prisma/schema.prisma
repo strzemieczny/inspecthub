@@ -36,12 +36,14 @@ model Form {
   version           Int                @default(1)
   allowedStatuses   Json
   questions         Json
+  archivedAt        DateTime?
   processes         Process[]          @relation("FormProcesses")
   createdAt         DateTime           @default(now())
   inspectionResults InspectionResult[]
 
   @@unique([code, version])
   @@index([code])
+  @@index([archivedAt])
 }
 
 model Process {

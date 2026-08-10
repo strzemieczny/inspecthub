@@ -27,6 +27,7 @@ export class FormsService {
 
   async findAll(stationId?: string): Promise<InspectionForm[]> {
     const forms = await this.database.form.findMany({
+      where: { archivedAt: null },
       orderBy: [{ code: 'asc' }, { version: 'desc' }],
       include: { processes: true },
     });
@@ -62,6 +63,8 @@ export class FormsService {
   async update(id: string, dto: UpdateFormDto): Promise<InspectionForm> {
     const source = await this.database.form.findUnique({ where: { id } });
     if (!source) throw new NotFoundException('Nie znaleziono formularza');
+    if (source.archivedAt)
+      throw new NotFoundException('Formularz jest zarchiwizowany');
 
     const latest = await this.database.form.findFirst({
       where: { code: source.code },
@@ -111,6 +114,15 @@ export class FormsService {
     await this.database.form.delete({ where: { id } });
   }
 
+  async archive(id: string): Promise<void> {
+    const form = await this.database.form.findUnique({ where: { id } });
+    if (!form) throw new NotFoundException('Nie znaleziono formularza');
+    await this.database.form.updateMany({
+      where: { code: form.code, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+  }
+
   private toContract(form: {
     id: string;
     title: string;
@@ -120,6 +132,7 @@ export class FormsService {
     questions: Prisma.JsonValue;
     processes: { id: string }[];
     createdAt: Date;
+    archivedAt: Date | null;
   }): InspectionForm {
     return {
       id: form.id,
@@ -130,6 +143,7 @@ export class FormsService {
       questions: form.questions as unknown as InspectionQuestion[],
       processIds: form.processes.map((process) => process.id),
       createdAt: form.createdAt.toISOString(),
+      archivedAt: form.archivedAt?.toISOString() ?? null,
     };
   }
 }

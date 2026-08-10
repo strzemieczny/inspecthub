@@ -51,6 +51,14 @@ export class FormsController {
     return this.forms.update(id, dto);
   }
 
+  @Patch(':id/archive')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @HttpCode(204)
+  archive(@Param('id') id: string) {
+    return this.forms.archive(id);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
