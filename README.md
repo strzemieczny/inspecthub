@@ -19,6 +19,8 @@ inspekcji są przechowywane w kompatybilnym z S3 MinIO.
 - uwierzytelnianie JWT i autoryzacja oparta na rolach `ADMIN` / `OPERATOR`,
 - route check i przekazywanie wyników do systemu SCADA.
 - ustrukturyzowane logi techniczne i trwały dziennik zdarzeń jakościowych/audytowych.
+- dashboard alertów jakościowych w czasie rzeczywistym: serie NOK i krytyczne
+  niezgodności z pytań oznaczonych jako cechy krytyczne.
 
 ## Architektura
 
@@ -174,8 +176,20 @@ pnpm --filter @inspect-hub/database db:studio
 - `ADMIN` konfiguruje formularze, procesy i stanowiska oraz zarządza kontami.
 - `OPERATOR` identyfikuje stanowisko, wybiera dostępny dla niego formularz i
   zapisuje wynik inspekcji.
-- Dashboard publiczny prezentuje zagregowane wyniki bez ujawniania pełnych
-  numerów VIN lub numerów seryjnych.
+- Dashboard publiczny prezentuje zagregowane wyniki oraz pełne numery VIN lub
+  numery seryjne zgodnie z wymaganiami procesu.
+
+## API analityczne i eksport
+
+- `GET /api/inspections/analytics/v1` — wersjonowane dane analityczne JSON,
+- `GET /api/inspections/analytics/v1/export?format=csv` — dane inspekcji CSV,
+- `GET /api/inspections/analytics/v1/export?format=xlsx` — arkusz Excel,
+- `GET /api/inspections/analytics/v1/export?format=pdf` — raport PDF.
+
+Endpointy przyjmują filtry dashboardu: `from`, `to`, `processId`, `stationId`,
+`formCode`, `formIds` (identyfikatory oddzielone przecinkami), `result` oraz
+`search`. Maksymalny zakres wynosi 366 dni, a eksport tabelaryczny obejmuje do
+50 000 najnowszych inspekcji spełniających kryteria.
 
 Connector SCADA wykonuje synchroniczny route check po zeskanowaniu numeru
 seryjnego i asynchronicznie przekazuje wynik zakończonej inspekcji wraz z
