@@ -10,6 +10,7 @@ import { MediaModule } from './media/media.module';
 import { ScadaConnectorModule } from './scada-connector/scada-connector.module';
 import { StationsModule } from './stations/stations.module';
 import { UsersModule } from './users/users.module';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
     }),
     DatabaseModule,
     AuthModule,
+    ObservabilityModule,
     MediaModule,
     ScadaConnectorModule,
     FormsModule,

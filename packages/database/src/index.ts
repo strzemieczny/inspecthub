@@ -1,1 +1,7 @@
-export { Prisma, PrismaClient, Role } from '@prisma/client';
+export {
+  EventOutcome,
+  EventSeverity,
+  Prisma,
+  PrismaClient,
+  Role,
+} from "@prisma/client";

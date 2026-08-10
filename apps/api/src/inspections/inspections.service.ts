@@ -14,12 +14,15 @@ import type {
 import { DatabaseService } from '../database/database.service';
 import { ScadaConnectorService } from '../scada-connector/scada-connector.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
+import { EventsService } from '../observability/events.service';
+import { EventOutcome, EventSeverity } from '@inspect-hub/database';
 
 @Injectable()
 export class InspectionsService {
   constructor(
     private readonly database: DatabaseService,
     private readonly scadaConnector: ScadaConnectorService,
+    private readonly events: EventsService,
   ) {}
 
   async getPublicDashboard() {
@@ -245,6 +248,28 @@ export class InspectionsService {
           },
         });
       }
+      await database.auditEvent.create({
+        data: this.events.buildData({
+          type: 'INSPECTION_COMPLETED',
+          category: 'QUALITY',
+          severity: this.isPassed(status)
+            ? EventSeverity.INFO
+            : EventSeverity.WARNING,
+          outcome: EventOutcome.SUCCESS,
+          actorId: operatorId ?? undefined,
+          actorType: operatorId ? 'USER' : 'ANONYMOUS',
+          stationCode: stationId,
+          entityType: 'InspectionResult',
+          entityId: created.id,
+          payload: {
+            formCode: form.code,
+            formVersion: form.version,
+            status,
+            routeCheckId: routeCheck?.id,
+            scadaDeliveryRequired: scadaSettings.enabled,
+          },
+        }),
+      });
       return created;
     });
     if (scadaSettings.enabled) void this.scadaConnector.processPending();

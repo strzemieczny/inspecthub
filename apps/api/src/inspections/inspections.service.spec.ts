@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ScadaConnectorService } from '../scada-connector/scada-connector.service';
 import { InspectionsService } from './inspections.service';
+import { EventsService } from '../observability/events.service';
 
 describe('InspectionsService public reports', () => {
   const publicReportId = '9f466df4-ffbc-47ad-96c2-4b633f06a334';
@@ -11,6 +12,7 @@ describe('InspectionsService public reports', () => {
   const transactionClient = {
     inspectionResult: { create: createResult },
     scadaDelivery: { create: jest.fn() },
+    auditEvent: { create: jest.fn() },
   };
   const runTransaction = (
     callback: (client: typeof transactionClient) => Promise<unknown>,
@@ -32,7 +34,10 @@ describe('InspectionsService public reports', () => {
     }),
     processPending: jest.fn(),
   } as unknown as ScadaConnectorService;
-  const service = new InspectionsService(database, scadaConnector);
+  const events = {
+    buildData: jest.fn().mockReturnValue({}),
+  } as unknown as EventsService;
+  const service = new InspectionsService(database, scadaConnector, events);
 
   beforeEach(() => jest.clearAllMocks());
 
