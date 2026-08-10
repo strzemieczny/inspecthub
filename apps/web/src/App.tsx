@@ -39,6 +39,39 @@ const emptyQuestion = (): InspectionQuestion => ({
   isRequired: true,
 });
 
+function parseOptionsInput(value: string): string[] {
+  return value.split(",");
+}
+
+function normalizeOptions(options?: string[]): string[] | undefined {
+  return options?.map((option) => option.trim()).filter(Boolean);
+}
+
+function removeEmptyOptions(question: InspectionQuestion): InspectionQuestion {
+  if (question.type !== "SELECT") return question;
+  return {
+    ...question,
+    options: normalizeOptions(question.options),
+    translations: question.translations
+      ? {
+          ...question.translations,
+          en: question.translations.en
+            ? {
+                ...question.translations.en,
+                options: normalizeOptions(question.translations.en.options),
+              }
+            : undefined,
+          uk: question.translations.uk
+            ? {
+                ...question.translations.uk,
+                options: normalizeOptions(question.translations.uk.options),
+              }
+            : undefined,
+        }
+      : undefined,
+  };
+}
+
 function localizeQuestion(
   question: InspectionQuestion,
   language: Language,
@@ -1222,6 +1255,27 @@ function AdminPanel() {
     }
   }
 
+  async function archiveForm(form: InspectionForm) {
+    if (!window.confirm(t("confirm.archiveForm", { title: form.title })))
+      return;
+    setBusy(true);
+    try {
+      await api<void>(`/forms/${form.id}/archive`, { method: "PATCH" });
+      if (editingForm?.code === form.code) {
+        setEditingForm(null);
+        setRevisions([]);
+      }
+      await loadForms();
+      setNotice(t("notice.formArchived"));
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error ? reason.message : t("notice.archiveError"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function startNewForm() {
     const draft = readNewFormDraft();
     setSection("forms-new");
@@ -1337,7 +1391,7 @@ function AdminPanel() {
             title,
             ...(!editingForm ? { code } : {}),
             allowedStatuses: statuses.filter(Boolean),
-            questions,
+            questions: questions.map(removeEmptyOptions),
             processIds,
           }),
         },
@@ -1575,13 +1629,24 @@ function AdminPanel() {
                           processes: form.processIds.length,
                         })}
                       </small>
-                      <button
-                        className="secondary"
-                        type="button"
-                        onClick={() => void editForm(form)}
-                      >
-                        {t("form.edit")}
-                      </button>
+                      <div className="form-actions">
+                        <button
+                          className="secondary"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void editForm(form)}
+                        >
+                          {t("form.edit")}
+                        </button>
+                        <button
+                          className="secondary archive-button"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void archiveForm(form)}
+                        >
+                          {t("form.archive")}
+                        </button>
+                      </div>
                     </article>
                   ))}
                   {forms.length === 0 && (
@@ -1732,58 +1797,79 @@ function AdminPanel() {
                           <small>{t("form.translationsHelp")}</small>
                         </summary>
                         <div className="translation-grid">
-                          {(["en", "uk"] as const).map((translationLanguage) => {
-                            const translation = question.translations?.[translationLanguage];
-                            return (
-                              <fieldset key={translationLanguage}>
-                                <legend>
-                                  {translationLanguage === "en"
-                                    ? t("language.english")
-                                    : t("language.ukrainian")}
-                                </legend>
-                                <label>
-                                  {t("form.translatedLabel")}
-                                  <input
-                                    value={translation?.label ?? ""}
-                                    onChange={(event) =>
-                                      updateQuestionTranslation(question, translationLanguage, {
-                                        label: event.target.value,
-                                      })
-                                    }
-                                    placeholder={question.label || t("form.questionPlaceholder")}
-                                  />
-                                </label>
-                                <label>
-                                  {t("form.translatedDescription")}
-                                  <textarea
-                                    value={translation?.description ?? ""}
-                                    onChange={(event) =>
-                                      updateQuestionTranslation(question, translationLanguage, {
-                                        description: event.target.value,
-                                      })
-                                    }
-                                  />
-                                </label>
-                                {question.type === "SELECT" && (
+                          {(["en", "uk"] as const).map(
+                            (translationLanguage) => {
+                              const translation =
+                                question.translations?.[translationLanguage];
+                              return (
+                                <fieldset key={translationLanguage}>
+                                  <legend>
+                                    {translationLanguage === "en"
+                                      ? t("language.english")
+                                      : t("language.ukrainian")}
+                                  </legend>
                                   <label>
-                                    {t("form.translatedOptions")}
+                                    {t("form.translatedLabel")}
                                     <input
-                                      value={translation?.options?.join(", ") ?? ""}
+                                      value={translation?.label ?? ""}
                                       onChange={(event) =>
-                                        updateQuestionTranslation(question, translationLanguage, {
-                                          options: event.target.value
-                                            .split(",")
-                                            .map((value) => value.trim())
-                                            .filter(Boolean),
-                                        })
+                                        updateQuestionTranslation(
+                                          question,
+                                          translationLanguage,
+                                          {
+                                            label: event.target.value,
+                                          },
+                                        )
                                       }
-                                      placeholder={question.options?.join(", ")}
+                                      placeholder={
+                                        question.label ||
+                                        t("form.questionPlaceholder")
+                                      }
                                     />
                                   </label>
-                                )}
-                              </fieldset>
-                            );
-                          })}
+                                  <label>
+                                    {t("form.translatedDescription")}
+                                    <textarea
+                                      value={translation?.description ?? ""}
+                                      onChange={(event) =>
+                                        updateQuestionTranslation(
+                                          question,
+                                          translationLanguage,
+                                          {
+                                            description: event.target.value,
+                                          },
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  {question.type === "SELECT" && (
+                                    <label>
+                                      {t("form.translatedOptions")}
+                                      <input
+                                        value={
+                                          translation?.options?.join(",") ?? ""
+                                        }
+                                        onChange={(event) =>
+                                          updateQuestionTranslation(
+                                            question,
+                                            translationLanguage,
+                                            {
+                                              options: parseOptionsInput(
+                                                event.target.value,
+                                              ),
+                                            },
+                                          )
+                                        }
+                                        placeholder={question.options?.join(
+                                          ", ",
+                                        )}
+                                      />
+                                    </label>
+                                  )}
+                                </fieldset>
+                              );
+                            },
+                          )}
                         </div>
                       </details>
                       <div className="inline-fields">
@@ -1828,13 +1914,10 @@ function AdminPanel() {
                         <label>
                           {t("form.options")}
                           <input
-                            value={question.options?.join(", ") ?? ""}
+                            value={question.options?.join(",") ?? ""}
                             onChange={(e) =>
                               updateQuestion(question.id, {
-                                options: e.target.value
-                                  .split(",")
-                                  .map((v) => v.trim())
-                                  .filter(Boolean),
+                                options: parseOptionsInput(e.target.value),
                               })
                             }
                           />
@@ -2335,23 +2418,30 @@ function OperatorPanel({
       );
     if (question.type === "SELECT")
       return (
-        <select
-          {...common}
-          value={String(answers[question.id] ?? "")}
-          onChange={(e) =>
-            setAnswers({ ...answers, [question.id]: e.target.value })
-          }
-        >
-          <option value="">{t("inspection.select")}</option>
-          {question.options?.map((option, index) => (
-            <option
-              value={currentQuestionSource?.options?.[index] ?? option}
-              key={currentQuestionSource?.options?.[index] ?? option}
-            >
-              {option}
-            </option>
-          ))}
-        </select>
+        <div className="radio-options" role="radiogroup">
+          {question.options?.map((option, index) => {
+            const value = currentQuestionSource?.options?.[index] ?? option;
+            return (
+              <label
+                className={`radio-option${answers[question.id] === value ? " selected" : ""}`}
+                key={value}
+              >
+                <input
+                  {...common}
+                  type="radio"
+                  name={`question-${question.id}`}
+                  value={value}
+                  checked={answers[question.id] === value}
+                  onChange={() =>
+                    setAnswers({ ...answers, [question.id]: value })
+                  }
+                />
+                <span className="radio-indicator" aria-hidden="true" />
+                <span>{option}</span>
+              </label>
+            );
+          })}
+        </div>
       );
     if (question.type === "PHOTO_UPLOAD")
       return (
@@ -2856,7 +2946,8 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
       return value ? t("common.yes") : t("common.no");
     if (typeof value === "string" && language !== "pl") {
       const optionIndex = answer.options?.indexOf(value) ?? -1;
-      const translated = answer.translations?.[language]?.options?.[optionIndex];
+      const translated =
+        answer.translations?.[language]?.options?.[optionIndex];
       if (translated) return translated;
     }
     return String(value);
