@@ -185,13 +185,6 @@ export class InspectionsService {
         throw new BadRequestException('Zgoda SCADA została już wykorzystana');
     }
 
-    const statuses = form.allowedStatuses as string[];
-    if (!statuses.includes(dto.status)) {
-      throw new BadRequestException(
-        'Status nie jest dozwolony dla tego formularza',
-      );
-    }
-
     const questions = form.questions as unknown as InspectionQuestion[];
     const answerMap = new Map(
       dto.answers.map((answer) => [answer.questionId, answer.value]),
@@ -206,8 +199,21 @@ export class InspectionsService {
       );
     }
 
+    const statuses = form.allowedStatuses as string[];
+    const allExpectedValuesConfigured = questions.every(
+      (question) => question.expectedValue !== undefined,
+    );
+    const status = allExpectedValuesConfigured
+      ? this.automaticStatus(questions, answerMap, statuses)
+      : dto.status;
+    if (!statuses.includes(status)) {
+      throw new BadRequestException(
+        'Status nie jest dozwolony dla tego formularza',
+      );
+    }
+
     const publicReportId = randomUUID();
-    const resultValue = this.isPassed(dto.status) ? 'PASS' : 'FAIL';
+    const resultValue = this.isPassed(status) ? 'PASS' : 'FAIL';
     const reportUrl = `${scadaSettings.publicWebUrl.replace(/\/+$/, '')}/reports/${publicReportId}`;
     const result = await this.database.$transaction(async (database) => {
       const created = await database.inspectionResult.create({
@@ -217,7 +223,7 @@ export class InspectionsService {
           vinOrSerialNumber: dto.vinOrSerialNumber.trim(),
           stationId,
           operatorId,
-          status: dto.status,
+          status,
           answers: dto.answers as unknown as Prisma.InputJsonValue,
           routeCheckId: routeCheck?.id,
           partNumber: routeCheck?.partNumber,
@@ -337,8 +343,8 @@ export class InspectionsService {
     question: InspectionQuestion,
     value: InspectionAnswer['value'],
   ): PublicAnswerAssessment {
-    if (question.type === 'CHECKBOX' && typeof value === 'boolean') {
-      return value ? 'OK' : 'NOK';
+    if (question.expectedValue !== undefined && value !== null) {
+      return value === question.expectedValue ? 'OK' : 'NOK';
     }
     if (
       question.type === 'NUMBER_RANGE' &&
@@ -349,10 +355,26 @@ export class InspectionsService {
         ? 'OK'
         : 'NOK';
     }
-    if (question.expectedValue !== undefined && value !== null) {
-      return value === question.expectedValue ? 'OK' : 'NOK';
-    }
     return null;
+  }
+
+  private automaticStatus(
+    questions: InspectionQuestion[],
+    answers: Map<string, InspectionAnswer['value']>,
+    statuses: string[],
+  ): string {
+    const passed = questions.every(
+      (question) =>
+        answers.get(question.id) !== undefined &&
+        answers.get(question.id) === question.expectedValue,
+    );
+    const status = statuses.find((item) => this.isPassed(item) === passed);
+    if (!status) {
+      throw new BadRequestException(
+        `Formularz nie ma skonfigurowanego statusu ${passed ? 'pozytywnego' : 'negatywnego'}`,
+      );
+    }
+    return status;
   }
 
   private scadaUnitHistoryUrl(

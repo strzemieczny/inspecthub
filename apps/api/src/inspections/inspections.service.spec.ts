@@ -55,7 +55,13 @@ describe('InspectionsService public reports', () => {
         title: 'Kontrola końcowa',
         version: 3,
         questions: [
-          { id: 'q1', label: 'Mocowanie', type: 'CHECKBOX', isRequired: true },
+          {
+            id: 'q1',
+            label: 'Mocowanie',
+            type: 'CHECKBOX',
+            isRequired: true,
+            expectedValue: true,
+          },
           {
             id: 'q2',
             label: 'Wymiar',
@@ -137,5 +143,48 @@ describe('InspectionsService public reports', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(generatedIds[0]).not.toBe(generatedIds[1]);
+  });
+
+  it('determines the final status from answers when every expected value is configured', async () => {
+    (database.form.findUnique as jest.Mock).mockResolvedValue({
+      id: 'form-1',
+      code: 'QC-01',
+      allowedStatuses: ['PASSED', 'FAILED'],
+      questions: [
+        {
+          id: 'q1',
+          label: 'Mocowanie',
+          type: 'CHECKBOX',
+          isRequired: true,
+          expectedValue: true,
+        },
+      ],
+      processes: [{ id: 'process-1' }],
+    });
+    findUniqueStation.mockResolvedValue({
+      active: true,
+      processId: 'process-1',
+      process: { id: 'process-1' },
+    });
+    createResult.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ id: 'result-1', ...data }),
+    );
+
+    await service.create(
+      {
+        formId: 'form-1',
+        vinOrSerialNumber: 'SN-100',
+        stationId: 'ST-01',
+        status: 'PASSED',
+        answers: [{ questionId: 'q1', value: false }],
+      },
+      'operator-1',
+    );
+
+    const [createCall] = createResult.mock.calls as [
+      [{ data: { status: string } }],
+    ];
+    expect(createCall[0].data.status).toBe('FAILED');
   });
 });

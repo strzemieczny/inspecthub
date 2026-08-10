@@ -47,6 +47,12 @@ function normalizeOptions(options?: string[]): string[] | undefined {
   return options?.map((option) => option.trim()).filter(Boolean);
 }
 
+function isPassedStatus(status: string): boolean {
+  return ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
+    status.toUpperCase(),
+  );
+}
+
 function removeEmptyOptions(question: InspectionQuestion): InspectionQuestion {
   if (question.type !== "SELECT") return question;
   return {
@@ -2181,6 +2187,24 @@ function OperatorPanel({
   const currentQuestion = currentQuestionSource
     ? localizeQuestion(currentQuestionSource, language)
     : undefined;
+  const automaticStatus = useMemo(() => {
+    if (
+      !form ||
+      !form.questions.every(
+        (question) => question.expectedValue !== undefined,
+      )
+    )
+      return null;
+    const passed = form.questions.every(
+      (question) => answers[question.id] === question.expectedValue,
+    );
+    return (
+      form.allowedStatuses.find(
+        (candidate) => isPassedStatus(candidate) === passed,
+      ) ?? ""
+    );
+  }, [answers, form]);
+  const finalStatus = automaticStatus === null ? status : automaticStatus;
 
   useEffect(() => {
     void Promise.all([
@@ -2303,7 +2327,7 @@ function OperatorPanel({
           routeCheckId,
           vinOrSerialNumber: vin,
           stationId,
-          status,
+          status: finalStatus,
           answers: form.questions.map((q) => ({
             questionId: q.id,
             value: answers[q.id] ?? null,
@@ -2810,7 +2834,7 @@ function OperatorPanel({
                   {form.allowedStatuses.map((item) => (
                     <label
                       className={
-                        status === item
+                        finalStatus === item
                           ? "status-option selected"
                           : "status-option"
                       }
@@ -2820,8 +2844,9 @@ function OperatorPanel({
                         type="radio"
                         name="status"
                         value={item}
-                        checked={status === item}
+                        checked={finalStatus === item}
                         onChange={() => setStatus(item)}
+                        disabled={automaticStatus !== null}
                         required
                       />
                       <span>{item}</span>
