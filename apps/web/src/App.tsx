@@ -23,7 +23,7 @@ import {
   type SessionUser,
 } from "./lib/api";
 import "./App.css";
-import { SettingsMenu, useI18n } from "./lib/i18n";
+import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
 
 function createClientId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -38,6 +38,77 @@ const emptyQuestion = (): InspectionQuestion => ({
   type: "CHECKBOX",
   isRequired: true,
 });
+
+function localizeQuestion(
+  question: InspectionQuestion,
+  language: Language,
+): InspectionQuestion {
+  if (language === "pl") return question;
+  const translation = question.translations?.[language];
+  if (!translation) return question;
+  return {
+    ...question,
+    label: translation.label?.trim() || question.label,
+    description: translation.description?.trim() || question.description,
+    options:
+      translation.options?.length === question.options?.length
+        ? translation.options
+        : question.options,
+  };
+}
+
+const NEW_FORM_DRAFT_KEY = "inspect-hub-form-draft:new";
+
+type NewFormDraft = {
+  title: string;
+  code: string;
+  statuses: string[];
+  processIds: string[];
+  questions: InspectionQuestion[];
+  updatedAt: string;
+};
+
+function readNewFormDraft(): NewFormDraft | null {
+  try {
+    const value = localStorage.getItem(NEW_FORM_DRAFT_KEY);
+    if (!value) return null;
+    const draft = JSON.parse(value) as Partial<NewFormDraft>;
+    if (
+      typeof draft.title !== "string" ||
+      typeof draft.code !== "string" ||
+      !Array.isArray(draft.statuses) ||
+      !Array.isArray(draft.processIds) ||
+      !Array.isArray(draft.questions) ||
+      typeof draft.updatedAt !== "string"
+    )
+      return null;
+    return draft as NewFormDraft;
+  } catch {
+    return null;
+  }
+}
+
+function hasNewFormDraftContent(draft: Omit<NewFormDraft, "updatedAt">) {
+  return Boolean(
+    draft.title ||
+    draft.code ||
+    draft.processIds.length ||
+    draft.questions.length > 1 ||
+    draft.questions.some(
+      (question) =>
+        question.label ||
+        question.type !== "CHECKBOX" ||
+        !question.isRequired ||
+        question.options?.length ||
+        question.expectedValue !== undefined ||
+        question.range ||
+        question.okImageUrl ||
+        question.nokImageUrl ||
+        question.instructionImageUrl,
+    ) ||
+    draft.statuses.join("\0") !== "PASSED\0FAILED",
+  );
+}
 
 function AdminMenuIcon({
   type,
@@ -100,20 +171,14 @@ function ScadaSettingsPanel() {
       );
       setNotice(t("notice.scadaSaved"));
     } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : t("notice.saveError"),
-      );
+      setNotice(error instanceof Error ? error.message : t("notice.saveError"));
     } finally {
       setBusy(false);
     }
   }
 
   if (!settings)
-    return (
-      <section className="panel">{notice || t("scada.loading")}</section>
-    );
+    return <section className="panel">{notice || t("scada.loading")}</section>;
   const update = <K extends keyof ScadaSettings>(
     key: K,
     value: ScadaSettings[K],
@@ -128,9 +193,7 @@ function ScadaSettingsPanel() {
         <div className="scada-settings-title">
           <p className="eyebrow">{t("scada.eyebrow")}</p>
           <h2>Connector SCADA</h2>
-          <p>
-            {t("scada.description")}
-          </p>
+          <p>{t("scada.description")}</p>
         </div>
         <label className="scada-toggle">
           <input
@@ -147,9 +210,7 @@ function ScadaSettingsPanel() {
       <div className="scada-settings-body">
         <div className="scada-info">
           <span aria-hidden="true">↔</span>
-          <p>
-            {t("scada.info")}
-          </p>
+          <p>{t("scada.info")}</p>
         </div>
         <div className="settings-grid">
           <label>
@@ -208,9 +269,7 @@ function ScadaSettingsPanel() {
       </div>
       <footer className="scada-settings-actions">
         <span>
-          {settings.enabled
-            ? t("scada.liveHelp")
-            : t("scada.devHelp")}
+          {settings.enabled ? t("scada.liveHelp") : t("scada.devHelp")}
         </span>
         <button className="primary" disabled={busy}>
           {busy ? t("scada.saving") : t("scada.save")}
@@ -264,7 +323,8 @@ const emptyDashboard: DashboardData = {
 
 function Dashboard() {
   const { language, locale, t } = useI18n();
-  const route = (path: string) => `/${language === "uk" ? "ua" : language}${path}`;
+  const route = (path: string) =>
+    `/${language === "uk" ? "ua" : language}${path}`;
   const [data, setData] = useState<DashboardData>(emptyDashboard);
   const [connection, setConnection] = useState<"loading" | "live" | "error">(
     "loading",
@@ -494,7 +554,9 @@ function Dashboard() {
               <h2>{t("dashboard.reports")}</h2>
               <p>{t("dashboard.reportsSubtitle")}</p>
             </div>
-            <span className="table-count">{t("dashboard.reportCount", { count: data.recent.length })}</span>
+            <span className="table-count">
+              {t("dashboard.reportCount", { count: data.recent.length })}
+            </span>
           </div>
           <div className="table-scroll">
             <table>
@@ -532,14 +594,18 @@ function Dashboard() {
                         }
                       >
                         <i />
-                        {passStatus(item.status) ? t("dashboard.pass") : t("dashboard.fail")}
+                        {passStatus(item.status)
+                          ? t("dashboard.pass")
+                          : t("dashboard.fail")}
                       </span>
                     </td>
                     <td>
                       <span
                         className={item.mesSynced ? "sync-ok" : "sync-wait"}
                       >
-                        {item.mesSynced ? t("dashboard.saved") : t("dashboard.pending")}
+                        {item.mesSynced
+                          ? t("dashboard.saved")
+                          : t("dashboard.pending")}
                       </span>
                     </td>
                     <td>
@@ -565,9 +631,7 @@ function Dashboard() {
         </section>
         <footer className="dashboard-footer">
           <span>Inspect Hub · Quality Operations</span>
-          <span>
-            {t("dashboard.privacy")}
-          </span>
+          <span>{t("dashboard.privacy")}</span>
         </footer>
       </div>
     </main>
@@ -592,9 +656,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
       });
       onLogin(session);
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : t("login.error"),
-      );
+      setError(reason instanceof Error ? reason.message : t("login.error"));
     } finally {
       setBusy(false);
     }
@@ -602,14 +664,14 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
 
   return (
     <main className="auth-shell">
-      <div className="auth-settings"><SettingsMenu /></div>
+      <div className="auth-settings">
+        <SettingsMenu />
+      </div>
       <section className="auth-card">
         <div className="brand-mark">IH</div>
         <p className="eyebrow">{t("common.qualityOperations")}</p>
         <h1>Inspect Hub</h1>
-        <p className="muted">
-          {t("login.tagline")}
-        </p>
+        <p className="muted">{t("login.tagline")}</p>
         <form onSubmit={submit}>
           <label>
             Email
@@ -635,9 +697,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
             {busy ? t("login.busy") : t("common.login")}
           </button>
         </form>
-        <p className="auth-note">
-          {t("login.note")}
-        </p>
+        <p className="auth-note">{t("login.note")}</p>
       </section>
     </main>
   );
@@ -676,9 +736,7 @@ function StationsManager({
       await onChange();
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.saveError"),
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -708,9 +766,7 @@ function StationsManager({
       await onChange();
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.saveError"),
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -718,11 +774,7 @@ function StationsManager({
   }
 
   async function removeStation(station: Station) {
-    if (
-      !window.confirm(
-        t("confirm.removeStation", { code: station.code }),
-      )
-    )
+    if (!window.confirm(t("confirm.removeStation", { code: station.code })))
       return;
     setBusyId(station.id);
     setNotice("");
@@ -732,9 +784,7 @@ function StationsManager({
       await onChange();
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.saveError"),
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -747,11 +797,11 @@ function StationsManager({
         <div>
           <p className="eyebrow">{t("stations.configuration")}</p>
           <h2>{t("admin.stations")}</h2>
-          <p className="muted">
-            {t("stations.description")}
-          </p>
+          <p className="muted">{t("stations.description")}</p>
         </div>
-        <span className="table-count">{t("stations.count", { count: stations.length })}</span>
+        <span className="table-count">
+          {t("stations.count", { count: stations.length })}
+        </span>
       </div>
       <form className="station-create" onSubmit={createStation}>
         <label>
@@ -860,7 +910,9 @@ function StationsManager({
                     void updateStation(station, { active: !station.active })
                   }
                 >
-                  {station.active ? t("stations.deactivate") : t("stations.activate")}
+                  {station.active
+                    ? t("stations.deactivate")
+                    : t("stations.activate")}
                 </button>
                 <button
                   className="icon-button danger"
@@ -875,9 +927,7 @@ function StationsManager({
           );
         })}
         {stations.length === 0 && (
-          <p className="muted station-list-empty">
-            {t("stations.empty")}
-          </p>
+          <p className="muted station-list-empty">{t("stations.empty")}</p>
         )}
       </div>
       {notice && <p className="notice">{notice}</p>}
@@ -925,9 +975,7 @@ function UsersManager() {
       setNotice(t("notice.userCreated"));
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.saveError"),
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId(null);
@@ -961,9 +1009,7 @@ function UsersManager() {
       setNotice(t("notice.userRemoved"));
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.saveError"),
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId(null);
@@ -977,7 +1023,9 @@ function UsersManager() {
           <p className="eyebrow">{t("users.heading")}</p>
           <h2>{t("admin.users")}</h2>
         </div>
-        <span className="status-dot">{t("users.count", { count: users.length })}</span>
+        <span className="status-dot">
+          {t("users.count", { count: users.length })}
+        </span>
       </div>
       <form className="user-create" onSubmit={createUser}>
         <label>
@@ -1035,9 +1083,7 @@ function UsersManager() {
               <span>{user.email}</span>
             </div>
             <small>
-              {new Intl.DateTimeFormat(locale).format(
-                new Date(user.createdAt),
-              )}
+              {new Intl.DateTimeFormat(locale).format(new Date(user.createdAt))}
             </small>
             <select
               aria-label={t("aria.userRole", { name: user.name })}
@@ -1068,19 +1114,27 @@ function UsersManager() {
 
 function AdminPanel() {
   const { locale, t } = useI18n();
+  const initialDraft = useMemo(() => readNewFormDraft(), []);
   const [section, setSection] = useState<
     "forms-new" | "forms-edit" | "stations" | "users" | "settings"
   >("forms-new");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("inspect-hub-admin-sidebar") === "collapsed",
   );
-  const [title, setTitle] = useState("");
-  const [code, setCode] = useState("");
-  const [statuses, setStatuses] = useState(["PASSED", "FAILED"]);
-  const [processIds, setProcessIds] = useState<string[]>([]);
-  const [questions, setQuestions] = useState<InspectionQuestion[]>([
-    emptyQuestion(),
-  ]);
+  const [title, setTitle] = useState(initialDraft?.title ?? "");
+  const [code, setCode] = useState(initialDraft?.code ?? "");
+  const [statuses, setStatuses] = useState(
+    initialDraft?.statuses ?? ["PASSED", "FAILED"],
+  );
+  const [processIds, setProcessIds] = useState<string[]>(
+    initialDraft?.processIds ?? [],
+  );
+  const [questions, setQuestions] = useState<InspectionQuestion[]>(
+    initialDraft?.questions.length ? initialDraft.questions : [emptyQuestion()],
+  );
+  const [draftSavedAt, setDraftSavedAt] = useState(
+    initialDraft?.updatedAt ?? "",
+  );
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
@@ -1127,6 +1181,29 @@ function AdminPanel() {
       .catch((reason: Error) => setNotice(reason.message));
   }, []);
 
+  useEffect(() => {
+    if (section !== "forms-new") return;
+    const content = { title, code, statuses, processIds, questions };
+    if (!hasNewFormDraftContent(content)) {
+      localStorage.removeItem(NEW_FORM_DRAFT_KEY);
+      const timeout = window.setTimeout(() => setDraftSavedAt(""), 0);
+      return () => window.clearTimeout(timeout);
+    }
+    const timeout = window.setTimeout(() => {
+      const updatedAt = new Date().toISOString();
+      try {
+        localStorage.setItem(
+          NEW_FORM_DRAFT_KEY,
+          JSON.stringify({ ...content, updatedAt } satisfies NewFormDraft),
+        );
+        setDraftSavedAt(updatedAt);
+      } catch {
+        setNotice(t("notice.draftSaveError"));
+      }
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [code, processIds, questions, section, statuses, t, title]);
+
   async function editForm(form: InspectionForm) {
     setSection("forms-edit");
     setEditingForm(form);
@@ -1140,21 +1217,21 @@ function AdminPanel() {
       setRevisions(await api<InspectionForm[]>(`/forms/${form.id}/revisions`));
     } catch (reason) {
       setNotice(
-        reason instanceof Error
-          ? reason.message
-          : t("notice.revisionsError"),
+        reason instanceof Error ? reason.message : t("notice.revisionsError"),
       );
     }
   }
 
   function startNewForm() {
+    const draft = readNewFormDraft();
     setSection("forms-new");
     setEditingForm(null);
-    setTitle("");
-    setCode("");
-    setStatuses(["PASSED", "FAILED"]);
-    setProcessIds([]);
-    setQuestions([emptyQuestion()]);
+    setTitle(draft?.title ?? "");
+    setCode(draft?.code ?? "");
+    setStatuses(draft?.statuses ?? ["PASSED", "FAILED"]);
+    setProcessIds(draft?.processIds ?? []);
+    setQuestions(draft?.questions.length ? draft.questions : [emptyQuestion()]);
+    setDraftSavedAt(draft?.updatedAt ?? "");
     setRevisions([]);
     setNotice("");
   }
@@ -1163,6 +1240,22 @@ function AdminPanel() {
     setQuestions((items) =>
       items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
+  }
+
+  function updateQuestionTranslation(
+    question: InspectionQuestion,
+    language: "en" | "uk",
+    patch: { label?: string; description?: string; options?: string[] },
+  ) {
+    updateQuestion(question.id, {
+      translations: {
+        ...question.translations,
+        [language]: {
+          ...question.translations?.[language],
+          ...patch,
+        },
+      },
+    });
   }
 
   function changeQuestionType(id: string, type: FieldType) {
@@ -1199,7 +1292,9 @@ function AdminPanel() {
       updateQuestion(id, { instructionImageUrl: await uploadImage(file) });
       setNotice(t("notice.instructionUploaded"));
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : t("notice.uploadError"));
+      setNotice(
+        reason instanceof Error ? reason.message : t("notice.uploadError"),
+      );
     } finally {
       setBusy(false);
     }
@@ -1222,7 +1317,9 @@ function AdminPanel() {
         t("notice.referenceUploaded", { answer: answer.toUpperCase() }),
       );
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : t("notice.uploadError"));
+      setNotice(
+        reason instanceof Error ? reason.message : t("notice.uploadError"),
+      );
     } finally {
       setBusy(false);
     }
@@ -1247,7 +1344,15 @@ function AdminPanel() {
       );
       await loadForms();
       if (editingForm) await editForm(saved);
-      else startNewForm();
+      else {
+        localStorage.removeItem(NEW_FORM_DRAFT_KEY);
+        setTitle("");
+        setCode("");
+        setStatuses(["PASSED", "FAILED"]);
+        setProcessIds([]);
+        setQuestions([emptyQuestion()]);
+        setDraftSavedAt("");
+      }
       setNotice(
         editingForm
           ? t("notice.revisionPublished", { version: saved.version })
@@ -1289,7 +1394,9 @@ function AdminPanel() {
             className="sidebar-toggle"
             type="button"
             onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? t("admin.expand") : t("admin.collapse")}
+            aria-label={
+              sidebarCollapsed ? t("admin.expand") : t("admin.collapse")
+            }
             title={sidebarCollapsed ? t("admin.expand") : t("admin.collapse")}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1309,7 +1416,8 @@ function AdminPanel() {
                 <AdminMenuIcon type="forms" />
               </i>
               <span>
-                {t("admin.forms")}<small>{t("admin.formsSubtitle")}</small>
+                {t("admin.forms")}
+                <small>{t("admin.formsSubtitle")}</small>
               </span>
             </button>
             <div
@@ -1350,7 +1458,8 @@ function AdminPanel() {
               <AdminMenuIcon type="stations" />
             </i>
             <span>
-              {t("admin.stations")}<small>{t("admin.stationsSubtitle")}</small>
+              {t("admin.stations")}
+              <small>{t("admin.stationsSubtitle")}</small>
             </span>
           </button>
           <button
@@ -1363,7 +1472,8 @@ function AdminPanel() {
               <AdminMenuIcon type="users" />
             </i>
             <span>
-              {t("admin.users")}<small>{t("admin.usersSubtitle")}</small>
+              {t("admin.users")}
+              <small>{t("admin.usersSubtitle")}</small>
             </span>
           </button>
           <button
@@ -1376,7 +1486,8 @@ function AdminPanel() {
               <AdminMenuIcon type="settings" />
             </i>
             <span>
-              {t("admin.scada")}<small>{t("admin.scadaSubtitle")}</small>
+              {t("admin.scada")}
+              <small>{t("admin.scadaSubtitle")}</small>
             </span>
           </button>
         </nav>
@@ -1416,7 +1527,14 @@ function AdminPanel() {
                 ? t("form.newRevision", { version: editingForm.version + 1 })
                 : section === "forms-edit"
                   ? t("form.formCount", { count: forms.length })
-                  : t("admin.newForm")}
+                  : draftSavedAt
+                    ? t("form.draftSaved", {
+                        time: new Intl.DateTimeFormat(locale, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).format(new Date(draftSavedAt)),
+                      })
+                    : t("form.draft")}
             </span>
           )}
         </header>
@@ -1452,7 +1570,10 @@ function AdminPanel() {
                       </div>
                       <span className="revision-badge">v{form.version}</span>
                       <small>
-                        {t("form.counts", { questions: form.questions.length, processes: form.processIds.length })}
+                        {t("form.counts", {
+                          questions: form.questions.length,
+                          processes: form.processIds.length,
+                        })}
                       </small>
                       <button
                         className="secondary"
@@ -1464,14 +1585,14 @@ function AdminPanel() {
                     </article>
                   ))}
                   {forms.length === 0 && (
-                    <p className="muted">
-                      {t("form.empty")}
-                    </p>
+                    <p className="muted">{t("form.empty")}</p>
                   )}
                 </div>
                 {editingForm && revisions.length > 0 && (
                   <div className="revision-history">
-                    <strong>{t("form.history", { code: editingForm.code })}</strong>
+                    <strong>
+                      {t("form.history", { code: editingForm.code })}
+                    </strong>
                     <div>
                       {revisions.map((revision) => (
                         <span key={revision.id}>
@@ -1566,14 +1687,10 @@ function AdminPanel() {
                       </label>
                     ))}
                     {processes.length === 0 && (
-                      <span className="muted">
-                        {t("form.noProcesses")}
-                      </span>
+                      <span className="muted">{t("form.noProcesses")}</span>
                     )}
                   </div>
-                  <div className="tip">
-                    {t("form.processTip")}
-                  </div>
+                  <div className="tip">{t("form.processTip")}</div>
                 </section>
                 <section className="questions-column">
                   {questions.map((question, index) => (
@@ -1609,6 +1726,66 @@ function AdminPanel() {
                           required
                         />
                       </label>
+                      <details className="question-translations">
+                        <summary>
+                          <span>{t("form.translations")}</span>
+                          <small>{t("form.translationsHelp")}</small>
+                        </summary>
+                        <div className="translation-grid">
+                          {(["en", "uk"] as const).map((translationLanguage) => {
+                            const translation = question.translations?.[translationLanguage];
+                            return (
+                              <fieldset key={translationLanguage}>
+                                <legend>
+                                  {translationLanguage === "en"
+                                    ? t("language.english")
+                                    : t("language.ukrainian")}
+                                </legend>
+                                <label>
+                                  {t("form.translatedLabel")}
+                                  <input
+                                    value={translation?.label ?? ""}
+                                    onChange={(event) =>
+                                      updateQuestionTranslation(question, translationLanguage, {
+                                        label: event.target.value,
+                                      })
+                                    }
+                                    placeholder={question.label || t("form.questionPlaceholder")}
+                                  />
+                                </label>
+                                <label>
+                                  {t("form.translatedDescription")}
+                                  <textarea
+                                    value={translation?.description ?? ""}
+                                    onChange={(event) =>
+                                      updateQuestionTranslation(question, translationLanguage, {
+                                        description: event.target.value,
+                                      })
+                                    }
+                                  />
+                                </label>
+                                {question.type === "SELECT" && (
+                                  <label>
+                                    {t("form.translatedOptions")}
+                                    <input
+                                      value={translation?.options?.join(", ") ?? ""}
+                                      onChange={(event) =>
+                                        updateQuestionTranslation(question, translationLanguage, {
+                                          options: event.target.value
+                                            .split(",")
+                                            .map((value) => value.trim())
+                                            .filter(Boolean),
+                                        })
+                                      }
+                                      placeholder={question.options?.join(", ")}
+                                    />
+                                  </label>
+                                )}
+                              </fieldset>
+                            );
+                          })}
+                        </div>
+                      </details>
                       <div className="inline-fields">
                         <label>
                           {t("form.type")}
@@ -1621,10 +1798,14 @@ function AdminPanel() {
                               )
                             }
                           >
-                            <option value="CHECKBOX">{t("form.checkbox")}</option>
+                            <option value="CHECKBOX">
+                              {t("form.checkbox")}
+                            </option>
                             <option value="TEXT">{t("form.text")}</option>
                             <option value="SELECT">{t("form.list")}</option>
-                            <option value="PHOTO_UPLOAD">{t("form.photo")}</option>
+                            <option value="PHOTO_UPLOAD">
+                              {t("form.photo")}
+                            </option>
                             <option value="NUMBER_RANGE">
                               {t("form.numeric")}
                             </option>
@@ -1845,7 +2026,9 @@ function AdminPanel() {
                     {busy
                       ? t("form.saving")
                       : editingForm
-                        ? t("form.publishRevision", { version: editingForm.version + 1 })
+                        ? t("form.publishRevision", {
+                            version: editingForm.version + 1,
+                          })
                         : t("form.publish")}
                   </button>
                 </section>
@@ -1911,7 +2094,10 @@ function OperatorPanel({
   const progress = form?.questions.length
     ? Math.round((answeredCount / form.questions.length) * 100)
     : 0;
-  const currentQuestion = form?.questions[questionIndex];
+  const currentQuestionSource = form?.questions[questionIndex];
+  const currentQuestion = currentQuestionSource
+    ? localizeQuestion(currentQuestionSource, language)
+    : undefined;
 
   useEffect(() => {
     void Promise.all([
@@ -1997,7 +2183,9 @@ function OperatorPanel({
       const url = await uploadImage(file);
       setAnswers((old) => ({ ...old, [questionId]: url }));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : t("notice.uploadError"));
+      setNotice(
+        error instanceof Error ? error.message : t("notice.uploadError"),
+      );
     }
   }
 
@@ -2013,7 +2201,9 @@ function OperatorPanel({
     );
     if (missing.length) {
       setNotice(
-        t("notice.requiredItems", { items: missing.map((question) => question.label).join(", ") }),
+        t("notice.requiredItems", {
+          items: missing.map((question) => question.label).join(", "),
+        }),
       );
       document
         .getElementById(`question-${missing[0].id}`)
@@ -2050,9 +2240,7 @@ function OperatorPanel({
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       setOperatorNoticeKind("error");
-      setNotice(
-        error instanceof Error ? error.message : t("notice.saveError"),
-      );
+      setNotice(error instanceof Error ? error.message : t("notice.saveError"));
     } finally {
       setBusy(false);
     }
@@ -2070,9 +2258,7 @@ function OperatorPanel({
         body: JSON.stringify({ serialNumber, stationCode: stationId }),
       });
       if (!result.allowed) {
-        setNotice(
-          t("notice.productDenied", { serial: serialNumber }),
-        );
+        setNotice(t("notice.productDenied", { serial: serialNumber }));
         setOperatorNoticeKind("error");
         return;
       }
@@ -2157,15 +2343,22 @@ function OperatorPanel({
           }
         >
           <option value="">{t("inspection.select")}</option>
-          {question.options?.map((option) => (
-            <option key={option}>{option}</option>
+          {question.options?.map((option, index) => (
+            <option
+              value={currentQuestionSource?.options?.[index] ?? option}
+              key={currentQuestionSource?.options?.[index] ?? option}
+            >
+              {option}
+            </option>
           ))}
         </select>
       );
     if (question.type === "PHOTO_UPLOAD")
       return (
         <label className="upload-box">
-          {answers[question.id] ? t("inspection.photoAdded") : t("inspection.addPhoto")}
+          {answers[question.id]
+            ? t("inspection.photoAdded")
+            : t("inspection.addPhoto")}
           <input
             type="file"
             accept="image/*"
@@ -2198,7 +2391,10 @@ function OperatorPanel({
       className={`station-shell${productIdentified && form ? " inspection-in-progress" : ""}`}
     >
       <header className="station-bar">
-        <a className="brand" href={`/${language === "uk" ? "ua" : language}/inspection`}>
+        <a
+          className="brand"
+          href={`/${language === "uk" ? "ua" : language}/inspection`}
+        >
           <span>IH</span>
           <div>
             Inspect Hub<small>{t("inspection.mode")}</small>
@@ -2224,9 +2420,7 @@ function OperatorPanel({
           <div>
             <p className="eyebrow">{t("inspection.eyebrow")}</p>
             <h1>{t("inspection.title")}</h1>
-            <p className="heading-copy">
-              {t("inspection.subtitle")}
-            </p>
+            <p className="heading-copy">{t("inspection.subtitle")}</p>
           </div>
           <span className="online">
             <i /> {t("inspection.online")}
@@ -2279,7 +2473,9 @@ function OperatorPanel({
                 aria-label={t("inspection.stationCode")}
               />
               <button className="secondary" disabled={identifying}>
-                {identifying ? t("inspection.connecting") : t("inspection.changePairing")}
+                {identifying
+                  ? t("inspection.connecting")
+                  : t("inspection.changePairing")}
               </button>
             </form>
           </section>
@@ -2288,9 +2484,7 @@ function OperatorPanel({
           <section className="panel operator-empty station-pairing-card">
             <span className="empty-icon station-device-icon">▦</span>
             <h2>{t("inspection.pairTitle")}</h2>
-            <p className="muted">
-              {t("inspection.pairHelp")}
-            </p>
+            <p className="muted">{t("inspection.pairHelp")}</p>
             <form className="station-identify" onSubmit={identifyStation}>
               <label>
                 {t("inspection.stationCode")}
@@ -2303,7 +2497,9 @@ function OperatorPanel({
                 />
               </label>
               <button className="primary" disabled={identifying}>
-                {identifying ? t("inspection.connecting") : t("inspection.pair")}
+                {identifying
+                  ? t("inspection.connecting")
+                  : t("inspection.pair")}
               </button>
             </form>
           </section>
@@ -2315,14 +2511,14 @@ function OperatorPanel({
             </div>
             <p className="eyebrow">{t("inspection.identification")}</p>
             <h2>{t("inspection.scanTitle")}</h2>
-            <p className="muted">
-              {t("inspection.scanHelp")}
-            </p>
+            <p className="muted">{t("inspection.scanHelp")}</p>
             <form
               className="product-identification-form"
               onSubmit={identifyProduct}
             >
-              <label htmlFor="inspection-serial-number">{t("inspection.serial")}</label>
+              <label htmlFor="inspection-serial-number">
+                {t("inspection.serial")}
+              </label>
               <div className="serial-input-row">
                 <input
                   id="inspection-serial-number"
@@ -2415,7 +2611,10 @@ function OperatorPanel({
             {form && currentQuestion && !showSummary && (
               <section className="question-step">
                 <div className="step-label">
-                  {t("inspection.question", { current: questionIndex + 1, total: form.questions.length })}
+                  {t("inspection.question", {
+                    current: questionIndex + 1,
+                    total: form.questions.length,
+                  })}
                 </div>
                 <article
                   id={`question-${currentQuestion.id}`}
@@ -2449,20 +2648,26 @@ function OperatorPanel({
                           onClick={() =>
                             setEnlargedImage({
                               url: currentQuestion.instructionImageUrl!,
-                              alt: t("aria.instruction", { label: currentQuestion.label }),
+                              alt: t("aria.instruction", {
+                                label: currentQuestion.label,
+                              }),
                             })
                           }
                         >
                           <img
                             src={currentQuestion.instructionImageUrl}
-                            alt={t("aria.instruction", { label: currentQuestion.label })}
+                            alt={t("aria.instruction", {
+                              label: currentQuestion.label,
+                            })}
                           />
                           <span>{t("inspection.enlarge")}</span>
                         </button>
                       </div>
                     )}
                     <div className="question-answer">
-                      <span className="question-section-label">{t("inspection.answer")}</span>
+                      <span className="question-section-label">
+                        {t("inspection.answer")}
+                      </span>
                       {answerField(currentQuestion)}
                     </div>
                   </div>
@@ -2644,11 +2849,16 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   const passed = ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
     report.result.toUpperCase(),
   );
-  const formatValue = (
-    value: PublicInspectionReport["answers"][number]["value"],
-  ) => {
+  const formatValue = (answer: PublicInspectionReport["answers"][number]) => {
+    const value = answer.value;
     if (value === null || value === "") return t("report.noAnswer");
-    if (typeof value === "boolean") return value ? t("common.yes") : t("common.no");
+    if (typeof value === "boolean")
+      return value ? t("common.yes") : t("common.no");
+    if (typeof value === "string" && language !== "pl") {
+      const optionIndex = answer.options?.indexOf(value) ?? -1;
+      const translated = answer.translations?.[language]?.options?.[optionIndex];
+      if (translated) return translated;
+    }
     return String(value);
   };
 
@@ -2659,7 +2869,11 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
           <span>IH</span> Inspect Hub
         </a>
         <div className="report-nav-actions">
-          <button className="primary" type="button" onClick={() => window.print()}>
+          <button
+            className="primary"
+            type="button"
+            onClick={() => window.print()}
+          >
             {t("report.print")}
           </button>
           <SettingsMenu />
@@ -2784,11 +2998,18 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div>
-                <h3>{answer.label}</h3>
+                <h3>
+                  {language === "pl"
+                    ? answer.label
+                    : answer.translations?.[language]?.label || answer.label}
+                </h3>
                 {answer.imageUrl ? (
-                  <img src={answer.imageUrl} alt={t("report.photo", { label: answer.label })} />
+                  <img
+                    src={answer.imageUrl}
+                    alt={t("report.photo", { label: answer.label })}
+                  />
                 ) : (
-                  <p>{formatValue(answer.value)}</p>
+                  <p>{formatValue(answer)}</p>
                 )}
               </div>
               {answer.assessment && (
@@ -2816,7 +3037,8 @@ function App() {
     return raw ? (JSON.parse(raw) as SessionUser) : null;
   });
 
-  const route = (path: string) => `/${language === "uk" ? "ua" : language}${path}`;
+  const route = (path: string) =>
+    `/${language === "uk" ? "ua" : language}${path}`;
   const originalPath = window.location.pathname;
   const routeMatch = originalPath.match(/^\/(pl|en|ua)(\/.*)?$/);
   if (!routeMatch) {

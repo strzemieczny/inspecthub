@@ -1296,6 +1296,48 @@ select:focus {
   justify-content: space-between;
   align-items: center;
 }
+.question-translations {
+  margin: 0.9rem 0 1rem;
+  border: 1px solid #dce5e0;
+  border-radius: 10px;
+  background: #f8faf8;
+}
+.question-translations summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0.95rem;
+  color: #17684f;
+  cursor: pointer;
+  font-weight: 700;
+}
+.question-translations summary small {
+  color: #7a8581;
+  font-weight: 500;
+}
+.translation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding: 0 0.9rem 0.9rem;
+}
+.translation-grid fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid #dce5e0;
+  border-radius: 8px;
+  background: #fff;
+}
+.translation-grid legend {
+  padding: 0 0.35rem;
+  color: #17684f;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.translation-grid textarea { min-height: 72px; resize: vertical; }
+@media (max-width: 760px) { .translation-grid { grid-template-columns: 1fr; } }
 .question-number {
   display: grid;
   place-items: center;
