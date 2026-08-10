@@ -12,6 +12,7 @@ import type {
   InspectionAnswerValue,
   InspectionForm,
   InspectionQuestion,
+  QuestionSeverity,
   PublicInspectionReport,
   RouteCheckResult,
   ScadaSettings,
@@ -19,7 +20,10 @@ import type {
 } from "@inspect-hub/types";
 import {
   ApiError,
+  absoluteApiUrl,
   api,
+  downloadFile,
+  qualityWebSocketUrl,
   uploadImage,
   type CardLoginResult,
   type Session,
@@ -40,6 +44,7 @@ const emptyQuestion = (): InspectionQuestion => ({
   label: "",
   type: "CHECKBOX",
   isRequired: true,
+  severity: "NORMAL",
 });
 
 function parseOptionsInput(value: string): string[] {
@@ -53,6 +58,32 @@ function normalizeOptions(options?: string[]): string[] | undefined {
 function isPassedStatus(status: string): boolean {
   return ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
     status.toUpperCase(),
+  );
+}
+
+function canAssessAutomatically(question: InspectionQuestion): boolean {
+  return (
+    question.expectedValue !== undefined ||
+    (question.type === "NUMBER_RANGE" && question.range !== undefined)
+  );
+}
+
+function questionSeverity(question: InspectionQuestion): QuestionSeverity {
+  return question.severity ?? (question.isCritical ? "CRITICAL" : "NORMAL");
+}
+
+function isQuestionAnswerOk(
+  question: InspectionQuestion,
+  value: InspectionAnswerValue | undefined,
+): boolean {
+  if (question.expectedValue !== undefined)
+    return value === question.expectedValue;
+  return Boolean(
+    question.type === "NUMBER_RANGE" &&
+    question.range &&
+    typeof value === "number" &&
+    value >= question.range.min &&
+    value <= question.range.max,
   );
 }
 
@@ -100,11 +131,31 @@ function localizeQuestion(
 }
 
 const NEW_FORM_DRAFT_KEY = "inspect-hub-form-draft:new";
+const OFFLINE_INSPECTION_QUEUE_KEY = "inspect-hub-offline-inspections";
+const OFFLINE_INSPECTION_CONTEXT_KEY = "inspect-hub-offline-context";
+
+type QueuedInspection = { id: string; payload: Record<string, unknown> };
+
+function readInspectionQueue(): QueuedInspection[] {
+  try {
+    return JSON.parse(
+      localStorage.getItem(OFFLINE_INSPECTION_QUEUE_KEY) ?? "[]",
+    ) as QueuedInspection[];
+  } catch {
+    return [];
+  }
+}
+
+function writeInspectionQueue(queue: QueuedInspection[]) {
+  localStorage.setItem(OFFLINE_INSPECTION_QUEUE_KEY, JSON.stringify(queue));
+}
 
 type NewFormDraft = {
   title: string;
   code: string;
   statuses: string[];
+  nokStreakThreshold: number;
+  requiresLogin: boolean;
   processIds: string[];
   questions: InspectionQuestion[];
   updatedAt: string;
@@ -124,6 +175,11 @@ function readNewFormDraft(): NewFormDraft | null {
       typeof draft.updatedAt !== "string"
     )
       return null;
+    draft.nokStreakThreshold =
+      typeof draft.nokStreakThreshold === "number"
+        ? draft.nokStreakThreshold
+        : 3;
+    draft.requiresLogin = draft.requiresLogin === true;
     return draft as NewFormDraft;
   } catch {
     return null;
@@ -135,12 +191,16 @@ function hasNewFormDraftContent(draft: Omit<NewFormDraft, "updatedAt">) {
     draft.title ||
     draft.code ||
     draft.processIds.length ||
+    draft.nokStreakThreshold !== 3 ||
+    draft.requiresLogin ||
     draft.questions.length > 1 ||
     draft.questions.some(
       (question) =>
         question.label ||
         question.type !== "CHECKBOX" ||
         !question.isRequired ||
+        (question.severity ?? (question.isCritical ? "CRITICAL" : "NORMAL")) !==
+          "NORMAL" ||
         question.options?.length ||
         question.expectedValue !== undefined ||
         question.range ||
@@ -573,6 +633,7 @@ function ScadaSettingsPanel() {
 
 interface DashboardData {
   generatedAt: string;
+  range: { from: string; to: string; previousFrom: string; previousTo: string };
   summary: {
     completedToday: number;
     passRate: number;
@@ -583,12 +644,78 @@ interface DashboardData {
     completedTrend: number | null;
     issuesTrend: number | null;
   };
+  completeness: {
+    averageDurationSeconds: number | null;
+    medianDurationSeconds: number | null;
+    durationSampleSize: number;
+    skippedQuestions: number;
+    skippedRate: number;
+    unusuallyFast: number;
+    frequentCorrections: number;
+    durationByForm: Array<{
+      formCode: string;
+      formName: string;
+      medianSeconds: number | null;
+      averageSeconds: number;
+      sampleSize: number;
+    }>;
+  };
   daily: { date: string; total: number; passed: number }[];
+  breakdowns: {
+    stations: {
+      key: string;
+      name: string;
+      process: string | null;
+      total: number;
+      passed: number;
+      passRate: number;
+    }[];
+    forms: {
+      key: string;
+      name: string;
+      total: number;
+      passed: number;
+      passRate: number;
+    }[];
+  };
+  questionTrends: {
+    key: string;
+    label: string;
+    formCode: string;
+    total: number;
+    nok: number;
+    nokRate: number;
+  }[];
+  heatmaps: Record<
+    "questionStation" | "time" | "formProduct",
+    {
+      rows: { key: string; label: string }[];
+      columns: string[];
+      cells: {
+        row: string;
+        column: string;
+        total: number;
+        nok: number;
+        rate: number | null;
+      }[];
+    }
+  >;
+  filters: {
+    processes: { id: string; name: string }[];
+    stations: {
+      id: string;
+      code: string;
+      name: string;
+      processId: string | null;
+    }[];
+    forms: { id: string; title: string; code: string; version: number }[];
+  };
   recent: {
     publicReportId: string;
     vinOrSerialNumber: string;
     stationId: string;
     status: string;
+    originalInspectionId: string | null;
     mesSynced: boolean;
     createdAt: string;
     form: { title: string; code: string };
@@ -597,6 +724,7 @@ interface DashboardData {
 
 const emptyDashboard: DashboardData = {
   generatedAt: new Date().toISOString(),
+  range: { from: "", to: "", previousFrom: "", previousTo: "" },
   summary: {
     completedToday: 0,
     passRate: 0,
@@ -607,13 +735,213 @@ const emptyDashboard: DashboardData = {
     completedTrend: null,
     issuesTrend: null,
   },
+  completeness: {
+    averageDurationSeconds: null,
+    medianDurationSeconds: null,
+    durationSampleSize: 0,
+    skippedQuestions: 0,
+    skippedRate: 0,
+    unusuallyFast: 0,
+    frequentCorrections: 0,
+    durationByForm: [],
+  },
   daily: Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() - 6 + index);
     return { date: date.toISOString().slice(0, 10), total: 0, passed: 0 };
   }),
+  breakdowns: { stations: [], forms: [] },
+  questionTrends: [],
+  heatmaps: {
+    questionStation: { rows: [], columns: [], cells: [] },
+    time: { rows: [], columns: [], cells: [] },
+    formProduct: { rows: [], columns: [], cells: [] },
+  },
+  filters: { processes: [], stations: [], forms: [] },
   recent: [],
 };
+
+function dashboardDate(daysAgo: number, end = false) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  if (!end) date.setHours(0, 0, 0, 0);
+  return date.toISOString().slice(0, 10);
+}
+
+function RevisionMultiSelect({
+  revisions,
+  selected,
+  disabled,
+  onChange,
+}: {
+  revisions: { id: string; title: string; code: string; version: number }[];
+  selected: string[];
+  disabled: boolean;
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const allSelected =
+    selected.length === 0 || selected.length === revisions.length;
+  const isOpen = open && !disabled;
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  function toggle(id: string) {
+    if (allSelected) {
+      onChange(revisions.map((item) => item.id).filter((item) => item !== id));
+      return;
+    }
+    if (selected.includes(id)) {
+      const next = selected.filter((item) => item !== id);
+      onChange(next.length ? next : [id]);
+    } else {
+      const next = [...selected, id];
+      onChange(next.length === revisions.length ? [] : next);
+    }
+  }
+
+  return (
+    <div className="revision-filter" ref={root}>
+      <span>Rewizje</span>
+      <button
+        type="button"
+        className="revision-trigger"
+        disabled={disabled}
+        aria-expanded={isOpen}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>
+          {disabled
+            ? "Wybierz standard"
+            : allSelected
+              ? `Wszystkie rewizje (${revisions.length})`
+              : `Wybrane rewizje: ${selected.length}`}
+        </span>
+        <b aria-hidden="true">⌄</b>
+      </button>
+      {isOpen && (
+        <div className="revision-popover">
+          <div className="revision-popover-head">
+            <strong>Wybierz rewizje</strong>
+            <small>Możesz zaznaczyć kilka</small>
+          </div>
+          <label className="revision-all">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() => onChange([])}
+            />
+            <span>
+              <strong>Wszystkie rewizje</strong>
+              <small>Uwzględnij całą historię standardu</small>
+            </span>
+          </label>
+          <div className="revision-list">
+            {revisions.map((item) => (
+              <label key={item.id}>
+                <input
+                  type="checkbox"
+                  checked={allSelected || selected.includes(item.id)}
+                  onChange={() => toggle(item.id)}
+                />
+                <span>
+                  <strong>Rewizja {item.version}</strong>
+                  <small>{item.title}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="revision-popover-actions">
+            <button type="button" onClick={() => onChange([])}>
+              Zaznacz wszystkie
+            </button>
+            <button type="button" onClick={() => setOpen(false)}>
+              Gotowe
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type DashboardHeatmap =
+  DashboardData["heatmaps"][keyof DashboardData["heatmaps"]];
+
+function QualityHeatmap({
+  data,
+  type,
+}: {
+  data: DashboardHeatmap;
+  type: "questionStation" | "time" | "formProduct";
+}) {
+  const cells = new Map(
+    data.cells.map((cell) => [`${cell.row}:${cell.column}`, cell]),
+  );
+  const columnLabel = (column: string) =>
+    type === "time" ? `${column.padStart(2, "0")}:00` : column;
+
+  if (!data.rows.length || !data.columns.length) {
+    return (
+      <div className="analysis-empty">Brak danych dla wybranych filtrów.</div>
+    );
+  }
+
+  return (
+    <div className="heatmap-scroll">
+      <div
+        className="heatmap-grid"
+        style={{
+          gridTemplateColumns: `minmax(170px, 1.5fr) repeat(${data.columns.length}, minmax(50px, 1fr))`,
+        }}
+      >
+        <div className="heatmap-corner">NOK %</div>
+        {data.columns.map((column) => (
+          <div className="heatmap-column" key={column} title={column}>
+            {columnLabel(column)}
+          </div>
+        ))}
+        {data.rows.flatMap((row) => [
+          <div className="heatmap-row" key={`row-${row.key}`} title={row.label}>
+            {row.label}
+          </div>,
+          ...data.columns.map((column) => {
+            const cell = cells.get(`${row.key}:${column}`);
+            const rate = cell?.rate ?? null;
+            return (
+              <div
+                className={`heatmap-cell ${rate === null ? "empty" : ""}`}
+                key={`${row.key}-${column}`}
+                style={
+                  rate === null
+                    ? undefined
+                    : {
+                        backgroundColor: `rgba(190, 62, 54, ${0.1 + (rate / 100) * 0.82})`,
+                        color: rate >= 55 ? "#fff" : "#7b2925",
+                      }
+                }
+                title={
+                  rate === null
+                    ? "Brak kontroli"
+                    : `${row.label} × ${columnLabel(column)}: ${cell?.nok}/${cell?.total} NOK (${rate.toFixed(1)}%)`
+                }
+              >
+                {rate === null ? "–" : `${Math.round(rate)}%`}
+              </div>
+            );
+          }),
+        ])}
+      </div>
+    </div>
+  );
+}
 
 function Dashboard() {
   const { language, locale, t } = useI18n();
@@ -623,17 +951,118 @@ function Dashboard() {
   const [connection, setConnection] = useState<"loading" | "live" | "error">(
     "loading",
   );
+  const [filters, setFilters] = useState({
+    from: dashboardDate(6),
+    to: dashboardDate(0, true),
+    processId: "",
+    stationId: "",
+    formCode: "",
+    formIds: [] as string[],
+    result: "",
+    search: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [heatmapType, setHeatmapType] = useState<
+    "questionStation" | "time" | "formProduct"
+  >("questionStation");
+  const [exportBusy, setExportBusy] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState("");
+
+  function analyticsQuery(selected = appliedFilters) {
+    const query = new URLSearchParams();
+    query.set("from", new Date(`${selected.from}T00:00:00`).toISOString());
+    query.set("to", new Date(`${selected.to}T23:59:59.999`).toISOString());
+    Object.entries(selected).forEach(([key, value]) => {
+      if (Array.isArray(value) && value.length) query.set(key, value.join(","));
+      else if (
+        typeof value === "string" &&
+        value &&
+        key !== "from" &&
+        key !== "to"
+      )
+        query.set(key, value);
+    });
+    return query;
+  }
+
+  async function exportData(format: "csv" | "xlsx" | "pdf") {
+    setExportBusy(format);
+    setExportNotice("");
+    try {
+      const query = analyticsQuery();
+      query.set("format", format);
+      await downloadFile(`/inspections/analytics/v1/export?${query}`);
+    } catch (error) {
+      setExportNotice(
+        error instanceof Error
+          ? error.message
+          : "Nie udało się wyeksportować danych",
+      );
+    } finally {
+      setExportBusy(null);
+    }
+  }
+
+  async function copyAnalyticsApi() {
+    const url = absoluteApiUrl(`/inspections/analytics/v1?${analyticsQuery()}`);
+    await navigator.clipboard.writeText(url);
+    setExportNotice("Skopiowano adres API z aktywnymi filtrami.");
+  }
+  const reportsRef = useRef<HTMLElement>(null);
+
+  const drillDown = (
+    patch: Partial<typeof filters>,
+    options: { scroll?: boolean } = { scroll: true },
+  ) => {
+    const next = { ...appliedFilters, ...patch };
+    setFilters(next);
+    setAppliedFilters(next);
+    if (options.scroll !== false) {
+      window.setTimeout(
+        () =>
+          reportsRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          }),
+        0,
+      );
+    }
+  };
 
   useEffect(() => {
-    void api<DashboardData>("/inspections/public-dashboard")
+    queueMicrotask(() => setConnection("loading"));
+    const query = new URLSearchParams();
+    query.set(
+      "from",
+      new Date(`${appliedFilters.from}T00:00:00`).toISOString(),
+    );
+    const rangeEnd = new Date(`${appliedFilters.to}T23:59:59.999`);
+    query.set("to", rangeEnd.toISOString());
+    Object.entries(appliedFilters).forEach(([key, value]) => {
+      if (Array.isArray(value) && value.length) query.set(key, value.join(","));
+      else if (
+        typeof value === "string" &&
+        value &&
+        key !== "from" &&
+        key !== "to"
+      )
+        query.set(key, value);
+    });
+    void api<DashboardData>(`/inspections/public-dashboard?${query}`)
       .then((result) => {
         setData(result);
         setConnection("live");
       })
       .catch(() => setConnection("error"));
-  }, []);
+  }, [appliedFilters]);
 
   const maxTotal = Math.max(...data.daily.map((item) => item.total), 1);
+  const standards = Array.from(
+    new Map(data.filters.forms.map((item) => [item.code, item])).values(),
+  );
+  const availableRevisions = data.filters.forms.filter(
+    (item) => item.code === filters.formCode,
+  );
   const passStatus = (status: string) =>
     ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(status.toUpperCase());
   const time = (value: string) =>
@@ -641,6 +1070,19 @@ function Dashboard() {
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(value));
+  const dateTime = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  const duration = (seconds: number | null) => {
+    if (seconds === null) return "—";
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return minutes ? `${minutes} min ${remainder} s` : `${remainder} s`;
+  };
   const day = (value: string) =>
     new Intl.DateTimeFormat(locale, { weekday: "short" })
       .format(new Date(`${value}T12:00:00`))
@@ -654,7 +1096,7 @@ function Dashboard() {
           {value > 0 ? "↑" : value < 0 ? "↓" : "→"} {Math.abs(value).toFixed(1)}
           %
         </b>{" "}
-        {t("dashboard.vsYesterday")}
+        vs. poprzedni okres
       </small>
     );
 
@@ -668,6 +1110,9 @@ function Dashboard() {
           </div>
         </a>
         <div className="dashboard-nav-actions">
+          <a className="quality-live-link" href={route("/quality")}>
+            Alerty jakości <b>●</b>
+          </a>
           <span
             className={`live-badge ${connection === "error" ? "offline" : ""}`}
           >
@@ -698,11 +1143,253 @@ function Dashboard() {
           </div>
         </section>
 
+        <section className="dashboard-filters" aria-label="Filtry analizy">
+          <div className="filter-toolbar">
+            <div className="quick-ranges">
+              <button
+                onClick={() => {
+                  const next = {
+                    ...filters,
+                    from: dashboardDate(0),
+                    to: dashboardDate(0),
+                  };
+                  setFilters(next);
+                  setAppliedFilters(next);
+                }}
+              >
+                Dzisiaj
+              </button>
+              <button
+                onClick={() => {
+                  const next = {
+                    ...filters,
+                    from: dashboardDate(6),
+                    to: dashboardDate(0),
+                  };
+                  setFilters(next);
+                  setAppliedFilters(next);
+                }}
+              >
+                7 dni
+              </button>
+              <button
+                onClick={() => {
+                  const next = {
+                    ...filters,
+                    from: dashboardDate(29),
+                    to: dashboardDate(0),
+                  };
+                  setFilters(next);
+                  setAppliedFilters(next);
+                }}
+              >
+                30 dni
+              </button>
+              <button
+                onClick={() => {
+                  const next = {
+                    ...filters,
+                    from: dashboardDate(89),
+                    to: dashboardDate(0),
+                  };
+                  setFilters(next);
+                  setAppliedFilters(next);
+                }}
+              >
+                Kwartał
+              </button>
+            </div>
+            <span className="active-range">
+              {filters.from} — {filters.to}
+            </span>
+          </div>
+          <div className="filter-grid">
+            <label>
+              Od
+              <input
+                type="date"
+                value={filters.from}
+                max={filters.to}
+                onChange={(event) =>
+                  setFilters({ ...filters, from: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Do
+              <input
+                type="date"
+                value={filters.to}
+                min={filters.from}
+                max={dashboardDate(0)}
+                onChange={(event) =>
+                  setFilters({ ...filters, to: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Proces
+              <select
+                value={filters.processId}
+                onChange={(event) =>
+                  setFilters({
+                    ...filters,
+                    processId: event.target.value,
+                    stationId: "",
+                  })
+                }
+              >
+                <option value="">Wszystkie procesy</option>
+                {data.filters.processes.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Stanowisko
+              <select
+                value={filters.stationId}
+                onChange={(event) =>
+                  setFilters({ ...filters, stationId: event.target.value })
+                }
+              >
+                <option value="">Wszystkie stanowiska</option>
+                {data.filters.stations
+                  .filter(
+                    (item) =>
+                      !filters.processId ||
+                      item.processId === filters.processId,
+                  )
+                  .map((item) => (
+                    <option key={item.id} value={item.code}>
+                      {item.code} · {item.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Standard
+              <select
+                value={filters.formCode}
+                onChange={(event) =>
+                  setFilters({
+                    ...filters,
+                    formCode: event.target.value,
+                    formIds: [],
+                  })
+                }
+              >
+                <option value="">Wszystkie standardy</option>
+                {standards.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.title} · {item.code}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <RevisionMultiSelect
+              revisions={availableRevisions}
+              selected={filters.formIds}
+              disabled={!filters.formCode}
+              onChange={(formIds) => setFilters({ ...filters, formIds })}
+            />
+            <label>
+              Wynik
+              <select
+                value={filters.result}
+                onChange={(event) =>
+                  setFilters({ ...filters, result: event.target.value })
+                }
+              >
+                <option value="">Wszystkie wyniki</option>
+                <option value="pass">Tylko zgodne</option>
+                <option value="fail">Tylko niezgodne</option>
+              </select>
+            </label>
+            <label className="search-filter">
+              Produkt
+              <input
+                type="search"
+                placeholder="Numer seryjny / VIN"
+                value={filters.search}
+                onChange={(event) =>
+                  setFilters({ ...filters, search: event.target.value })
+                }
+              />
+            </label>
+            <div className="filter-actions">
+              <button
+                className="filter-reset"
+                onClick={() => {
+                  const next = {
+                    from: dashboardDate(6),
+                    to: dashboardDate(0),
+                    processId: "",
+                    stationId: "",
+                    formCode: "",
+                    formIds: [],
+                    result: "",
+                    search: "",
+                  };
+                  setFilters(next);
+                  setAppliedFilters(next);
+                }}
+              >
+                Wyczyść
+              </button>
+              <button
+                className="filter-apply"
+                disabled={connection === "loading"}
+                onClick={() => setAppliedFilters(filters)}
+              >
+                {connection === "loading" ? "Analizuję…" : "Analizuj"}
+              </button>
+            </div>
+          </div>
+          <div className="export-toolbar">
+            <div>
+              <strong>Eksport danych</strong>
+              <span>Aktualny zakres i aktywne filtry</span>
+            </div>
+            <div className="export-actions">
+              <button
+                onClick={() => void exportData("csv")}
+                disabled={Boolean(exportBusy)}
+              >
+                {exportBusy === "csv" ? "Generuję…" : "↓ CSV"}
+              </button>
+              <button
+                onClick={() => void exportData("xlsx")}
+                disabled={Boolean(exportBusy)}
+              >
+                {exportBusy === "xlsx" ? "Generuję…" : "↓ XLSX"}
+              </button>
+              <button
+                onClick={() => void exportData("pdf")}
+                disabled={Boolean(exportBusy)}
+              >
+                {exportBusy === "pdf" ? "Generuję…" : "↓ PDF"}
+              </button>
+              <button
+                className="api-copy"
+                onClick={() => void copyAnalyticsApi()}
+              >
+                ⌘ Kopiuj API
+              </button>
+            </div>
+            {exportNotice && (
+              <small className="export-notice">{exportNotice}</small>
+            )}
+          </div>
+        </section>
+
         <section className="metric-grid">
           <article className="metric-card featured">
             <div className="metric-icon">✓</div>
             <div>
-              <span>{t("dashboard.inspectionsToday")}</span>
+              <span>Inspekcje w okresie</span>
               <strong>
                 {data.summary.completedToday.toLocaleString(locale)}
               </strong>
@@ -725,7 +1412,7 @@ function Dashboard() {
           <article className="metric-card">
             <div className="metric-icon issue">!</div>
             <div>
-              <span>{t("dashboard.issues")}</span>
+              <span>Niezgodności w okresie</span>
               <strong>{data.summary.issuesToday}</strong>
               {trend(data.summary.issuesTrend)}
             </div>
@@ -750,7 +1437,7 @@ function Dashboard() {
             <div className="card-heading">
               <div>
                 <h2>{t("dashboard.throughput")}</h2>
-                <p>{t("dashboard.last7Days")}</p>
+                <p>Wyniki w wybranym zakresie dat</p>
               </div>
               <div className="legend">
                 <span>
@@ -772,9 +1459,27 @@ function Dashboard() {
                 </span>
                 <span>0</span>
               </div>
-              <div className="bar-chart">
+              <div
+                className="bar-chart"
+                style={{
+                  minWidth: `${Math.max(data.daily.length * 38, 420)}px`,
+                }}
+              >
                 {data.daily.map((item) => (
-                  <div className="bar-column" key={item.date}>
+                  <button
+                    className="bar-column"
+                    key={item.date}
+                    type="button"
+                    title={`Pokaż ${item.total} inspekcji z ${item.date}`}
+                    aria-label={`Pokaż inspekcje z ${item.date}: ${item.total} wszystkich, ${item.passed} zgodnych`}
+                    onClick={() =>
+                      drillDown({
+                        from: item.date,
+                        to: item.date,
+                        result: "",
+                      })
+                    }
+                  >
                     <div className="bars">
                       <i
                         className="bar-total"
@@ -786,7 +1491,7 @@ function Dashboard() {
                       />
                     </div>
                     <span>{day(item.date)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -795,11 +1500,15 @@ function Dashboard() {
             <div className="card-heading">
               <div>
                 <h2>{t("dashboard.qualityStatus")}</h2>
-                <p>{t("dashboard.todayProduction")}</p>
+                <p>Produkcja w wybranym okresie</p>
               </div>
             </div>
-            <div
+            <button
+              type="button"
               className="quality-ring"
+              title="Pokaż zgodne inspekcje"
+              aria-label={`Pokaż zgodne inspekcje: ${data.summary.passRate.toFixed(1)}%`}
+              onClick={() => drillDown({ result: "pass" })}
               style={
                 {
                   "--score": `${data.summary.passRate * 3.6}deg`,
@@ -813,9 +1522,12 @@ function Dashboard() {
                 </strong>
                 <span>{t("dashboard.compliant")}</span>
               </div>
-            </div>
+            </button>
             <div className="quality-breakdown">
-              <div>
+              <button
+                type="button"
+                onClick={() => drillDown({ result: "pass" })}
+              >
                 <span>
                   <i className="pass-dot" /> {t("dashboard.passed")}
                 </span>
@@ -825,13 +1537,16 @@ function Dashboard() {
                     0,
                   ).toLocaleString(locale)}
                 </strong>
-              </div>
-              <div>
+              </button>
+              <button
+                type="button"
+                onClick={() => drillDown({ result: "fail" })}
+              >
                 <span>
                   <i className="fail-dot" /> {t("dashboard.failed")}
                 </span>
                 <strong>{data.summary.issuesToday}</strong>
-              </div>
+              </button>
             </div>
             <div className="mes-health">
               <span>{t("dashboard.scadaSync")}</span>
@@ -842,7 +1557,262 @@ function Dashboard() {
           </aside>
         </section>
 
-        <section className="dashboard-card recent-card">
+        <section className="dashboard-card completeness-card">
+          <div className="card-heading">
+            <div>
+              <h2>{t("dashboard.completeness")}</h2>
+              <p>{t("dashboard.completenessSubtitle")}</p>
+            </div>
+            <span className="completeness-sample">
+              {t("dashboard.durationSample", {
+                count: data.completeness.durationSampleSize,
+              })}
+            </span>
+          </div>
+          <div className="completeness-grid">
+            <article>
+              <span className="completeness-icon duration">◷</span>
+              <div>
+                <small>{t("dashboard.averageDuration")}</small>
+                <strong>
+                  {duration(data.completeness.averageDurationSeconds)}
+                </strong>
+              </div>
+            </article>
+            <article>
+              <span className="completeness-icon duration">M</span>
+              <div>
+                <small>Mediana czasu</small>
+                <strong>
+                  {duration(data.completeness.medianDurationSeconds)}
+                </strong>
+              </div>
+            </article>
+            <article>
+              <span className="completeness-icon skipped">○</span>
+              <div>
+                <small>{t("dashboard.skippedQuestions")}</small>
+                <strong>{data.completeness.skippedQuestions}</strong>
+                <em>{data.completeness.skippedRate.toFixed(1)}%</em>
+              </div>
+            </article>
+            <article>
+              <span className="completeness-icon fast">⚡</span>
+              <div>
+                <small>{t("dashboard.unusuallyFast")}</small>
+                <strong>{data.completeness.unusuallyFast}</strong>
+                <em>{t("dashboard.fastThreshold")}</em>
+              </div>
+            </article>
+            <article>
+              <span className="completeness-icon corrections">↻</span>
+              <div>
+                <small>{t("dashboard.frequentCorrections")}</small>
+                <strong>{data.completeness.frequentCorrections}</strong>
+                <em>{t("dashboard.correctionsThreshold")}</em>
+              </div>
+            </article>
+          </div>
+          {data.completeness.durationByForm.length > 0 && (
+            <div className="duration-by-form">
+              <strong>Czas według formularza</strong>
+              {data.completeness.durationByForm.slice(0, 8).map((item) => (
+                <div key={item.formCode}>
+                  <span>
+                    {item.formName} · {item.formCode}
+                  </span>
+                  <b>mediana {duration(item.medianSeconds)}</b>
+                  <small>
+                    średnia {duration(item.averageSeconds)} · n=
+                    {item.sampleSize}
+                  </small>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="quality-analysis-grid">
+          <article className="dashboard-card question-trends-card">
+            <div className="card-heading">
+              <div>
+                <h2>Trendy pojedynczych pytań</h2>
+                <p>Punkty kontroli najczęściej kończące się NOK</p>
+              </div>
+              <span className="table-count">TOP 10</span>
+            </div>
+            <div className="question-trends-list">
+              {data.questionTrends.slice(0, 10).map((item, index) => (
+                <div className="question-trend-row" key={item.key}>
+                  <span className="trend-position">{index + 1}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>
+                      {item.formCode} · {item.nok} NOK z {item.total} ocen
+                    </small>
+                  </div>
+                  <div className="trend-rate">
+                    <strong>{item.nokRate.toFixed(1)}%</strong>
+                    <i>
+                      <b style={{ width: `${item.nokRate}%` }} />
+                    </i>
+                  </div>
+                </div>
+              ))}
+              {!data.questionTrends.length && (
+                <div className="analysis-empty">
+                  Brak ocen OK/NOK dla wybranych danych.
+                </div>
+              )}
+            </div>
+          </article>
+
+          <article className="dashboard-card heatmap-card">
+            <div className="card-heading heatmap-heading">
+              <div>
+                <h2>Heatmapa jakości</h2>
+                <p>Intensywność koloru oznacza udział wyników NOK</p>
+              </div>
+              <div className="heatmap-tabs" role="tablist">
+                <button
+                  className={heatmapType === "questionStation" ? "active" : ""}
+                  onClick={() => setHeatmapType("questionStation")}
+                >
+                  Pytanie × stanowisko
+                </button>
+                <button
+                  className={heatmapType === "time" ? "active" : ""}
+                  onClick={() => setHeatmapType("time")}
+                >
+                  Godzina × dzień
+                </button>
+                <button
+                  className={heatmapType === "formProduct" ? "active" : ""}
+                  onClick={() => setHeatmapType("formProduct")}
+                >
+                  Formularz × produkt
+                </button>
+              </div>
+            </div>
+            <QualityHeatmap
+              data={data.heatmaps[heatmapType]}
+              type={heatmapType}
+            />
+            <div className="heatmap-legend">
+              <span>Brak danych</span>
+              <i />
+              <i />
+              <i />
+              <i />
+              <strong>Wysoki udział NOK</strong>
+            </div>
+          </article>
+        </section>
+
+        <section className="analysis-grid">
+          <article className="dashboard-card analysis-card">
+            <div className="card-heading">
+              <div>
+                <h2>Stanowiska wymagające uwagi</h2>
+                <p>Najniższy first pass yield, minimum jedna inspekcja</p>
+              </div>
+            </div>
+            <div className="ranking-list">
+              {[...data.breakdowns.stations]
+                .sort((a, b) => a.passRate - b.passRate)
+                .slice(0, 6)
+                .map((item) => (
+                  <button
+                    className="ranking-row"
+                    key={item.key}
+                    type="button"
+                    title={`Pokaż inspekcje ze stanowiska ${item.key}`}
+                    onClick={() => drillDown({ stationId: item.key })}
+                  >
+                    <div>
+                      <strong>{item.key}</strong>
+                      <small>
+                        {item.name}
+                        {item.process ? ` · ${item.process}` : ""}
+                      </small>
+                    </div>
+                    <div className="ranking-meter">
+                      <i>
+                        <b style={{ width: `${item.passRate}%` }} />
+                      </i>
+                      <strong
+                        className={item.passRate < 97 ? "below-target" : ""}
+                      >
+                        {item.passRate.toFixed(1)}%
+                      </strong>
+                      <small>{item.total} kontroli</small>
+                    </div>
+                  </button>
+                ))}
+              {!data.breakdowns.stations.length && (
+                <div className="analysis-empty">
+                  Brak danych dla wybranych filtrów.
+                </div>
+              )}
+            </div>
+          </article>
+          <article className="dashboard-card analysis-card">
+            <div className="card-heading">
+              <div>
+                <h2>Jakość według standardu</h2>
+                <p>Wolumen, zgodność i liczba niezgodności</p>
+              </div>
+            </div>
+            <div className="ranking-list">
+              {data.breakdowns.forms.slice(0, 6).map((item) => (
+                <button
+                  className="ranking-row"
+                  key={item.key}
+                  type="button"
+                  title={`Pokaż inspekcje dla standardu ${item.name}`}
+                  onClick={() => {
+                    const selectedForm = data.filters.forms.find(
+                      (form) => form.id === item.key,
+                    );
+                    drillDown({
+                      formCode: selectedForm?.code ?? "",
+                      formIds: [item.key],
+                    });
+                  }}
+                >
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>
+                      {item.total - item.passed} niezgodnych z {item.total}
+                    </small>
+                  </div>
+                  <div className="ranking-meter">
+                    <i>
+                      <b style={{ width: `${item.passRate}%` }} />
+                    </i>
+                    <strong
+                      className={item.passRate < 97 ? "below-target" : ""}
+                    >
+                      {item.passRate.toFixed(1)}%
+                    </strong>
+                    <small>FPY</small>
+                  </div>
+                </button>
+              ))}
+              {!data.breakdowns.forms.length && (
+                <div className="analysis-empty">
+                  Brak danych dla wybranych filtrów.
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
+
+        <section
+          className="dashboard-card recent-card"
+          id="inspection-results"
+          ref={reportsRef}
+        >
           <div className="card-heading">
             <div>
               <h2>{t("dashboard.reports")}</h2>
@@ -868,9 +1838,12 @@ function Dashboard() {
               <tbody>
                 {data.recent.map((item) => (
                   <tr key={item.publicReportId}>
-                    <td>{time(item.createdAt)}</td>
+                    <td>{dateTime(item.createdAt)}</td>
                     <td>
                       <strong>{item.vinOrSerialNumber}</strong>
+                      {item.originalInspectionId && (
+                        <small className="retest-badge">RETEST</small>
+                      )}
                     </td>
                     <td>
                       <span className="form-name">{item.form.title}</span>
@@ -905,9 +1878,10 @@ function Dashboard() {
                     <td>
                       <a
                         className="report-table-link"
-                        href={route(`/reports/${item.publicReportId}`)}
+                        href={route(`/reports/${item.publicReportId}#answers`)}
                       >
-                        {t("dashboard.view")} <span aria-hidden="true">↗</span>
+                        {t("dashboard.view")} · {t("report.answers")}{" "}
+                        <span aria-hidden="true">↗</span>
                       </a>
                     </td>
                   </tr>
@@ -1507,6 +2481,12 @@ function AdminPanel() {
   const [statuses, setStatuses] = useState(
     initialDraft?.statuses ?? ["PASSED", "FAILED"],
   );
+  const [nokStreakThreshold, setNokStreakThreshold] = useState(
+    initialDraft?.nokStreakThreshold ?? 3,
+  );
+  const [requiresLogin, setRequiresLogin] = useState(
+    initialDraft?.requiresLogin ?? false,
+  );
   const [processIds, setProcessIds] = useState<string[]>(
     initialDraft?.processIds ?? [],
   );
@@ -1521,6 +2501,8 @@ function AdminPanel() {
   const [stations, setStations] = useState<Station[]>([]);
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [editingForm, setEditingForm] = useState<InspectionForm | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [revisions, setRevisions] = useState<InspectionForm[]>([]);
   const processes = useMemo(
     () =>
@@ -1564,7 +2546,15 @@ function AdminPanel() {
 
   useEffect(() => {
     if (section !== "forms-new") return;
-    const content = { title, code, statuses, processIds, questions };
+    const content = {
+      title,
+      code,
+      statuses,
+      nokStreakThreshold,
+      requiresLogin,
+      processIds,
+      questions,
+    };
     if (!hasNewFormDraftContent(content)) {
       localStorage.removeItem(NEW_FORM_DRAFT_KEY);
       const timeout = window.setTimeout(() => setDraftSavedAt(""), 0);
@@ -1583,7 +2573,17 @@ function AdminPanel() {
       }
     }, 300);
     return () => window.clearTimeout(timeout);
-  }, [code, processIds, questions, section, statuses, t, title]);
+  }, [
+    code,
+    nokStreakThreshold,
+    requiresLogin,
+    processIds,
+    questions,
+    section,
+    statuses,
+    t,
+    title,
+  ]);
 
   async function editForm(form: InspectionForm) {
     setSection("forms-edit");
@@ -1591,6 +2591,8 @@ function AdminPanel() {
     setTitle(form.title);
     setCode(form.code);
     setStatuses([...form.allowedStatuses]);
+    setNokStreakThreshold(form.nokStreakThreshold);
+    setRequiresLogin(form.requiresLogin);
     setProcessIds([...form.processIds]);
     setQuestions(structuredClone(form.questions));
     setNotice("");
@@ -1624,6 +2626,33 @@ function AdminPanel() {
     }
   }
 
+  async function duplicateForm(form: InspectionForm) {
+    const title = window.prompt(
+      "Nazwa nowego formularza",
+      `${form.title} — kopia`,
+    );
+    if (!title?.trim()) return;
+    const code = window.prompt("Nowy kod formularza", `${form.code}-COPY`);
+    if (!code?.trim()) return;
+    setBusy(true);
+    try {
+      await api<InspectionForm>(`/forms/${form.id}/duplicate`, {
+        method: "POST",
+        body: JSON.stringify({ title: title.trim(), code: code.trim() }),
+      });
+      await loadForms();
+      setNotice("Formularz został zduplikowany jako nowy standard.");
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error
+          ? reason.message
+          : "Nie udało się zduplikować formularza",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function startNewForm() {
     const draft = readNewFormDraft();
     setSection("forms-new");
@@ -1631,6 +2660,8 @@ function AdminPanel() {
     setTitle(draft?.title ?? "");
     setCode(draft?.code ?? "");
     setStatuses(draft?.statuses ?? ["PASSED", "FAILED"]);
+    setNokStreakThreshold(draft?.nokStreakThreshold ?? 3);
+    setRequiresLogin(draft?.requiresLogin ?? false);
     setProcessIds(draft?.processIds ?? []);
     setQuestions(draft?.questions.length ? draft.questions : [emptyQuestion()]);
     setDraftSavedAt(draft?.updatedAt ?? "");
@@ -1739,6 +2770,8 @@ function AdminPanel() {
             title,
             ...(!editingForm ? { code } : {}),
             allowedStatuses: statuses.filter(Boolean),
+            nokStreakThreshold,
+            requiresLogin,
             questions: questions.map(removeEmptyOptions),
             processIds,
           }),
@@ -1751,6 +2784,8 @@ function AdminPanel() {
         setTitle("");
         setCode("");
         setStatuses(["PASSED", "FAILED"]);
+        setNokStreakThreshold(3);
+        setRequiresLogin(false);
         setProcessIds([]);
         setQuestions([emptyQuestion()]);
         setDraftSavedAt("");
@@ -2002,6 +3037,14 @@ function AdminPanel() {
                           className="secondary"
                           type="button"
                           disabled={busy}
+                          onClick={() => void duplicateForm(form)}
+                        >
+                          Duplikuj
+                        </button>
+                        <button
+                          className="secondary"
+                          type="button"
+                          disabled={busy}
                           onClick={() => void editForm(form)}
                         >
                           {t("form.edit")}
@@ -2096,6 +3139,43 @@ function AdminPanel() {
                     <br />
                     {t("form.statusTip")}
                   </div>
+                  <label>
+                    Próg serii NOK
+                    <input
+                      type="number"
+                      min="2"
+                      max="100"
+                      step="1"
+                      value={nokStreakThreshold}
+                      onChange={(event) =>
+                        setNokStreakThreshold(Number(event.target.value))
+                      }
+                      required
+                    />
+                    <small>
+                      Alert pojawi się po tylu kolejnych wynikach NOK na tym
+                      samym stanowisku dla tego formularza.
+                    </small>
+                  </label>
+                  <label className="form-login-toggle">
+                    <input
+                      type="checkbox"
+                      checked={requiresLogin}
+                      onChange={(event) =>
+                        setRequiresLogin(event.target.checked)
+                      }
+                    />
+                    <span
+                      className="form-login-toggle-track"
+                      aria-hidden="true"
+                    >
+                      <i />
+                    </span>
+                    <span className="form-login-toggle-copy">
+                      <strong>{t("form.requiresLogin")}</strong>
+                      <small>{t("form.requiresLoginHelp")}</small>
+                    </span>
+                  </label>
                   <label>{t("form.assignedProcesses")}</label>
                   <div className="station-picker">
                     {processes.map((process) => (
@@ -2276,6 +3356,26 @@ function AdminPanel() {
                             }
                           />{" "}
                           {t("form.required")}
+                        </label>
+                        <label>
+                          Poziom ważności
+                          <select
+                            value={
+                              question.severity ??
+                              (question.isCritical ? "CRITICAL" : "NORMAL")
+                            }
+                            onChange={(event) =>
+                              updateQuestion(question.id, {
+                                severity: event.target
+                                  .value as QuestionSeverity,
+                                isCritical: undefined,
+                              })
+                            }
+                          >
+                            <option value="NORMAL">Zwykłe</option>
+                            <option value="MAJOR">Major</option>
+                            <option value="CRITICAL">Critical</option>
+                          </select>
                         </label>
                       </div>
                       {question.type === "SELECT" && (
@@ -2467,6 +3567,16 @@ function AdminPanel() {
                   >
                     {t("form.addQuestion")}
                   </button>
+                  <button
+                    className="secondary form-preview-button"
+                    type="button"
+                    onClick={() => {
+                      setPreviewIndex(0);
+                      setPreviewOpen(true);
+                    }}
+                  >
+                    Podgląd widoku operatora
+                  </button>
                   {notice && <p className="notice">{notice}</p>}
                   <button
                     className="primary publish"
@@ -2488,6 +3598,79 @@ function AdminPanel() {
           </>
         ) : null}
       </div>
+      {previewOpen && (
+        <div className="form-preview-overlay" role="dialog" aria-modal="true">
+          <div className="form-preview-window">
+            <header>
+              <div>
+                <small>PODGLĄD OPERATORA</small>
+                <strong>{title || "Formularz bez nazwy"}</strong>
+              </div>
+              <button type="button" onClick={() => setPreviewOpen(false)}>
+                ×
+              </button>
+            </header>
+            {questions[previewIndex] && (
+              <article className="panel operator-question question-current">
+                <span className="question-number">
+                  {String(previewIndex + 1).padStart(2, "0")}
+                </span>
+                <div className="question-body">
+                  <div className="question-title">
+                    <h2>
+                      {questions[previewIndex].label || "Treść pytania"}
+                      {questions[previewIndex].isRequired && <sup>*</sup>}
+                    </h2>
+                    {questionSeverity(questions[previewIndex]) !== "NORMAL" && (
+                      <span
+                        className={`question-severity ${questionSeverity(questions[previewIndex]).toLowerCase()}`}
+                      >
+                        {questionSeverity(questions[previewIndex])}
+                      </span>
+                    )}
+                  </div>
+                  {questions[previewIndex].description && (
+                    <p className="muted">
+                      {questions[previewIndex].description}
+                    </p>
+                  )}
+                  {questions[previewIndex].instructionImageUrl && (
+                    <img
+                      className="preview-instruction"
+                      src={questions[previewIndex].instructionImageUrl}
+                      alt="Instrukcja"
+                    />
+                  )}
+                  <div className="preview-answer-placeholder">
+                    Miejsce na odpowiedź typu: {questions[previewIndex].type}
+                  </div>
+                </div>
+              </article>
+            )}
+            <footer>
+              <button
+                type="button"
+                className="secondary"
+                disabled={previewIndex === 0}
+                onClick={() => setPreviewIndex((value) => value - 1)}
+              >
+                ← Poprzednie
+              </button>
+              <span>
+                {previewIndex + 1} / {questions.length}
+              </span>
+              <button
+                type="button"
+                className="primary"
+                disabled={previewIndex >= questions.length - 1}
+                onClick={() => setPreviewIndex((value) => value + 1)}
+              >
+                Następne →
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2520,9 +3703,40 @@ function OperatorPanel({
   } | null>(null);
   const [stationId, setStationId] = useState("");
   const [stationName, setStationName] = useState("");
+  const [newStationName, setNewStationName] = useState("");
+  const [newStationProcessName, setNewStationProcessName] = useState("");
   const [stationProcessId, setStationProcessId] = useState("");
   const [identifying, setIdentifying] = useState(false);
   const [status, setStatus] = useState("");
+  const [offlineQueueCount, setOfflineQueueCount] = useState(
+    () => readInspectionQueue().length,
+  );
+
+  useEffect(() => {
+    let flushing = false;
+    const flush = async () => {
+      if (flushing || !navigator.onLine) return;
+      flushing = true;
+      const queue = readInspectionQueue();
+      while (queue.length) {
+        try {
+          await api("/inspections", {
+            method: "POST",
+            body: JSON.stringify(queue[0].payload),
+          });
+          queue.shift();
+          writeInspectionQueue(queue);
+          setOfflineQueueCount(queue.length);
+        } catch {
+          break;
+        }
+      }
+      flushing = false;
+    };
+    window.addEventListener("online", flush);
+    void flush();
+    return () => window.removeEventListener("online", flush);
+  }, []);
 
   function openOperatorLogin() {
     setLoginError("");
@@ -2575,6 +3789,9 @@ function OperatorPanel({
   const [answers, setAnswers] = useState<Record<string, InspectionAnswerValue>>(
     {},
   );
+  const inspectionStartedAt = useRef<number | null>(null);
+  const correctedQuestions = useRef(new Set<string>());
+  const answerAtFocus = useRef(new Map<string, InspectionAnswerValue>());
   const [notice, setNotice] = useState("");
   const [operatorNoticeKind, setOperatorNoticeKind] = useState<
     "info" | "success" | "error"
@@ -2608,13 +3825,24 @@ function OperatorPanel({
     ? localizeQuestion(currentQuestionSource, language)
     : undefined;
   const automaticStatus = useMemo(() => {
+    if (!form) return null;
+    const assessedQuestions = form.questions.filter(
+      (question) =>
+        canAssessAutomatically(question) &&
+        (question.isRequired ||
+          (answers[question.id] !== undefined &&
+            answers[question.id] !== null &&
+            answers[question.id] !== "")),
+    );
     if (
-      !form ||
-      !form.questions.every((question) => question.expectedValue !== undefined)
+      assessedQuestions.length === 0 ||
+      form.questions.some(
+        (question) => question.isRequired && !canAssessAutomatically(question),
+      )
     )
       return null;
-    const passed = form.questions.every(
-      (question) => answers[question.id] === question.expectedValue,
+    const passed = assessedQuestions.every((question) =>
+      isQuestionAnswerOk(question, answers[question.id]),
     );
     return (
       form.allowedStatuses.find(
@@ -2624,12 +3852,42 @@ function OperatorPanel({
   }, [answers, form]);
   const finalStatus = automaticStatus === null ? status : automaticStatus;
 
+  function updateAnswer(
+    questionId: string,
+    value: InspectionAnswerValue,
+    trackCorrection = true,
+  ) {
+    setAnswers((current) => {
+      const previous = current[questionId];
+      if (
+        trackCorrection &&
+        previous !== undefined &&
+        previous !== null &&
+        previous !== "" &&
+        previous !== value
+      ) {
+        correctedQuestions.current.add(questionId);
+      }
+      return { ...current, [questionId]: value };
+    });
+  }
+
+  function resetInspectionTelemetry() {
+    inspectionStartedAt.current = null;
+    correctedQuestions.current.clear();
+    answerAtFocus.current.clear();
+  }
+
   useEffect(() => {
     void Promise.all([
       api<InspectionForm[]>("/forms"),
       api<Station>("/stations/current").catch(() => null),
     ])
       .then(([data, currentStation]) => {
+        localStorage.setItem(
+          OFFLINE_INSPECTION_CONTEXT_KEY,
+          JSON.stringify({ forms: data, station: currentStation }),
+        );
         setForms(data);
         const normalizedStationId = currentStation?.code ?? "";
         setStationId(normalizedStationId);
@@ -2642,7 +3900,26 @@ function OperatorPanel({
         );
         setFormId(firstAvailable?.id ?? "");
       })
-      .catch((error: Error) => setNotice(error.message))
+      .catch((error: Error) => {
+        try {
+          const cached = JSON.parse(
+            localStorage.getItem(OFFLINE_INSPECTION_CONTEXT_KEY) ?? "null",
+          ) as { forms: InspectionForm[]; station: Station | null } | null;
+          if (!cached) throw error;
+          setForms(cached.forms);
+          setStationId(cached.station?.code ?? "");
+          setStationName(cached.station?.name ?? "");
+          setStationProcessId(cached.station?.process?.id ?? "");
+          setFormId(
+            cached.forms.find((item) =>
+              item.processIds.includes(cached.station?.process?.id ?? ""),
+            )?.id ?? "",
+          );
+          setNotice("Tryb offline — używane są ostatnio zapisane formularze.");
+        } catch {
+          setNotice(error.message);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -2658,6 +3935,7 @@ function OperatorPanel({
     setShowSummary(false);
     setRouteCheckId(null);
     setProduct(null);
+    resetInspectionTelemetry();
   }
 
   async function identifyStation(event: FormEvent) {
@@ -2668,11 +3946,17 @@ function OperatorPanel({
     try {
       const station = await api<Station>("/stations/identify", {
         method: "POST",
-        body: JSON.stringify({ code: stationId }),
+        body: JSON.stringify({
+          code: stationId,
+          name: newStationName || undefined,
+          processName: newStationProcessName || undefined,
+        }),
       });
       setStationId(station.code);
       setStationName(station.name);
       setStationProcessId(station.process?.id ?? "");
+      setNewStationName("");
+      setNewStationProcessName("");
       const nextForms = forms.filter(
         (item) =>
           Boolean(station.process) &&
@@ -2706,7 +3990,7 @@ function OperatorPanel({
     if (!file) return;
     try {
       const url = await uploadImage(file);
-      setAnswers((old) => ({ ...old, [questionId]: url }));
+      updateAnswer(questionId, url);
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : t("notice.uploadError"),
@@ -2714,9 +3998,30 @@ function OperatorPanel({
     }
   }
 
+  function finishLocalInspection(message: string) {
+    setNotice(message);
+    setOperatorNoticeKind("success");
+    setVin("");
+    setProductIdentified(false);
+    setStatus("");
+    setAnswers({});
+    setQuestionIndex(0);
+    setShowSummary(false);
+    setRouteCheckId(null);
+    setProduct(null);
+    resetInspectionTelemetry();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!form) return;
+    if (form.requiresLogin && !user) {
+      setNotice(t("inspection.loginRequired"));
+      setOperatorNoticeKind("error");
+      openOperatorLogin();
+      return;
+    }
     const missing = form.questions.filter(
       (question) =>
         question.isRequired &&
@@ -2737,35 +4042,54 @@ function OperatorPanel({
     }
     setBusy(true);
     setNotice("");
+    const clientSubmissionId = crypto.randomUUID();
+    const payload = {
+      clientSubmissionId,
+      formId,
+      routeCheckId,
+      vinOrSerialNumber: vin,
+      stationId,
+      status: finalStatus,
+      durationSeconds: inspectionStartedAt.current
+        ? Math.min(
+            86400,
+            Math.max(
+              0,
+              Math.round(
+                (event.timeStamp - inspectionStartedAt.current) / 1000,
+              ),
+            ),
+          )
+        : undefined,
+      answerCorrections: correctedQuestions.current.size,
+      answers: form.questions.map((q) => ({
+        questionId: q.id,
+        value: answers[q.id] ?? null,
+      })),
+    };
     try {
       await api("/inspections", {
         method: "POST",
-        body: JSON.stringify({
-          formId,
-          routeCheckId,
-          vinOrSerialNumber: vin,
-          stationId,
-          status: finalStatus,
-          answers: form.questions.map((q) => ({
-            questionId: q.id,
-            value: answers[q.id] ?? null,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
-      setNotice("Inspekcja zapisana. Wynik oczekuje na potwierdzenie SCADA.");
-      setOperatorNoticeKind("success");
-      setVin("");
-      setProductIdentified(false);
-      setStatus("");
-      setAnswers({});
-      setQuestionIndex(0);
-      setShowSummary(false);
-      setRouteCheckId(null);
-      setProduct(null);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      finishLocalInspection(
+        "Inspekcja zapisana. Wynik oczekuje na potwierdzenie SCADA.",
+      );
     } catch (error) {
-      setOperatorNoticeKind("error");
-      setNotice(error instanceof Error ? error.message : t("notice.saveError"));
+      if (!navigator.onLine || error instanceof TypeError) {
+        const queue = readInspectionQueue();
+        queue.push({ id: clientSubmissionId, payload });
+        writeInspectionQueue(queue);
+        setOfflineQueueCount(queue.length);
+        finishLocalInspection(
+          "Brak połączenia. Inspekcja została zapisana lokalnie i zostanie wysłana automatycznie po odzyskaniu sieci.",
+        );
+      } else {
+        setOperatorNoticeKind("error");
+        setNotice(
+          error instanceof Error ? error.message : t("notice.saveError"),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -2773,8 +4097,15 @@ function OperatorPanel({
 
   async function identifyProduct(event: FormEvent) {
     event.preventDefault();
+    const inspectionStart = event.timeStamp;
     const serialNumber = vin.trim();
     if (!serialNumber) return;
+    if (form?.requiresLogin && !user) {
+      setNotice(t("inspection.loginRequired"));
+      setOperatorNoticeKind("error");
+      openOperatorLogin();
+      return;
+    }
     setBusy(true);
     setNotice("");
     try {
@@ -2791,6 +4122,8 @@ function OperatorPanel({
       setRouteCheckId(result.routeCheckId);
       setProduct(result.integrationEnabled ? result.product : null);
       setProductIdentified(true);
+      inspectionStartedAt.current = inspectionStart;
+      correctedQuestions.current.clear();
       setNotice(t("inspection.allowed"));
       setOperatorNoticeKind("success");
     } catch (error) {
@@ -2837,7 +4170,7 @@ function OperatorPanel({
             className={
               answers[question.id] === true ? "choice active pass" : "choice"
             }
-            onClick={() => setAnswers({ ...answers, [question.id]: true })}
+            onClick={() => updateAnswer(question.id, true)}
           >
             {question.okImageUrl && (
               <img src={question.okImageUrl} alt="Wzorzec OK" />
@@ -2849,7 +4182,7 @@ function OperatorPanel({
             className={
               answers[question.id] === false ? "choice active fail" : "choice"
             }
-            onClick={() => setAnswers({ ...answers, [question.id]: false })}
+            onClick={() => updateAnswer(question.id, false)}
           >
             {question.nokImageUrl && (
               <img src={question.nokImageUrl} alt="Wzorzec NOK" />
@@ -2874,9 +4207,7 @@ function OperatorPanel({
                   name={`question-${question.id}`}
                   value={value}
                   checked={answers[question.id] === value}
-                  onChange={() =>
-                    setAnswers({ ...answers, [question.id]: value })
-                  }
+                  onChange={() => updateAnswer(question.id, value)}
                 />
                 <span className="radio-indicator" aria-hidden="true" />
                 <span>{option}</span>
@@ -2919,14 +4250,30 @@ function OperatorPanel({
         {...common}
         type={question.type === "NUMBER_RANGE" ? "number" : "text"}
         value={String(answers[question.id] ?? "")}
+        onFocus={() =>
+          answerAtFocus.current.set(question.id, answers[question.id] ?? null)
+        }
+        onBlur={() => {
+          const initial = answerAtFocus.current.get(question.id);
+          const current = answers[question.id];
+          if (
+            initial !== undefined &&
+            initial !== null &&
+            initial !== "" &&
+            initial !== current
+          ) {
+            correctedQuestions.current.add(question.id);
+          }
+          answerAtFocus.current.delete(question.id);
+        }}
         onChange={(e) =>
-          setAnswers({
-            ...answers,
-            [question.id]:
-              question.type === "NUMBER_RANGE"
-                ? Number(e.target.value)
-                : e.target.value,
-          })
+          updateAnswer(
+            question.id,
+            question.type === "NUMBER_RANGE"
+              ? Number(e.target.value)
+              : e.target.value,
+            false,
+          )
         }
       />
     );
@@ -3058,6 +4405,11 @@ function OperatorPanel({
           <span className="online">
             <i /> {t("inspection.online")}
           </span>
+          {offlineQueueCount > 0 && (
+            <span className="offline-queue-badge">
+              ↻ {offlineQueueCount} oczekuje na synchronizację
+            </span>
+          )}
         </header>
         {notice && (
           <div
@@ -3129,6 +4481,24 @@ function OperatorPanel({
                   required
                 />
               </label>
+              <label>
+                {t("inspection.stationName")}
+                <input
+                  value={newStationName}
+                  onChange={(event) => setNewStationName(event.target.value)}
+                  placeholder={t("inspection.stationNamePlaceholder")}
+                />
+              </label>
+              <label>
+                {t("inspection.stationProcess")}
+                <input
+                  value={newStationProcessName}
+                  onChange={(event) =>
+                    setNewStationProcessName(event.target.value)
+                  }
+                  placeholder={t("inspection.stationProcessPlaceholder")}
+                />
+              </label>
               <button className="primary" disabled={identifying}>
                 {identifying
                   ? t("inspection.connecting")
@@ -3187,6 +4557,15 @@ function OperatorPanel({
                 <select
                   value={formId}
                   onChange={(e) => {
+                    const nextForm = forms.find(
+                      (item) => item.id === e.target.value,
+                    );
+                    if (nextForm?.requiresLogin && !user) {
+                      setNotice(t("inspection.loginRequired"));
+                      setOperatorNoticeKind("error");
+                      openOperatorLogin();
+                      return;
+                    }
                     setFormId(e.target.value);
                     setAnswers({});
                     setStatus("");
@@ -3262,6 +4641,13 @@ function OperatorPanel({
                         {currentQuestion.label}
                         {currentQuestion.isRequired && <sup>*</sup>}
                       </h2>
+                      {questionSeverity(currentQuestion) !== "NORMAL" && (
+                        <span
+                          className={`question-severity ${questionSeverity(currentQuestion).toLowerCase()}`}
+                        >
+                          {questionSeverity(currentQuestion)}
+                        </span>
+                      )}
                       {answers[currentQuestion.id] !== undefined &&
                         answers[currentQuestion.id] !== "" && (
                           <span className="done-mark">✓</span>
@@ -3448,6 +4834,14 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
       );
   }, [publicReportId]);
 
+  useEffect(() => {
+    if (report && window.location.hash === "#answers") {
+      window.requestAnimationFrame(() =>
+        document.getElementById("answers")?.scrollIntoView({ block: "start" }),
+      );
+    }
+  }, [report]);
+
   if (!report) {
     return (
       <main className="public-report-state">
@@ -3527,6 +4921,27 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
             {passed ? "✓" : "×"} {report.result}
           </span>
         </header>
+
+        {report.retest.isRetest && report.retest.originalReportId && (
+          <aside className="retest-notice">
+            <span>↻</span>
+            <div>
+              <strong>Ponowna inspekcja (retest)</strong>
+              <p>
+                Powiązana z wcześniejszą inspekcją NOK
+                {report.retest.originalCompletedAt
+                  ? ` z ${new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(report.retest.originalCompletedAt))}`
+                  : ""}
+                .
+              </p>
+            </div>
+            <a
+              href={`/${language === "uk" ? "ua" : language}/reports/${report.retest.originalReportId}`}
+            >
+              Otwórz pierwotny raport ↗
+            </a>
+          </aside>
+        )}
 
         <section className="report-summary-grid">
           <div>
@@ -3624,7 +5039,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
           </dl>
         </section>
 
-        <section className="report-section report-answers">
+        <section className="report-section report-answers" id="answers">
           <h2>{t("report.answers")}</h2>
           {report.answers.map((answer, index) => (
             <article className="report-answer" key={answer.questionId}>
@@ -3637,6 +5052,13 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
                     ? answer.label
                     : answer.translations?.[language]?.label || answer.label}
                 </h3>
+                {answer.severity !== "NORMAL" && (
+                  <span
+                    className={`question-severity ${answer.severity.toLowerCase()}`}
+                  >
+                    {answer.severity}
+                  </span>
+                )}
                 {answer.imageUrl ? (
                   <img
                     src={answer.imageUrl}
@@ -3664,6 +5086,211 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   );
 }
 
+type QualityDashboardData = {
+  generatedAt: string;
+  windowHours: number;
+  summary: {
+    inspections: number;
+    nok: number;
+    activeNokStreaks: number;
+    criticalDefects: number;
+  };
+  nokStreaks: Array<{
+    stationCode: string;
+    formCode: string;
+    formName: string;
+    count: number;
+    threshold: number;
+    latestAt: string;
+    reportId: string;
+  }>;
+  criticalDefects: Array<{
+    inspectionId: string;
+    reportId: string;
+    serialNumber: string;
+    stationCode: string;
+    formCode: string;
+    questionId: string;
+    questionLabel: string;
+    occurredAt: string;
+  }>;
+};
+
+function QualityDashboard() {
+  const { language, locale } = useI18n();
+  const route = (path: string) =>
+    `/${language === "uk" ? "ua" : language}${path}`;
+  const [data, setData] = useState<QualityDashboardData | null>(null);
+  const [connection, setConnection] = useState<
+    "connecting" | "live" | "offline"
+  >("connecting");
+
+  useEffect(() => {
+    let active = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimer = 0;
+    const refresh = () =>
+      api<QualityDashboardData>("/inspections/quality-dashboard")
+        .then((result) => active && setData(result))
+        .catch(() => active && setConnection("offline"));
+    const connect = () => {
+      if (!active) return;
+      setConnection("connecting");
+      socket = new WebSocket(qualityWebSocketUrl());
+      socket.addEventListener("open", () => {
+        setConnection("live");
+        void refresh();
+      });
+      socket.addEventListener("message", () => void refresh());
+      socket.addEventListener("close", () => {
+        if (!active) return;
+        setConnection("offline");
+        reconnectTimer = window.setTimeout(connect, 3000);
+      });
+      socket.addEventListener("error", () => socket?.close());
+    };
+    void refresh();
+    connect();
+    return () => {
+      active = false;
+      window.clearTimeout(reconnectTimer);
+      socket?.close();
+    };
+  }, []);
+
+  const time = (value: string) =>
+    new Intl.DateTimeFormat(locale, {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(new Date(value));
+
+  return (
+    <main className="quality-live-shell">
+      <header className="quality-live-nav">
+        <a className="brand dashboard-brand" href={route("/")}>
+          <span>IH</span>
+          <div>
+            Inspect Hub<small>QUALITY LIVE</small>
+          </div>
+        </a>
+        <div className={`quality-connection ${connection}`}>
+          <i />{" "}
+          {connection === "live"
+            ? "NA ŻYWO"
+            : connection === "connecting"
+              ? "ŁĄCZENIE…"
+              : "BRAK POŁĄCZENIA"}
+        </div>
+      </header>
+      <div className="quality-live-content">
+        <section className="quality-live-heading">
+          <div>
+            <p className="eyebrow">MONITOR JAKOŚCI · OSTATNIE 24 GODZINY</p>
+            <h1>Alerty jakościowe</h1>
+            <p>
+              Serie kolejnych wyników NOK i krytyczne niezgodności z inspekcji.
+            </p>
+          </div>
+          <a href={route("/")}>← Dashboard wyników</a>
+        </section>
+
+        <section className="quality-live-kpis">
+          <article>
+            <span>Inspekcje</span>
+            <strong>{data?.summary.inspections ?? "—"}</strong>
+          </article>
+          <article>
+            <span>Wyniki NOK</span>
+            <strong>{data?.summary.nok ?? "—"}</strong>
+          </article>
+          <article className="warning">
+            <span>Aktywne serie NOK</span>
+            <strong>{data?.summary.activeNokStreaks ?? "—"}</strong>
+          </article>
+          <article className="critical">
+            <span>Wady krytyczne</span>
+            <strong>{data?.summary.criticalDefects ?? "—"}</strong>
+          </article>
+        </section>
+
+        <section className="quality-live-grid">
+          <article className="quality-feed-panel">
+            <header>
+              <div>
+                <span className="feed-icon warning">↯</span>
+                <h2>Serie NOK</h2>
+              </div>
+              <small>próg ustawiany w formularzu</small>
+            </header>
+            <div className="quality-feed">
+              {data?.nokStreaks.map((item) => (
+                <a
+                  href={route(`/reports/${item.reportId}`)}
+                  className="feed-row urgent"
+                  key={`${item.stationCode}-${item.formCode}`}
+                >
+                  <span className="streak-count">
+                    {item.count}
+                    <small>× NOK</small>
+                  </span>
+                  <div>
+                    <strong>{item.stationCode}</strong>
+                    <p>
+                      {item.formName} · {item.formCode} · próg {item.threshold}
+                    </p>
+                  </div>
+                  <time>{time(item.latestAt)}</time>
+                </a>
+              ))}
+              {!data?.nokStreaks.length && (
+                <p className="quality-empty">Brak aktywnych serii NOK.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="quality-feed-panel critical-panel">
+            <header>
+              <div>
+                <span className="feed-icon critical">!</span>
+                <h2>Wady krytyczne</h2>
+              </div>
+              <small>odpowiedzi NOK na cechach krytycznych</small>
+            </header>
+            <div className="quality-feed">
+              {data?.criticalDefects.map((item) => (
+                <a
+                  href={route(`/reports/${item.reportId}`)}
+                  className="feed-row critical-row"
+                  key={`${item.inspectionId}-${item.questionId}`}
+                >
+                  <span className="critical-mark">!</span>
+                  <div>
+                    <strong>{item.questionLabel}</strong>
+                    <p>
+                      {item.stationCode} · {item.formCode} · {item.serialNumber}
+                    </p>
+                  </div>
+                  <time>{time(item.occurredAt)}</time>
+                </a>
+              ))}
+              {!data?.criticalDefects.length && (
+                <p className="quality-empty">Brak wad krytycznych.</p>
+              )}
+            </div>
+          </article>
+        </section>
+        <footer className="quality-live-footer">
+          Ostatnie przeliczenie: {data ? time(data.generatedAt) : "—"} · dane
+          odświeżane po każdej zapisanej inspekcji
+        </footer>
+      </div>
+    </main>
+  );
+}
+
 function App() {
   const { language, t } = useI18n();
   const [user, setUser] = useState<SessionUser | null>(() => {
@@ -3683,7 +5310,26 @@ function App() {
     );
   }
   let path = routeMatch?.[2] || originalPath;
+  const pageTitleKey =
+    path === "/"
+      ? "pageTitle.dashboard"
+      : path === "/quality"
+        ? "pageTitle.quality"
+        : /^\/reports\/[^/]+\/?$/.test(path)
+          ? "pageTitle.report"
+          : path === "/inspection"
+            ? "pageTitle.inspection"
+            : !user
+              ? "pageTitle.login"
+              : "pageTitle.admin";
+  const pageTitle = `Inspect Hub · ${t(pageTitleKey)}`;
+
+  useEffect(() => {
+    document.title = pageTitle;
+  }, [pageTitle]);
+
   if (path === "/") return <Dashboard />;
+  if (path === "/quality") return <QualityDashboard />;
   const publicReportMatch = path.match(/^\/reports\/([^/]+)\/?$/);
   if (publicReportMatch) {
     return (
