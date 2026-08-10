@@ -12,6 +12,13 @@ enum Role {
   OPERATOR
 }
 
+enum ScadaDeliveryStatus {
+  PENDING
+  RETRYING
+  DELIVERED
+  FAILED
+}
+
 model User {
   id                String             @id @default(cuid())
   email             String             @unique
@@ -61,20 +68,71 @@ model Station {
 }
 
 model InspectionResult {
-  id                String   @id @default(cuid())
+  id                String         @id @default(cuid())
+  publicReportId    String         @unique
   formId            String
   vinOrSerialNumber String
   stationId         String
-  operatorId        String
+  operatorId        String?
   status            String
   answers           Json
-  mesSynced         Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  form              Form     @relation(fields: [formId], references: [id])
-  operator          User     @relation("OperatorInspections", fields: [operatorId], references: [id])
+  mesSynced         Boolean        @default(false)
+  partNumber        String?
+  productFamily     String?
+  scadaServerUrl    String?
+  routeCheckId      String?        @unique
+  scadaDelivery     ScadaDelivery?
+  routeCheck        RouteCheck?    @relation(fields: [routeCheckId], references: [id])
+  createdAt         DateTime       @default(now())
+  form              Form           @relation(fields: [formId], references: [id])
+  operator          User?          @relation("OperatorInspections", fields: [operatorId], references: [id])
 
   @@index([formId])
   @@index([operatorId])
   @@index([vinOrSerialNumber])
   @@index([mesSynced])
+}
+
+model ScadaSettings {
+  id               String   @id
+  enabled          Boolean  @default(false)
+  baseUrl          String   @default("")
+  routeCheckPath   String   @default("/api/route-check")
+  submitResultPath String   @default("/api/inspection-result")
+  publicWebUrl     String   @default("http://localhost:5173")
+  timeoutMs        Int      @default(5000)
+  updatedAt        DateTime @updatedAt
+  updatedBy        String?
+}
+
+model RouteCheck {
+  id               String            @id @default(cuid())
+  serialNumber     String
+  stationCode      String
+  processName      String
+  allowed          Boolean
+  partNumber       String?
+  productFamily    String?
+  serverUrl        String?
+  checkedAt        DateTime          @default(now())
+  inspectionResult InspectionResult?
+
+  @@index([serialNumber])
+  @@index([checkedAt])
+}
+
+model ScadaDelivery {
+  id                 String              @id @default(cuid())
+  inspectionResultId String              @unique
+  payload            Json
+  status             ScadaDeliveryStatus @default(PENDING)
+  attemptCount       Int                 @default(0)
+  nextAttemptAt      DateTime            @default(now())
+  lastError          String?
+  deliveredAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  inspectionResult   InspectionResult    @relation(fields: [inspectionResultId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
 }
