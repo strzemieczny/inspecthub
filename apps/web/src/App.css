@@ -2,6 +2,129 @@
   min-height: 100vh;
 }
 
+/* Light theme counterpart to the atmospheric dark backgrounds. */
+:root:not([data-theme="dark"]) :where(
+  .dashboard-shell,
+  .admin-layout,
+  .station-shell,
+  .auth-shell,
+  .public-report-shell,
+  .public-report-state
+) {
+  background:
+    radial-gradient(ellipse 52% 42% at 50% 16%, rgba(62, 166, 127, .17), transparent 72%),
+    radial-gradient(ellipse 68% 48% at 50% 6%, rgba(82, 153, 196, .1), transparent 76%),
+    linear-gradient(180deg, #f7faf8 0%, #f1f5f2 52%, #eef3f0 100%);
+}
+
+:root:not([data-theme="dark"]) .quality-live-shell {
+  color: #18221f;
+  background:
+    radial-gradient(ellipse 54% 44% at 50% 18%, rgba(62, 166, 127, .19), transparent 72%),
+    radial-gradient(ellipse 70% 52% at 50% 8%, rgba(82, 153, 196, .11), transparent 76%),
+    linear-gradient(180deg, #f7faf8 0%, #eef4f1 100%);
+}
+
+:root:not([data-theme="dark"]) :where(
+  .dashboard-shell,
+  .admin-layout,
+  .station-shell,
+  .auth-shell,
+  .public-report-shell,
+  .public-report-state,
+  .quality-live-shell
+) {
+  background-size: 125% 125%, 135% 135%, 100% 100%;
+  animation: light-gradient-float 9s cubic-bezier(.45, 0, .25, 1) infinite alternate;
+}
+
+@keyframes light-gradient-float {
+  0% {
+    background-position: 38% -5%, 58% -2%, 0 0;
+    background-size: 112% 112%, 128% 128%, 100% 100%;
+  }
+  35% {
+    background-position: 55% 9%, 42% 5%, 0 0;
+    background-size: 138% 138%, 112% 112%, 100% 100%;
+  }
+  68% {
+    background-position: 65% 16%, 55% 12%, 0 0;
+    background-size: 118% 118%, 142% 142%, 100% 100%;
+  }
+  100% {
+    background-position: 42% 20%, 36% 9%, 0 0;
+    background-size: 145% 145%, 120% 120%, 100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-theme="dark"]) :where(
+    .dashboard-shell,
+    .admin-layout,
+    .station-shell,
+    .auth-shell,
+    .public-report-shell,
+    .public-report-state,
+    .quality-live-shell
+  ) {
+    animation: none;
+  }
+}
+
+:root:not([data-theme="dark"]) .quality-live-nav {
+  background: rgba(248, 251, 249, .88);
+  border-bottom-color: #d8e3dd;
+  box-shadow: 0 8px 28px rgba(29, 55, 45, .07);
+  backdrop-filter: blur(16px);
+}
+
+:root:not([data-theme="dark"]) .quality-live-nav .brand,
+:root:not([data-theme="dark"]) .quality-live-heading h1,
+:root:not([data-theme="dark"]) .quality-live-kpis strong,
+:root:not([data-theme="dark"]) .quality-feed-panel h2,
+:root:not([data-theme="dark"]) .feed-row strong {
+  color: #18221f;
+}
+
+:root:not([data-theme="dark"]) :where(.quality-live-heading p:not(.eyebrow), .quality-live-kpis span, .quality-feed-panel header small, .feed-row p, .feed-row time) {
+  color: #697873;
+}
+
+:root:not([data-theme="dark"]) .quality-live-kpis article,
+:root:not([data-theme="dark"]) .quality-feed-panel {
+  background: rgba(255, 255, 255, .82);
+  border-color: #d8e3dd;
+  box-shadow: 0 16px 42px rgba(29, 55, 45, .08);
+  backdrop-filter: blur(10px);
+}
+
+:root:not([data-theme="dark"]) .quality-feed-panel > header {
+  background: rgba(245, 249, 247, .82);
+  border-bottom-color: #d8e3dd;
+}
+
+:root:not([data-theme="dark"]) .feed-row {
+  border-bottom-color: #e1e9e5;
+}
+
+:root:not([data-theme="dark"]) .feed-row:hover {
+  background: #eef7f3;
+}
+
+:root:not([data-theme="dark"]) .feed-row.urgent {
+  background: rgba(216, 145, 48, .09);
+}
+
+:root:not([data-theme="dark"]) .quality-live-kpis .warning {
+  background: #fff8e9;
+  border-color: #ead39e;
+}
+
+:root:not([data-theme="dark"]) .quality-live-kpis .critical {
+  background: #fff1f1;
+  border-color: #e8b6b6;
+}
+
 /* Dark palette lives at the end of this file so it can adapt every app view. */
 
 .question-severity {
