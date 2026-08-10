@@ -23,6 +23,7 @@ import {
   type SessionUser,
 } from "./lib/api";
 import "./App.css";
+import { SettingsMenu, useI18n } from "./lib/i18n";
 
 function createClientId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
@@ -74,6 +75,7 @@ function AdminMenuIcon({
 }
 
 function ScadaSettingsPanel() {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<ScadaSettings | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -96,12 +98,12 @@ function ScadaSettingsPanel() {
           body: JSON.stringify(settings),
         }),
       );
-      setNotice("Ustawienia connectora SCADA zostały zapisane.");
+      setNotice(t("notice.scadaSaved"));
     } catch (error) {
       setNotice(
         error instanceof Error
           ? error.message
-          : "Nie udało się zapisać ustawień",
+          : t("notice.saveError"),
       );
     } finally {
       setBusy(false);
@@ -110,7 +112,7 @@ function ScadaSettingsPanel() {
 
   if (!settings)
     return (
-      <section className="panel">{notice || "Ładowanie ustawień…"}</section>
+      <section className="panel">{notice || t("scada.loading")}</section>
     );
   const update = <K extends keyof ScadaSettings>(
     key: K,
@@ -124,11 +126,10 @@ function ScadaSettingsPanel() {
     <form className="panel scada-settings" onSubmit={save}>
       <header className="scada-settings-header">
         <div className="scada-settings-title">
-          <p className="eyebrow">INTEGRACJA PRODUKCYJNA</p>
+          <p className="eyebrow">{t("scada.eyebrow")}</p>
           <h2>Connector SCADA</h2>
           <p>
-            Kontroluj dostęp produktu do inspekcji i automatycznie przekazuj
-            wyniki do systemu produkcyjnego.
+            {t("scada.description")}
           </p>
         </div>
         <label className="scada-toggle">
@@ -140,20 +141,19 @@ function ScadaSettingsPanel() {
           <span className="scada-toggle-track" aria-hidden="true">
             <i />
           </span>
-          <span>{settings.enabled ? "SCADA" : "Symulacja DEV"}</span>
+          <span>{settings.enabled ? "SCADA" : t("scada.simulation")}</span>
         </label>
       </header>
       <div className="scada-settings-body">
         <div className="scada-info">
           <span aria-hidden="true">↔</span>
           <p>
-            Route check działa synchronicznie. Wyniki zakończonych inspekcji są
-            kolejkowane i wysyłane asynchronicznie.
+            {t("scada.info")}
           </p>
         </div>
         <div className="settings-grid">
           <label>
-            Bazowy URL SCADA
+            {t("scada.baseUrl")}
             <input
               type="url"
               value={settings.baseUrl}
@@ -161,20 +161,20 @@ function ScadaSettingsPanel() {
               placeholder="http://scada.local:8080"
               required={settings.enabled}
             />
-            <small>Protokół, host i opcjonalny port systemu SCADA.</small>
+            <small>{t("scada.baseUrlHelp")}</small>
           </label>
           <label>
-            Publiczny URL Inspect Hub
+            {t("scada.publicUrl")}
             <input
               type="url"
               value={settings.publicWebUrl}
               onChange={(e) => update("publicWebUrl", e.target.value)}
               required
             />
-            <small>Używany do generowania linków do raportów.</small>
+            <small>{t("scada.publicUrlHelp")}</small>
           </label>
           <label>
-            Ścieżka route check
+            {t("scada.routePath")}
             <input
               value={settings.routeCheckPath}
               onChange={(e) => update("routeCheckPath", e.target.value)}
@@ -182,7 +182,7 @@ function ScadaSettingsPanel() {
             />
           </label>
           <label>
-            Ścieżka wysyłki wyniku
+            {t("scada.resultPath")}
             <input
               value={settings.submitResultPath}
               onChange={(e) => update("submitResultPath", e.target.value)}
@@ -190,7 +190,7 @@ function ScadaSettingsPanel() {
             />
           </label>
           <label className="timeout-field">
-            Timeout połączenia
+            {t("scada.timeout")}
             <div className="input-with-suffix">
               <input
                 type="number"
@@ -209,11 +209,11 @@ function ScadaSettingsPanel() {
       <footer className="scada-settings-actions">
         <span>
           {settings.enabled
-            ? "Żądania będą wysyłane do skonfigurowanego serwera SCADA."
-            : "Aktywna lokalna symulacja: numery _OK / _NOK."}
+            ? t("scada.liveHelp")
+            : t("scada.devHelp")}
         </span>
         <button className="primary" disabled={busy}>
-          {busy ? "Zapisywanie…" : "Zapisz ustawienia"}
+          {busy ? t("scada.saving") : t("scada.save")}
         </button>
       </footer>
     </form>
@@ -263,6 +263,8 @@ const emptyDashboard: DashboardData = {
 };
 
 function Dashboard() {
+  const { language, locale, t } = useI18n();
+  const route = (path: string) => `/${language === "uk" ? "ua" : language}${path}`;
   const [data, setData] = useState<DashboardData>(emptyDashboard);
   const [connection, setConnection] = useState<"loading" | "live" | "error">(
     "loading",
@@ -281,34 +283,34 @@ function Dashboard() {
   const passStatus = (status: string) =>
     ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(status.toUpperCase());
   const time = (value: string) =>
-    new Intl.DateTimeFormat("pl-PL", {
+    new Intl.DateTimeFormat(locale, {
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(value));
   const day = (value: string) =>
-    new Intl.DateTimeFormat("pl-PL", { weekday: "short" })
+    new Intl.DateTimeFormat(locale, { weekday: "short" })
       .format(new Date(`${value}T12:00:00`))
       .replace(".", "");
   const trend = (value: number | null) =>
     value === null ? (
-      <small>Brak danych porównawczych</small>
+      <small>{t("dashboard.noComparison")}</small>
     ) : (
       <small>
         <b className={value <= 0 ? "good" : ""}>
           {value > 0 ? "↑" : value < 0 ? "↓" : "→"} {Math.abs(value).toFixed(1)}
           %
         </b>{" "}
-        vs. wczoraj
+        {t("dashboard.vsYesterday")}
       </small>
     );
 
   return (
     <main className="dashboard-shell">
       <header className="dashboard-nav">
-        <a className="brand dashboard-brand" href="/">
+        <a className="brand dashboard-brand" href={route("/")}>
           <span>IH</span>
           <div>
-            Inspect Hub<small>Quality intelligence</small>
+            Inspect Hub<small>{t("common.qualityIntelligence")}</small>
           </div>
         </a>
         <div className="dashboard-nav-actions">
@@ -317,27 +319,28 @@ function Dashboard() {
           >
             <i />
             {connection === "live"
-              ? `Ostatnia aktualizacja: ${time(data.generatedAt)}`
+              ? t("dashboard.lastUpdated", { time: time(data.generatedAt) })
               : connection === "error"
-                ? "Dane niedostępne"
-                : "Pobieranie danych…"}
+                ? t("dashboard.unavailable")
+                : t("dashboard.fetching")}
           </span>
-          <a className="login-link" href="/login">
-            Zaloguj się <b>↗</b>
+          <a className="login-link" href={route("/login")}>
+            {t("common.login")} <b>↗</b>
           </a>
+          <SettingsMenu />
         </div>
       </header>
       <div className="dashboard-content">
         <section className="dashboard-title">
           <div>
-            <p className="eyebrow">CENTRUM JAKOŚCI · PRODUKCJA</p>
-            <h1>Wyniki inspekcji</h1>
-            <p>Aktualny obraz jakości procesu na wszystkich stanowiskach.</p>
+            <p className="eyebrow">{t("dashboard.eyebrow")}</p>
+            <h1>{t("dashboard.title")}</h1>
+            <p>{t("dashboard.subtitle")}</p>
           </div>
           <div className="dashboard-updated">
-            <span>Stan danych na</span>
+            <span>{t("dashboard.dataAsOf")}</span>
             <strong>{time(data.generatedAt)}</strong>
-            <small>Pobrano przy otwarciu strony</small>
+            <small>{t("dashboard.loadedOnOpen")}</small>
           </div>
         </section>
 
@@ -345,9 +348,9 @@ function Dashboard() {
           <article className="metric-card featured">
             <div className="metric-icon">✓</div>
             <div>
-              <span>Inspekcje dzisiaj</span>
+              <span>{t("dashboard.inspectionsToday")}</span>
               <strong>
-                {data.summary.completedToday.toLocaleString("pl-PL")}
+                {data.summary.completedToday.toLocaleString(locale)}
               </strong>
               {trend(data.summary.completedTrend)}
             </div>
@@ -357,7 +360,7 @@ function Dashboard() {
             <div>
               <span>First pass yield</span>
               <strong>{data.summary.passRate.toFixed(1)}%</strong>
-              <small>Cel dzienny: 97,0%</small>
+              <small>{t("dashboard.dailyTarget")}</small>
             </div>
             <i className="metric-progress">
               <b
@@ -368,7 +371,7 @@ function Dashboard() {
           <article className="metric-card">
             <div className="metric-icon issue">!</div>
             <div>
-              <span>Niezgodności</span>
+              <span>{t("dashboard.issues")}</span>
               <strong>{data.summary.issuesToday}</strong>
               {trend(data.summary.issuesTrend)}
             </div>
@@ -376,13 +379,13 @@ function Dashboard() {
           <article className="metric-card">
             <div className="metric-icon station">▦</div>
             <div>
-              <span>Aktywne stanowiska</span>
+              <span>{t("dashboard.activeStations")}</span>
               <strong>
                 {data.summary.activeStations}
                 <em>/ 14</em>
               </strong>
               <small>
-                <i className="tiny-live" /> Pracują prawidłowo
+                <i className="tiny-live" /> {t("dashboard.working")}
               </small>
             </div>
           </article>
@@ -392,15 +395,15 @@ function Dashboard() {
           <article className="dashboard-card chart-card">
             <div className="card-heading">
               <div>
-                <h2>Przepustowość i jakość</h2>
-                <p>Wyniki z ostatnich 7 dni</p>
+                <h2>{t("dashboard.throughput")}</h2>
+                <p>{t("dashboard.last7Days")}</p>
               </div>
               <div className="legend">
                 <span>
-                  <i className="legend-total" /> Wszystkie
+                  <i className="legend-total" /> {t("dashboard.all")}
                 </span>
                 <span>
-                  <i className="legend-pass" /> Zgodne
+                  <i className="legend-pass" /> {t("dashboard.passed")}
                 </span>
               </div>
             </div>
@@ -437,8 +440,8 @@ function Dashboard() {
           <aside className="dashboard-card quality-card">
             <div className="card-heading">
               <div>
-                <h2>Stan jakości</h2>
-                <p>Dzisiejsza produkcja</p>
+                <h2>{t("dashboard.qualityStatus")}</h2>
+                <p>{t("dashboard.todayProduction")}</p>
               </div>
             </div>
             <div
@@ -454,30 +457,30 @@ function Dashboard() {
                   {data.summary.passRate.toFixed(1)}
                   <small>%</small>
                 </strong>
-                <span>zgodnych</span>
+                <span>{t("dashboard.compliant")}</span>
               </div>
             </div>
             <div className="quality-breakdown">
               <div>
                 <span>
-                  <i className="pass-dot" /> Zgodne
+                  <i className="pass-dot" /> {t("dashboard.passed")}
                 </span>
                 <strong>
                   {Math.max(
                     data.summary.completedToday - data.summary.issuesToday,
                     0,
-                  ).toLocaleString("pl-PL")}
+                  ).toLocaleString(locale)}
                 </strong>
               </div>
               <div>
                 <span>
-                  <i className="fail-dot" /> Niezgodne
+                  <i className="fail-dot" /> {t("dashboard.failed")}
                 </span>
                 <strong>{data.summary.issuesToday}</strong>
               </div>
             </div>
             <div className="mes-health">
-              <span>Synchronizacja SCADA</span>
+              <span>{t("dashboard.scadaSync")}</span>
               <strong>
                 {data.summary.mesSyncRate.toFixed(1)}% <i />
               </strong>
@@ -488,22 +491,22 @@ function Dashboard() {
         <section className="dashboard-card recent-card">
           <div className="card-heading">
             <div>
-              <h2>Raporty z inspekcji</h2>
-              <p>Wszystkie zapisane wyniki ze stanowisk kontrolnych</p>
+              <h2>{t("dashboard.reports")}</h2>
+              <p>{t("dashboard.reportsSubtitle")}</p>
             </div>
-            <span className="table-count">{data.recent.length} raportów</span>
+            <span className="table-count">{t("dashboard.reportCount", { count: data.recent.length })}</span>
           </div>
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Czas</th>
-                  <th>Produkt</th>
-                  <th>Standard kontroli</th>
-                  <th>Stanowisko</th>
-                  <th>Wynik</th>
+                  <th>{t("dashboard.time")}</th>
+                  <th>{t("dashboard.product")}</th>
+                  <th>{t("dashboard.standard")}</th>
+                  <th>{t("dashboard.station")}</th>
+                  <th>{t("dashboard.result")}</th>
                   <th>SCADA</th>
-                  <th>Raport</th>
+                  <th>{t("dashboard.report")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -529,22 +532,22 @@ function Dashboard() {
                         }
                       >
                         <i />
-                        {passStatus(item.status) ? "Zgodna" : "Niezgodna"}
+                        {passStatus(item.status) ? t("dashboard.pass") : t("dashboard.fail")}
                       </span>
                     </td>
                     <td>
                       <span
                         className={item.mesSynced ? "sync-ok" : "sync-wait"}
                       >
-                        {item.mesSynced ? "✓ Zapisano" : "○ Oczekuje"}
+                        {item.mesSynced ? t("dashboard.saved") : t("dashboard.pending")}
                       </span>
                     </td>
                     <td>
                       <a
                         className="report-table-link"
-                        href={`/reports/${item.publicReportId}`}
+                        href={route(`/reports/${item.publicReportId}`)}
                       >
-                        Podejrzyj <span aria-hidden="true">↗</span>
+                        {t("dashboard.view")} <span aria-hidden="true">↗</span>
                       </a>
                     </td>
                   </tr>
@@ -554,8 +557,8 @@ function Dashboard() {
             {data.recent.length === 0 && (
               <div className="empty-table">
                 {connection === "error"
-                  ? "Nie udało się pobrać danych z API."
-                  : "Brak zapisanych inspekcji."}
+                  ? t("dashboard.apiError")
+                  : t("dashboard.empty")}
               </div>
             )}
           </div>
@@ -563,8 +566,7 @@ function Dashboard() {
         <footer className="dashboard-footer">
           <span>Inspect Hub · Quality Operations</span>
           <span>
-            Dane pobierane przy otwarciu strony · Numery produktów zostały
-            zanonimizowane
+            {t("dashboard.privacy")}
           </span>
         </footer>
       </div>
@@ -573,6 +575,7 @@ function Dashboard() {
 }
 
 function Login({ onLogin }: { onLogin: (session: Session) => void }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -590,7 +593,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
       onLogin(session);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Nie udało się zalogować",
+        reason instanceof Error ? reason.message : t("login.error"),
       );
     } finally {
       setBusy(false);
@@ -599,12 +602,13 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
 
   return (
     <main className="auth-shell">
+      <div className="auth-settings"><SettingsMenu /></div>
       <section className="auth-card">
         <div className="brand-mark">IH</div>
-        <p className="eyebrow">QUALITY OPERATIONS</p>
+        <p className="eyebrow">{t("common.qualityOperations")}</p>
         <h1>Inspect Hub</h1>
         <p className="muted">
-          Jedno miejsce dla standardów, inspekcji i traceability.
+          {t("login.tagline")}
         </p>
         <form onSubmit={submit}>
           <label>
@@ -617,7 +621,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
             />
           </label>
           <label>
-            Hasło
+            {t("login.password")}
             <input
               type="password"
               minLength={8}
@@ -628,12 +632,11 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
           </label>
           {error && <p className="error">{error}</p>}
           <button className="primary" disabled={busy}>
-            {busy ? "Logowanie…" : "Zaloguj się"}
+            {busy ? t("login.busy") : t("common.login")}
           </button>
         </form>
         <p className="auth-note">
-          Konta tworzy administrator w sekcji Użytkownicy panelu
-          administracyjnego.
+          {t("login.note")}
         </p>
       </section>
     </main>
@@ -647,6 +650,7 @@ function StationsManager({
   stations: Station[];
   onChange: () => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [processName, setProcessName] = useState("");
@@ -668,13 +672,13 @@ function StationsManager({
       setCode("");
       setName("");
       setProcessName("");
-      setNotice("Stanowisko zostało dodane.");
+      setNotice(t("notice.stationAdded"));
       await onChange();
     } catch (reason) {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się dodać stanowiska",
+          : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -700,13 +704,13 @@ function StationsManager({
         delete next[station.id];
         return next;
       });
-      setNotice("Zmiany stanowiska zostały zapisane.");
+      setNotice(t("notice.stationUpdated"));
       await onChange();
     } catch (reason) {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się zapisać stanowiska",
+          : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -716,7 +720,7 @@ function StationsManager({
   async function removeStation(station: Station) {
     if (
       !window.confirm(
-        `Usunąć stanowisko ${station.code}? Zostanie też usunięte z przypisań formularzy.`,
+        t("confirm.removeStation", { code: station.code }),
       )
     )
       return;
@@ -724,13 +728,13 @@ function StationsManager({
     setNotice("");
     try {
       await api(`/stations/${station.id}`, { method: "DELETE" });
-      setNotice("Stanowisko zostało usunięte.");
+      setNotice(t("notice.stationRemoved"));
       await onChange();
     } catch (reason) {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się usunąć stanowiska",
+          : t("notice.saveError"),
       );
     } finally {
       setBusyId("");
@@ -741,17 +745,17 @@ function StationsManager({
     <section className="panel stations-manager">
       <div className="stations-heading">
         <div>
-          <p className="eyebrow">KONFIGURACJA</p>
-          <h2>Stanowiska</h2>
+          <p className="eyebrow">{t("stations.configuration")}</p>
+          <h2>{t("admin.stations")}</h2>
           <p className="muted">
-            Zarządzaj stanowiskami dostępnymi przy przypisywaniu formularzy.
+            {t("stations.description")}
           </p>
         </div>
-        <span className="table-count">{stations.length} stanowisk</span>
+        <span className="table-count">{t("stations.count", { count: stations.length })}</span>
       </div>
       <form className="station-create" onSubmit={createStation}>
         <label>
-          Kod stanowiska
+          {t("stations.code")}
           <input
             value={code}
             onChange={(event) => setCode(event.target.value.toUpperCase())}
@@ -760,25 +764,25 @@ function StationsManager({
           />
         </label>
         <label>
-          Nazwa
+          {t("stations.name")}
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Kontrola końcowa"
+            placeholder={t("placeholder.finalInspection")}
             required
           />
         </label>
         <label>
-          Proces inspekcji
+          {t("stations.process")}
           <input
             value={processName}
             onChange={(event) => setProcessName(event.target.value)}
-            placeholder="Kontrola końcowa"
+            placeholder={t("placeholder.finalInspection")}
             required
           />
         </label>
         <button className="primary" disabled={busyId === "new"}>
-          {busyId === "new" ? "Dodawanie…" : "Dodaj stanowisko"}
+          {busyId === "new" ? t("stations.adding") : t("stations.add")}
         </button>
       </form>
       <div className="station-list">
@@ -796,7 +800,7 @@ function StationsManager({
               key={station.id}
             >
               <input
-                aria-label={`Kod stanowiska ${station.code}`}
+                aria-label={t("aria.stationCode", { code: station.code })}
                 value={draft.code}
                 onChange={(event) =>
                   setDrafts({
@@ -810,7 +814,7 @@ function StationsManager({
               />
               <div className="station-name-field">
                 <input
-                  aria-label={`Nazwa stanowiska ${station.code}`}
+                  aria-label={t("aria.stationName", { code: station.code })}
                   value={draft.name}
                   onChange={(event) =>
                     setDrafts({
@@ -819,12 +823,12 @@ function StationsManager({
                     })
                   }
                 />
-                <small>IP: {station.ipAddress ?? "jeszcze niepowiązane"}</small>
+                <small>IP: {station.ipAddress ?? t("stations.unpaired")}</small>
               </div>
               <input
-                aria-label={`Proces stanowiska ${station.code}`}
+                aria-label={t("aria.stationProcess", { code: station.code })}
                 value={draft.processName}
-                placeholder="Nazwa procesu"
+                placeholder={t("stations.processName")}
                 onChange={(event) =>
                   setDrafts({
                     ...drafts,
@@ -837,7 +841,7 @@ function StationsManager({
                   station.active ? "station-state active" : "station-state"
                 }
               >
-                {station.active ? "Aktywne" : "Nieaktywne"}
+                {station.active ? t("stations.active") : t("stations.inactive")}
               </span>
               <div className="station-actions">
                 <button
@@ -846,7 +850,7 @@ function StationsManager({
                   disabled={busyId === station.id}
                   onClick={() => void updateStation(station)}
                 >
-                  Zapisz
+                  {t("common.save")}
                 </button>
                 <button
                   className="secondary"
@@ -856,7 +860,7 @@ function StationsManager({
                     void updateStation(station, { active: !station.active })
                   }
                 >
-                  {station.active ? "Dezaktywuj" : "Aktywuj"}
+                  {station.active ? t("stations.deactivate") : t("stations.activate")}
                 </button>
                 <button
                   className="icon-button danger"
@@ -864,7 +868,7 @@ function StationsManager({
                   disabled={busyId === station.id}
                   onClick={() => void removeStation(station)}
                 >
-                  Usuń
+                  {t("common.delete")}
                 </button>
               </div>
             </article>
@@ -872,7 +876,7 @@ function StationsManager({
         })}
         {stations.length === 0 && (
           <p className="muted station-list-empty">
-            Nie dodano jeszcze żadnych stanowisk.
+            {t("stations.empty")}
           </p>
         )}
       </div>
@@ -886,6 +890,7 @@ interface ManagedUser extends SessionUser {
 }
 
 function UsersManager() {
+  const { locale, t } = useI18n();
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -917,12 +922,12 @@ function UsersManager() {
       setPassword("");
       setRole("OPERATOR");
       await loadUsers();
-      setNotice("Użytkownik został utworzony.");
+      setNotice(t("notice.userCreated"));
     } catch (reason) {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się utworzyć użytkownika",
+          : t("notice.saveError"),
       );
     } finally {
       setBusyId(null);
@@ -937,10 +942,10 @@ function UsersManager() {
         body: JSON.stringify({ role: nextRole }),
       });
       await loadUsers();
-      setNotice("Rola użytkownika została zmieniona.");
+      setNotice(t("notice.userRole"));
     } catch (reason) {
       setNotice(
-        reason instanceof Error ? reason.message : "Nie udało się zmienić roli",
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusyId(null);
@@ -948,17 +953,17 @@ function UsersManager() {
   }
 
   async function removeUser(user: ManagedUser) {
-    if (!window.confirm(`Usunąć konto ${user.email}?`)) return;
+    if (!window.confirm(t("confirm.removeUser", { email: user.email }))) return;
     setBusyId(user.id);
     try {
       await api(`/users/${user.id}`, { method: "DELETE" });
       await loadUsers();
-      setNotice("Użytkownik został usunięty.");
+      setNotice(t("notice.userRemoved"));
     } catch (reason) {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się usunąć użytkownika",
+          : t("notice.saveError"),
       );
     } finally {
       setBusyId(null);
@@ -969,14 +974,14 @@ function UsersManager() {
     <section className="panel users-manager">
       <div className="stations-heading">
         <div>
-          <p className="eyebrow">KONTA I UPRAWNIENIA</p>
-          <h2>Użytkownicy</h2>
+          <p className="eyebrow">{t("users.heading")}</p>
+          <h2>{t("admin.users")}</h2>
         </div>
-        <span className="status-dot">{users.length} kont</span>
+        <span className="status-dot">{t("users.count", { count: users.length })}</span>
       </div>
       <form className="user-create" onSubmit={createUser}>
         <label>
-          Imię i nazwisko
+          {t("users.fullName")}
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -994,7 +999,7 @@ function UsersManager() {
           />
         </label>
         <label>
-          Hasło
+          {t("users.password")}
           <input
             type="password"
             value={password}
@@ -1004,19 +1009,19 @@ function UsersManager() {
           />
         </label>
         <label>
-          Rola
+          {t("users.role")}
           <select
             value={role}
             onChange={(event) =>
               setRole(event.target.value as SessionUser["role"])
             }
           >
-            <option value="OPERATOR">Operator</option>
-            <option value="ADMIN">Administrator</option>
+            <option value="OPERATOR">{t("users.operator")}</option>
+            <option value="ADMIN">{t("users.admin")}</option>
           </select>
         </label>
         <button className="primary" disabled={busyId === "new"}>
-          {busyId === "new" ? "Tworzenie…" : "Dodaj użytkownika"}
+          {busyId === "new" ? t("users.creating") : t("users.add")}
         </button>
       </form>
       <div className="user-list">
@@ -1030,20 +1035,20 @@ function UsersManager() {
               <span>{user.email}</span>
             </div>
             <small>
-              {new Intl.DateTimeFormat("pl-PL").format(
+              {new Intl.DateTimeFormat(locale).format(
                 new Date(user.createdAt),
               )}
             </small>
             <select
-              aria-label={`Rola użytkownika ${user.name}`}
+              aria-label={t("aria.userRole", { name: user.name })}
               value={user.role}
               disabled={busyId === user.id}
               onChange={(event) =>
                 void changeRole(user, event.target.value as SessionUser["role"])
               }
             >
-              <option value="OPERATOR">Operator</option>
-              <option value="ADMIN">Administrator</option>
+              <option value="OPERATOR">{t("users.operator")}</option>
+              <option value="ADMIN">{t("users.admin")}</option>
             </select>
             <button
               className="icon-button danger"
@@ -1051,7 +1056,7 @@ function UsersManager() {
               disabled={busyId === user.id}
               onClick={() => void removeUser(user)}
             >
-              Usuń
+              {t("common.delete")}
             </button>
           </article>
         ))}
@@ -1062,6 +1067,7 @@ function UsersManager() {
 }
 
 function AdminPanel() {
+  const { locale, t } = useI18n();
   const [section, setSection] = useState<
     "forms-new" | "forms-edit" | "stations" | "users" | "settings"
   >("forms-new");
@@ -1091,8 +1097,8 @@ function AdminPanel() {
               : [],
           ),
         ).values(),
-      ].sort((left, right) => left.name.localeCompare(right.name, "pl")),
-    [stations],
+      ].sort((left, right) => left.name.localeCompare(right.name, locale)),
+    [locale, stations],
   );
 
   async function loadForms() {
@@ -1136,7 +1142,7 @@ function AdminPanel() {
       setNotice(
         reason instanceof Error
           ? reason.message
-          : "Nie udało się pobrać historii rewizji",
+          : t("notice.revisionsError"),
       );
     }
   }
@@ -1191,9 +1197,9 @@ function AdminPanel() {
     setBusy(true);
     try {
       updateQuestion(id, { instructionImageUrl: await uploadImage(file) });
-      setNotice("Grafika instruktażowa została przesłana.");
+      setNotice(t("notice.instructionUploaded"));
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : "Błąd uploadu");
+      setNotice(reason instanceof Error ? reason.message : t("notice.uploadError"));
     } finally {
       setBusy(false);
     }
@@ -1213,10 +1219,10 @@ function AdminPanel() {
         answer === "ok" ? { okImageUrl: imageUrl } : { nokImageUrl: imageUrl },
       );
       setNotice(
-        `Zdjęcie referencyjne ${answer.toUpperCase()} zostało przesłane.`,
+        t("notice.referenceUploaded", { answer: answer.toUpperCase() }),
       );
     } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : "Błąd uploadu");
+      setNotice(reason instanceof Error ? reason.message : t("notice.uploadError"));
     } finally {
       setBusy(false);
     }
@@ -1244,12 +1250,12 @@ function AdminPanel() {
       else startNewForm();
       setNotice(
         editingForm
-          ? `Opublikowano rewizję ${saved.version}. Poprzednie wersje pozostały w historii.`
-          : "Formularz został opublikowany w wersji 1.",
+          ? t("notice.revisionPublished", { version: saved.version })
+          : t("notice.formPublished"),
       );
     } catch (reason) {
       setNotice(
-        reason instanceof Error ? reason.message : "Nie udało się zapisać",
+        reason instanceof Error ? reason.message : t("notice.saveError"),
       );
     } finally {
       setBusy(false);
@@ -1277,33 +1283,33 @@ function AdminPanel() {
         <div className="admin-sidebar-header">
           <div className="admin-sidebar-title">
             <span>ADMIN</span>
-            <strong>Zarządzanie</strong>
+            <strong>{t("admin.management")}</strong>
           </div>
           <button
             className="sidebar-toggle"
             type="button"
             onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Rozwiń menu" : "Zwiń menu"}
-            title={sidebarCollapsed ? "Rozwiń menu" : "Zwiń menu"}
+            aria-label={sidebarCollapsed ? t("admin.expand") : t("admin.collapse")}
+            title={sidebarCollapsed ? t("admin.expand") : t("admin.collapse")}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d={sidebarCollapsed ? "m9 5 7 7-7 7" : "m15 5-7 7 7 7"} />
             </svg>
           </button>
         </div>
-        <nav className="admin-menu" aria-label="Sekcje panelu administratora">
+        <nav className="admin-menu" aria-label={t("admin.sections")}>
           <div className="admin-menu-group">
             <button
               className={section.startsWith("forms-") ? "active" : ""}
               type="button"
               onClick={startNewForm}
-              title={sidebarCollapsed ? "Formularze" : undefined}
+              title={sidebarCollapsed ? t("admin.forms") : undefined}
             >
               <i>
                 <AdminMenuIcon type="forms" />
               </i>
               <span>
-                Formularze<small>Standardy inspekcji</small>
+                {t("admin.forms")}<small>{t("admin.formsSubtitle")}</small>
               </span>
             </button>
             <div
@@ -1318,19 +1324,19 @@ function AdminPanel() {
                 className={section === "forms-new" ? "active" : ""}
                 type="button"
                 onClick={startNewForm}
-                title={sidebarCollapsed ? "Nowy formularz" : undefined}
+                title={sidebarCollapsed ? t("admin.newForm") : undefined}
               >
                 <i aria-hidden="true">＋</i>
-                <span>Nowy formularz</span>
+                <span>{t("admin.newForm")}</span>
               </button>
               <button
                 className={section === "forms-edit" ? "active" : ""}
                 type="button"
                 onClick={() => setSection("forms-edit")}
-                title={sidebarCollapsed ? "Edycja formularzy" : undefined}
+                title={sidebarCollapsed ? t("admin.editForms") : undefined}
               >
                 <i aria-hidden="true">✎</i>
-                <span>Edycja formularzy</span>
+                <span>{t("admin.editForms")}</span>
               </button>
             </div>
           </div>
@@ -1338,39 +1344,39 @@ function AdminPanel() {
             className={section === "stations" ? "active" : ""}
             type="button"
             onClick={() => setSection("stations")}
-            title={sidebarCollapsed ? "Stanowiska" : undefined}
+            title={sidebarCollapsed ? t("admin.stations") : undefined}
           >
             <i>
               <AdminMenuIcon type="stations" />
             </i>
             <span>
-              Stanowiska<small>Edycja stanowisk</small>
+              {t("admin.stations")}<small>{t("admin.stationsSubtitle")}</small>
             </span>
           </button>
           <button
             className={section === "users" ? "active" : ""}
             type="button"
             onClick={() => setSection("users")}
-            title={sidebarCollapsed ? "Użytkownicy" : undefined}
+            title={sidebarCollapsed ? t("admin.users") : undefined}
           >
             <i>
               <AdminMenuIcon type="users" />
             </i>
             <span>
-              Użytkownicy<small>Konta i uprawnienia</small>
+              {t("admin.users")}<small>{t("admin.usersSubtitle")}</small>
             </span>
           </button>
           <button
             className={section === "settings" ? "active" : ""}
             type="button"
             onClick={() => setSection("settings")}
-            title={sidebarCollapsed ? "Integracja SCADA" : undefined}
+            title={sidebarCollapsed ? t("admin.scada") : undefined}
           >
             <i>
               <AdminMenuIcon type="settings" />
             </i>
             <span>
-              Integracja SCADA<small>Endpointy i połączenie</small>
+              {t("admin.scada")}<small>{t("admin.scadaSubtitle")}</small>
             </span>
           </button>
         </nav>
@@ -1378,39 +1384,39 @@ function AdminPanel() {
       <div className="workspace admin-content">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">PANEL ADMINA</p>
+            <p className="eyebrow">{t("admin.panel")}</p>
             <h1>
               {section === "forms-new"
-                ? "Nowy standard inspekcji"
+                ? t("admin.newTitle")
                 : section === "forms-edit"
                   ? editingForm
                     ? `Edycja: ${editingForm.code}`
-                    : "Edycja formularzy"
+                    : t("admin.editForms")
                   : section === "stations"
-                    ? "Zarządzanie stanowiskami"
+                    ? t("admin.stationsTitle")
                     : section === "users"
-                      ? "Zarządzanie użytkownikami"
-                      : "Integracja SCADA"}
+                      ? t("admin.usersTitle")
+                      : t("admin.scadaTitle")}
             </h1>
             <p className="heading-copy">
               {section === "forms-new"
-                ? "Utwórz i opublikuj nowy standard inspekcji."
+                ? t("admin.newHelp")
                 : section === "forms-edit"
-                  ? "Wybierz formularz, edytuj go i przeglądaj jego rewizje."
+                  ? t("admin.editHelp")
                   : section === "stations"
-                    ? "Dodawaj, edytuj i kontroluj dostępność stanowisk."
+                    ? t("admin.stationsHelp")
                     : section === "users"
-                      ? "Twórz konta oraz nadawaj role administratora i operatora."
-                      : "Skonfiguruj komunikację ze sterującym systemem produkcyjnym."}
+                      ? t("admin.usersHelp")
+                      : t("admin.scadaHelp")}
             </p>
           </div>
           {section.startsWith("forms-") && (
             <span className="status-dot">
               {section === "forms-edit" && editingForm
-                ? `Nowa rewizja v${editingForm.version + 1}`
+                ? t("form.newRevision", { version: editingForm.version + 1 })
                 : section === "forms-edit"
-                  ? `${forms.length} formularzy`
-                  : "Nowy formularz"}
+                  ? t("form.formCount", { count: forms.length })
+                  : t("admin.newForm")}
             </span>
           )}
         </header>
@@ -1426,8 +1432,8 @@ function AdminPanel() {
               <section className="panel forms-library">
                 <div className="forms-library-heading">
                   <div>
-                    <p className="eyebrow">OPUBLIKOWANE STANDARDY</p>
-                    <h2>Istniejące formularze</h2>
+                    <p className="eyebrow">{t("form.published")}</p>
+                    <h2>{t("form.existing")}</h2>
                   </div>
                 </div>
                 <div className="forms-list">
@@ -1446,32 +1452,31 @@ function AdminPanel() {
                       </div>
                       <span className="revision-badge">v{form.version}</span>
                       <small>
-                        {form.questions.length} pytań · {form.processIds.length}{" "}
-                        procesów
+                        {t("form.counts", { questions: form.questions.length, processes: form.processIds.length })}
                       </small>
                       <button
                         className="secondary"
                         type="button"
                         onClick={() => void editForm(form)}
                       >
-                        Edytuj
+                        {t("form.edit")}
                       </button>
                     </article>
                   ))}
                   {forms.length === 0 && (
                     <p className="muted">
-                      Nie opublikowano jeszcze żadnego formularza.
+                      {t("form.empty")}
                     </p>
                   )}
                 </div>
                 {editingForm && revisions.length > 0 && (
                   <div className="revision-history">
-                    <strong>Historia zmian: {editingForm.code}</strong>
+                    <strong>{t("form.history", { code: editingForm.code })}</strong>
                     <div>
                       {revisions.map((revision) => (
                         <span key={revision.id}>
                           <b>v{revision.version}</b>
-                          {new Intl.DateTimeFormat("pl-PL", {
+                          {new Intl.DateTimeFormat(locale, {
                             dateStyle: "medium",
                             timeStyle: "short",
                           }).format(new Date(revision.createdAt))}
@@ -1485,13 +1490,13 @@ function AdminPanel() {
             {(section === "forms-new" || editingForm) && (
               <form onSubmit={save} className="builder-grid">
                 <section className="panel settings">
-                  <h2>Ustawienia formularza</h2>
+                  <h2>{t("form.settings")}</h2>
                   <label>
-                    Tytuł
+                    {t("form.titleLabel")}
                     <input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Kontrola końcowa drzwi"
+                      placeholder={t("placeholder.finalDoorInspection")}
                       required
                     />
                   </label>
@@ -1505,7 +1510,7 @@ function AdminPanel() {
                       disabled={Boolean(editingForm)}
                     />
                   </label>
-                  <label>Statusy końcowe</label>
+                  <label>{t("form.finalStatuses")}</label>
                   <div className="tags">
                     {statuses.map((status, index) => (
                       <span className="tag" key={`${status}-${index}`}>
@@ -1522,7 +1527,7 @@ function AdminPanel() {
                     ))}
                   </div>
                   <input
-                    placeholder="Dodaj status i naciśnij Enter"
+                    placeholder={t("form.addStatus")}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -1533,12 +1538,11 @@ function AdminPanel() {
                     }}
                   />
                   <div className="tip">
-                    <strong>Status to decyzja jakościowa.</strong>
+                    <strong>{t("form.statusInfo")}</strong>
                     <br />
-                    Może odpowiadać słownikowi zakładowemu, np. ZDAŁ, DO
-                    POPRAWY, ZŁOM.
+                    {t("form.statusTip")}
                   </div>
-                  <label>Przypisane procesy</label>
+                  <label>{t("form.assignedProcesses")}</label>
                   <div className="station-picker">
                     {processes.map((process) => (
                       <label className="station-pick" key={process.id}>
@@ -1556,20 +1560,19 @@ function AdminPanel() {
                           }
                         />
                         <span>
-                          <strong>PROCES</strong>
+                          <strong>{t("form.process")}</strong>
                           {process.name}
                         </span>
                       </label>
                     ))}
                     {processes.length === 0 && (
                       <span className="muted">
-                        Najpierw przypisz nazwę procesu do stanowiska.
+                        {t("form.noProcesses")}
                       </span>
                     )}
                   </div>
                   <div className="tip">
-                    Formularz będzie dostępny na wszystkich stanowiskach
-                    należących do wybranych procesów.
+                    {t("form.processTip")}
                   </div>
                 </section>
                 <section className="questions-column">
@@ -1590,11 +1593,11 @@ function AdminPanel() {
                             )
                           }
                         >
-                          Usuń
+                          {t("common.delete")}
                         </button>
                       </div>
                       <label>
-                        Treść pytania
+                        {t("form.questionContent")}
                         <input
                           value={question.label}
                           onChange={(e) =>
@@ -1602,13 +1605,13 @@ function AdminPanel() {
                               label: e.target.value,
                             })
                           }
-                          placeholder="Czy element jest poprawnie zamocowany?"
+                          placeholder={t("form.questionPlaceholder")}
                           required
                         />
                       </label>
                       <div className="inline-fields">
                         <label>
-                          Typ odpowiedzi
+                          {t("form.type")}
                           <select
                             value={question.type}
                             onChange={(e) =>
@@ -1618,12 +1621,12 @@ function AdminPanel() {
                               )
                             }
                           >
-                            <option value="CHECKBOX">Tak / Nie</option>
-                            <option value="TEXT">Tekst</option>
-                            <option value="SELECT">Lista</option>
-                            <option value="PHOTO_UPLOAD">Zdjęcie</option>
+                            <option value="CHECKBOX">{t("form.checkbox")}</option>
+                            <option value="TEXT">{t("form.text")}</option>
+                            <option value="SELECT">{t("form.list")}</option>
+                            <option value="PHOTO_UPLOAD">{t("form.photo")}</option>
                             <option value="NUMBER_RANGE">
-                              Wartość liczbowa
+                              {t("form.numeric")}
                             </option>
                           </select>
                         </label>
@@ -1637,12 +1640,12 @@ function AdminPanel() {
                               })
                             }
                           />{" "}
-                          Wymagane
+                          {t("form.required")}
                         </label>
                       </div>
                       {question.type === "SELECT" && (
                         <label>
-                          Opcje (po przecinku)
+                          {t("form.options")}
                           <input
                             value={question.options?.join(", ") ?? ""}
                             onChange={(e) =>
@@ -1658,7 +1661,7 @@ function AdminPanel() {
                       )}
                       {question.type === "CHECKBOX" ? (
                         <label>
-                          Oczekiwana wartość
+                          {t("form.expectedValue")}
                           <select
                             value={
                               question.expectedValue === undefined
@@ -1674,14 +1677,14 @@ function AdminPanel() {
                               })
                             }
                           >
-                            <option value="">Nie określono</option>
-                            <option value="true">Tak</option>
-                            <option value="false">Nie</option>
+                            <option value="">{t("form.unspecified")}</option>
+                            <option value="true">{t("common.yes")}</option>
+                            <option value="false">{t("common.no")}</option>
                           </select>
                         </label>
                       ) : question.type === "SELECT" ? (
                         <label>
-                          Oczekiwana wartość
+                          {t("form.expectedValue")}
                           <select
                             value={String(question.expectedValue ?? "")}
                             onChange={(e) =>
@@ -1690,7 +1693,7 @@ function AdminPanel() {
                               })
                             }
                           >
-                            <option value="">Nie określono</option>
+                            <option value="">{t("form.unspecified")}</option>
                             {question.options?.map((option) => (
                               <option value={option} key={option}>
                                 {option}
@@ -1700,7 +1703,7 @@ function AdminPanel() {
                         </label>
                       ) : (
                         <label>
-                          Oczekiwana wartość
+                          {t("form.expectedValue")}
                           <input
                             type={
                               question.type === "NUMBER_RANGE"
@@ -1718,14 +1721,14 @@ function AdminPanel() {
                                       : e.target.value,
                               })
                             }
-                            placeholder="Podaj oczekiwaną odpowiedź"
+                            placeholder={t("form.expectedPlaceholder")}
                           />
                         </label>
                       )}
                       {question.type === "NUMBER_RANGE" && (
                         <div className="range-fields">
                           <label>
-                            Zakres od
+                            {t("form.rangeFrom")}
                             <input
                               type="number"
                               value={question.range?.min ?? ""}
@@ -1739,7 +1742,7 @@ function AdminPanel() {
                             />
                           </label>
                           <label>
-                            Zakres do
+                            {t("form.rangeTo")}
                             <input
                               type="number"
                               value={question.range?.max ?? ""}
@@ -1763,10 +1766,10 @@ function AdminPanel() {
                                   src={question.okImageUrl}
                                   alt="Wzorzec OK"
                                 />
-                                <span>✓ Zdjęcie OK gotowe</span>
+                                <span>{t("form.okReady")}</span>
                               </>
                             ) : (
-                              "Dodaj zdjęcie dla OK"
+                              t("form.addOk")
                             )}
                             <input
                               type="file"
@@ -1787,10 +1790,10 @@ function AdminPanel() {
                                   src={question.nokImageUrl}
                                   alt="Wzorzec NOK"
                                 />
-                                <span>✓ Zdjęcie NOK gotowe</span>
+                                <span>{t("form.nokReady")}</span>
                               </>
                             ) : (
-                              "Dodaj zdjęcie dla NOK"
+                              t("form.addNok")
                             )}
                             <input
                               type="file"
@@ -1808,8 +1811,8 @@ function AdminPanel() {
                       )}
                       <label className="upload-box">
                         {question.instructionImageUrl
-                          ? "✓ Obraz instrukcji gotowy"
-                          : "Dodaj obraz instruktażowy"}
+                          ? t("form.instructionReady")
+                          : t("form.addInstruction")}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
@@ -1830,7 +1833,7 @@ function AdminPanel() {
                       setQuestions([...questions, emptyQuestion()])
                     }
                   >
-                    ＋ Dodaj kolejne pytanie
+                    {t("form.addQuestion")}
                   </button>
                   {notice && <p className="notice">{notice}</p>}
                   <button
@@ -1840,10 +1843,10 @@ function AdminPanel() {
                     }
                   >
                     {busy
-                      ? "Zapisywanie…"
+                      ? t("form.saving")
                       : editingForm
-                        ? `Opublikuj rewizję ${editingForm.version + 1}`
-                        : "Opublikuj formularz"}
+                        ? t("form.publishRevision", { version: editingForm.version + 1 })
+                        : t("form.publish")}
                   </button>
                 </section>
               </form>
@@ -1862,6 +1865,7 @@ function OperatorPanel({
   user: SessionUser | null;
   onLogout?: () => void;
 }) {
+  const { language, t } = useI18n();
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [formId, setFormId] = useState("");
   const [vin, setVin] = useState("");
@@ -1964,14 +1968,14 @@ function OperatorPanel({
           item.processIds.includes(station.process!.id),
       );
       setFormId(nextForms[0]?.id ?? "");
-      setNotice(`Urządzenie powiązano ze stanowiskiem ${station.name}.`);
+      setNotice(t("notice.stationPaired", { name: station.name }));
       setOperatorNoticeKind("success");
     } catch (error) {
       setOperatorNoticeKind("error");
       setNotice(
         error instanceof Error
           ? error.message
-          : "Nie udało się rozpoznać stanowiska",
+          : t("notice.stationIdentifyError"),
       );
     } finally {
       setIdentifying(false);
@@ -1993,7 +1997,7 @@ function OperatorPanel({
       const url = await uploadImage(file);
       setAnswers((old) => ({ ...old, [questionId]: url }));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Błąd uploadu");
+      setNotice(error instanceof Error ? error.message : t("notice.uploadError"));
     }
   }
 
@@ -2009,7 +2013,7 @@ function OperatorPanel({
     );
     if (missing.length) {
       setNotice(
-        `Uzupełnij wymagane punkty: ${missing.map((question) => question.label).join(", ")}`,
+        t("notice.requiredItems", { items: missing.map((question) => question.label).join(", ") }),
       );
       document
         .getElementById(`question-${missing[0].id}`)
@@ -2047,7 +2051,7 @@ function OperatorPanel({
     } catch (error) {
       setOperatorNoticeKind("error");
       setNotice(
-        error instanceof Error ? error.message : "Nie udało się zapisać",
+        error instanceof Error ? error.message : t("notice.saveError"),
       );
     } finally {
       setBusy(false);
@@ -2067,7 +2071,7 @@ function OperatorPanel({
       });
       if (!result.allowed) {
         setNotice(
-          `Produkt ${serialNumber} nie ma zgody na inspekcję w tym procesie. Odłóż produkt i skontaktuj się z liderem linii.`,
+          t("notice.productDenied", { serial: serialNumber }),
         );
         setOperatorNoticeKind("error");
         return;
@@ -2076,14 +2080,14 @@ function OperatorPanel({
       setRouteCheckId(result.routeCheckId);
       setProduct(result.integrationEnabled ? result.product : null);
       setProductIdentified(true);
-      setNotice("SCADA zezwoliła na inspekcję.");
+      setNotice(t("inspection.allowed"));
       setOperatorNoticeKind("success");
     } catch (error) {
       setOperatorNoticeKind("error");
       setNotice(
         error instanceof Error
-          ? `Nie udało się sprawdzić produktu: ${error.message}`
-          : "Nie udało się sprawdzić produktu. Spróbuj ponownie lub skontaktuj się z liderem linii.",
+          ? t("notice.productCheckDetails", { message: error.message })
+          : t("notice.productCheckError"),
       );
     } finally {
       setBusy(false);
@@ -2097,7 +2101,7 @@ function OperatorPanel({
       currentQuestion.isRequired &&
       (value === undefined || value === null || value === "")
     ) {
-      setNotice("Odpowiedz na wymagane pytanie, aby przejść dalej.");
+      setNotice(t("inspection.requiredAnswer"));
       return;
     }
     setNotice("");
@@ -2152,7 +2156,7 @@ function OperatorPanel({
             setAnswers({ ...answers, [question.id]: e.target.value })
           }
         >
-          <option value="">Wybierz…</option>
+          <option value="">{t("inspection.select")}</option>
           {question.options?.map((option) => (
             <option key={option}>{option}</option>
           ))}
@@ -2161,7 +2165,7 @@ function OperatorPanel({
     if (question.type === "PHOTO_UPLOAD")
       return (
         <label className="upload-box">
-          {answers[question.id] ? "✓ Zdjęcie dodane" : "Dodaj zdjęcie usterki"}
+          {answers[question.id] ? t("inspection.photoAdded") : t("inspection.addPhoto")}
           <input
             type="file"
             accept="image/*"
@@ -2194,37 +2198,38 @@ function OperatorPanel({
       className={`station-shell${productIdentified && form ? " inspection-in-progress" : ""}`}
     >
       <header className="station-bar">
-        <a className="brand" href="/inspection">
+        <a className="brand" href={`/${language === "uk" ? "ua" : language}/inspection`}>
           <span>IH</span>
           <div>
-            Inspect Hub<small>Tryb stanowiskowy</small>
+            Inspect Hub<small>{t("inspection.mode")}</small>
           </div>
         </a>
         <div className="station-session">
           <span>
             <strong>
-              {stationName || stationId || "Nieprzypisana stacja"}
+              {stationName || stationId || t("inspection.unassigned")}
             </strong>
-            <small>{user?.name ?? "Dostęp publiczny"}</small>
+            <small>{user?.name ?? t("inspection.publicAccess")}</small>
           </span>
           {onLogout && (
             <button className="ghost" type="button" onClick={onLogout}>
-              Wyloguj
+              {t("common.logout")}
             </button>
           )}
+          <SettingsMenu />
         </div>
       </header>
       <div className="workspace operator-workspace">
         <header className="page-heading operator-heading">
           <div>
-            <p className="eyebrow">STANOWISKO KONTROLI</p>
-            <h1>Nowa inspekcja</h1>
+            <p className="eyebrow">{t("inspection.eyebrow")}</p>
+            <h1>{t("inspection.title")}</h1>
             <p className="heading-copy">
-              Przeprowadź kontrolę zgodnie z aktywnym standardem jakości.
+              {t("inspection.subtitle")}
             </p>
           </div>
           <span className="online">
-            <i /> System online
+            <i /> {t("inspection.online")}
           </span>
         </header>
         {notice && (
@@ -2242,10 +2247,10 @@ function OperatorPanel({
             <span>
               <strong>
                 {operatorNoticeKind === "error"
-                  ? "Inspekcja zablokowana"
+                  ? t("inspection.blocked")
                   : operatorNoticeKind === "success"
-                    ? "Gotowe"
-                    : "Informacja"}
+                    ? t("inspection.ready")
+                    : t("inspection.info")}
               </strong>
               <small>{notice}</small>
             </span>
@@ -2254,27 +2259,27 @@ function OperatorPanel({
         {loading && (
           <section className="panel operator-empty">
             <span className="spinner" />
-            <h2>Ładuję standardy kontroli…</h2>
+            <h2>{t("inspection.loading")}</h2>
           </section>
         )}
         {!loading && stationName && availableForms.length === 0 && (
           <section className="panel operator-empty">
             <span className="empty-icon">!</span>
-            <h2>Brak formularzy dla procesu</h2>
+            <h2>{t("inspection.noForms")}</h2>
             <p className="muted">
               {stationProcessId
-                ? "Administrator musi przypisać formularz do procesu tego stanowiska."
-                : "Administrator musi najpierw przypisać proces do tego stanowiska."}
+                ? t("inspection.noFormsProcess")
+                : t("inspection.noStationProcess")}
             </p>
             <form className="station-identify" onSubmit={identifyStation}>
               <input
                 value={stationId}
                 onChange={(e) => changeStation(e.target.value)}
                 placeholder="ST-001"
-                aria-label="Kod stanowiska"
+                aria-label={t("inspection.stationCode")}
               />
               <button className="secondary" disabled={identifying}>
-                {identifying ? "Łączenie…" : "Zmień powiązanie"}
+                {identifying ? t("inspection.connecting") : t("inspection.changePairing")}
               </button>
             </form>
           </section>
@@ -2282,15 +2287,13 @@ function OperatorPanel({
         {!loading && !stationName && (
           <section className="panel operator-empty station-pairing-card">
             <span className="empty-icon station-device-icon">▦</span>
-            <h2>Powiąż urządzenie ze stanowiskiem</h2>
+            <h2>{t("inspection.pairTitle")}</h2>
             <p className="muted">
-              Wpisz kod stanowiska. Przy kolejnych uruchomieniach zostanie ono
-              rozpoznane automatycznie po urządzeniu i adresie IP. Jeśli kod
-              jest nowy, stanowisko zostanie utworzone automatycznie.
+              {t("inspection.pairHelp")}
             </p>
             <form className="station-identify" onSubmit={identifyStation}>
               <label>
-                Kod stanowiska
+                {t("inspection.stationCode")}
                 <input
                   value={stationId}
                   onChange={(e) => changeStation(e.target.value)}
@@ -2300,7 +2303,7 @@ function OperatorPanel({
                 />
               </label>
               <button className="primary" disabled={identifying}>
-                {identifying ? "Łączenie…" : "Powiąż urządzenie"}
+                {identifying ? t("inspection.connecting") : t("inspection.pair")}
               </button>
             </form>
           </section>
@@ -2310,28 +2313,28 @@ function OperatorPanel({
             <div className="serial-scan-icon" aria-hidden="true">
               ▤
             </div>
-            <p className="eyebrow">IDENTYFIKACJA PRODUKTU</p>
-            <h2>Zeskanuj numer seryjny</h2>
+            <p className="eyebrow">{t("inspection.identification")}</p>
+            <h2>{t("inspection.scanTitle")}</h2>
             <p className="muted">
-              Użyj skanera lub wpisz numer ręcznie, aby rozpocząć inspekcję.
+              {t("inspection.scanHelp")}
             </p>
             <form
               className="product-identification-form"
               onSubmit={identifyProduct}
             >
-              <label htmlFor="inspection-serial-number">Numer seryjny</label>
+              <label htmlFor="inspection-serial-number">{t("inspection.serial")}</label>
               <div className="serial-input-row">
                 <input
                   id="inspection-serial-number"
                   value={vin}
                   onChange={(event) => setVin(event.target.value)}
-                  placeholder="Zeskanuj lub wpisz numer seryjny"
+                  placeholder={t("inspection.serialPlaceholder")}
                   autoComplete="off"
                   autoFocus
                   required
                 />
                 <button className="primary" disabled={busy}>
-                  {busy ? "Sprawdzanie trasy…" : "Rozpocznij inspekcję"}
+                  {busy ? t("inspection.checking") : t("inspection.start")}
                 </button>
               </div>
             </form>
@@ -2341,17 +2344,17 @@ function OperatorPanel({
           <form onSubmit={submit}>
             <section
               className="panel inspection-meta"
-              aria-label="Dane inspekcji"
+              aria-label={t("inspection.data")}
             >
               <div className="meta-title">
                 <span>01</span>
                 <div>
-                  <h2>Identyfikacja kontroli</h2>
-                  <p>Wybierz standard i zeskanuj produkt.</p>
+                  <h2>{t("inspection.controlIdentification")}</h2>
+                  <p>{t("inspection.chooseAndScan")}</p>
                 </div>
               </div>
               <label>
-                Formularz
+                {t("inspection.form")}
                 <select
                   value={formId}
                   onChange={(e) => {
@@ -2363,7 +2366,7 @@ function OperatorPanel({
                   }}
                   required
                 >
-                  <option value="">Wybierz standard…</option>
+                  <option value="">{t("inspection.chooseStandard")}</option>
                   {availableForms.map((item) => (
                     <option value={item.id} key={item.id}>
                       {item.code} · {item.title} · v{item.version}
@@ -2373,11 +2376,11 @@ function OperatorPanel({
               </label>
               <dl className="inspection-context">
                 <div>
-                  <dt>Numer seryjny</dt>
+                  <dt>{t("inspection.serial")}</dt>
                   <dd>{vin}</dd>
                 </div>
                 <div>
-                  <dt>Stanowisko</dt>
+                  <dt>{t("inspection.station")}</dt>
                   <dd>
                     {stationName} · {stationId}
                   </dd>
@@ -2385,11 +2388,11 @@ function OperatorPanel({
                 {product && (
                   <>
                     <div>
-                      <dt>Part number</dt>
+                      <dt>{t("common.partNumber")}</dt>
                       <dd>{product.partNumber}</dd>
                     </div>
                     <div>
-                      <dt>Rodzina</dt>
+                      <dt>{t("inspection.family")}</dt>
                       <dd>{product.productFamily}</dd>
                     </div>
                   </>
@@ -2399,7 +2402,7 @@ function OperatorPanel({
             {form && (
               <div className="inspection-progress">
                 <div>
-                  <span>POSTĘP KONTROLI</span>
+                  <span>{t("inspection.progress")}</span>
                   <strong>
                     {answeredCount} / {form.questions.length}
                   </strong>
@@ -2412,7 +2415,7 @@ function OperatorPanel({
             {form && currentQuestion && !showSummary && (
               <section className="question-step">
                 <div className="step-label">
-                  PYTANIE {questionIndex + 1} Z {form.questions.length}
+                  {t("inspection.question", { current: questionIndex + 1, total: form.questions.length })}
                 </div>
                 <article
                   id={`question-${currentQuestion.id}`}
@@ -2438,7 +2441,7 @@ function OperatorPanel({
                     {currentQuestion.instructionImageUrl && (
                       <div className="instruction-visual">
                         <span className="question-section-label">
-                          Zdjęcie instruktażowe
+                          {t("inspection.instructionPhoto")}
                         </span>
                         <button
                           className="instruction-image"
@@ -2446,20 +2449,20 @@ function OperatorPanel({
                           onClick={() =>
                             setEnlargedImage({
                               url: currentQuestion.instructionImageUrl!,
-                              alt: `Instrukcja: ${currentQuestion.label}`,
+                              alt: t("aria.instruction", { label: currentQuestion.label }),
                             })
                           }
                         >
                           <img
                             src={currentQuestion.instructionImageUrl}
-                            alt={`Instrukcja: ${currentQuestion.label}`}
+                            alt={t("aria.instruction", { label: currentQuestion.label })}
                           />
-                          <span>⌕ Powiększ zdjęcie</span>
+                          <span>{t("inspection.enlarge")}</span>
                         </button>
                       </div>
                     )}
                     <div className="question-answer">
-                      <span className="question-section-label">Odpowiedź</span>
+                      <span className="question-section-label">{t("inspection.answer")}</span>
                       {answerField(currentQuestion)}
                     </div>
                   </div>
@@ -2471,7 +2474,7 @@ function OperatorPanel({
                     onClick={goBack}
                     disabled={questionIndex === 0}
                   >
-                    ← Wstecz
+                    {t("inspection.back")}
                   </button>
                   <button
                     className="primary next-question"
@@ -2479,8 +2482,8 @@ function OperatorPanel({
                     onClick={goToNextQuestion}
                   >
                     {questionIndex === form.questions.length - 1
-                      ? "Przejdź do podsumowania"
-                      : "Dalej"}{" "}
+                      ? t("inspection.summaryNext")
+                      : t("inspection.next")}{" "}
                     →
                   </button>
                 </div>
@@ -2488,26 +2491,26 @@ function OperatorPanel({
             )}
             {form && showSummary && (
               <section className="panel inspection-summary final-summary">
-                <p className="eyebrow">PODSUMOWANIE</p>
+                <p className="eyebrow">{t("inspection.summary")}</p>
                 <h2>{form.title}</h2>
                 <dl>
                   <div>
-                    <dt>Standard</dt>
+                    <dt>{t("inspection.standard")}</dt>
                     <dd>{form.code}</dd>
                   </div>
                   <div>
-                    <dt>Wersja</dt>
+                    <dt>{t("inspection.version")}</dt>
                     <dd>v{form.version}</dd>
                   </div>
                   <div>
-                    <dt>Odpowiedzi</dt>
+                    <dt>{t("inspection.answers")}</dt>
                     <dd>
                       {answeredCount} / {form.questions.length}
                     </dd>
                   </div>
                 </dl>
                 <div className="summary-divider" />
-                <h3>Wynik inspekcji</h3>
+                <h3>{t("inspection.result")}</h3>
                 <div className="status-options">
                   {form.allowedStatuses.map((item) => (
                     <label
@@ -2532,11 +2535,11 @@ function OperatorPanel({
                 </div>
                 <div className="step-actions summary-actions">
                   <button className="secondary" type="button" onClick={goBack}>
-                    ← Wróć do pytania
+                    {t("inspection.backQuestion")}
                   </button>
                   <button className="primary submit-inspection" disabled={busy}>
-                    {busy ? "Przesyłanie…" : "Zakończ inspekcję"}
-                    <small>Zapisz wynik i wyślij do SCADA</small>
+                    {busy ? t("inspection.sending") : t("inspection.finish")}
+                    <small>{t("inspection.submitHelp")}</small>
                   </button>
                 </div>
               </section>
@@ -2551,7 +2554,7 @@ function OperatorPanel({
           </span>
           <span className="station-footer-divider" aria-hidden="true" />
           <span className="station-footer-credit">
-            <span>Developed by</span>
+            <span>{t("common.developedBy")}</span>
             <strong>Bartosz Strzemieczny</strong>
             <a href="mailto:strzemieczny@borgwarner.com">
               strzemieczny@borgwarner.com
@@ -2564,13 +2567,13 @@ function OperatorPanel({
           className="image-lightbox"
           role="dialog"
           aria-modal="true"
-          aria-label="Powiększone zdjęcie instrukcji"
+          aria-label={t("inspection.enlargedImage")}
           onClick={() => setEnlargedImage(null)}
         >
           <button
             type="button"
             className="lightbox-close"
-            aria-label="Zamknij powiększenie"
+            aria-label={t("inspection.closeImage")}
             onClick={() => setEnlargedImage(null)}
           >
             ×
@@ -2587,6 +2590,7 @@ function OperatorPanel({
 }
 
 function PublicReport({ publicReportId }: { publicReportId: string }) {
+  const { language, locale, t } = useI18n();
   const [report, setReport] = useState<PublicInspectionReport | null>(null);
   const [state, setState] = useState<"loading" | "not-found" | "error">(
     "loading",
@@ -2609,26 +2613,27 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   if (!report) {
     return (
       <main className="public-report-state">
-        <a className="brand" href="/">
+        <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
           <span>IH</span> Inspect Hub
         </a>
+        <SettingsMenu />
         <section className="panel">
           {state === "loading" ? (
             <>
               <span className="spinner" />
-              <h1>Ładowanie raportu…</h1>
+              <h1>{t("report.loading")}</h1>
             </>
           ) : state === "not-found" ? (
             <>
               <span className="report-state-icon">?</span>
-              <h1>Nie znaleziono raportu</h1>
-              <p>Sprawdź, czy adres raportu jest poprawny.</p>
+              <h1>{t("report.notFound")}</h1>
+              <p>{t("report.checkAddress")}</p>
             </>
           ) : (
             <>
               <span className="report-state-icon">!</span>
-              <h1>Nie udało się pobrać raportu</h1>
-              <p>Spróbuj ponownie później.</p>
+              <h1>{t("report.error")}</h1>
+              <p>{t("report.tryLater")}</p>
             </>
           )}
         </section>
@@ -2642,32 +2647,31 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   const formatValue = (
     value: PublicInspectionReport["answers"][number]["value"],
   ) => {
-    if (value === null || value === "") return "Brak odpowiedzi";
-    if (typeof value === "boolean") return value ? "Tak" : "Nie";
+    if (value === null || value === "") return t("report.noAnswer");
+    if (typeof value === "boolean") return value ? t("common.yes") : t("common.no");
     return String(value);
   };
 
   return (
     <main className="public-report-shell">
       <header className="report-nav print-hidden">
-        <a className="brand" href="/">
+        <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
           <span>IH</span> Inspect Hub
         </a>
-        <button
-          className="primary"
-          type="button"
-          onClick={() => window.print()}
-        >
-          Drukuj raport
-        </button>
+        <div className="report-nav-actions">
+          <button className="primary" type="button" onClick={() => window.print()}>
+            {t("report.print")}
+          </button>
+          <SettingsMenu />
+        </div>
       </header>
       <article className="public-report">
         <header className="report-heading">
           <div>
-            <p className="eyebrow">RAPORT Z INSPEKCJI</p>
+            <p className="eyebrow">{t("report.eyebrow")}</p>
             <h1>{report.serialNumber}</h1>
             <p>
-              {report.form.name} · {report.form.code} · wersja{" "}
+              {report.form.name} · {report.form.code} · {t("report.version")}{" "}
               {report.form.version}
             </p>
           </div>
@@ -2678,48 +2682,48 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
 
         <section className="report-summary-grid">
           <div>
-            <span>Wszystkie pytania</span>
+            <span>{t("report.allQuestions")}</span>
             <strong>{report.summary.total}</strong>
           </div>
           <div>
-            <span>Zaliczone</span>
+            <span>{t("report.passed")}</span>
             <strong className="report-ok">{report.summary.passed}</strong>
           </div>
           <div>
-            <span>Niezaliczone</span>
+            <span>{t("report.failed")}</span>
             <strong className="report-nok">{report.summary.failed}</strong>
           </div>
         </section>
 
         <section className="report-section">
-          <h2>Dane produktu</h2>
+          <h2>{t("report.productData")}</h2>
           <dl className="report-details">
             <div>
-              <dt>Numer seryjny</dt>
+              <dt>{t("report.serial")}</dt>
               <dd>{report.serialNumber}</dd>
             </div>
             {report.partNumber && (
               <div>
-                <dt>Part number</dt>
+                <dt>{t("common.partNumber")}</dt>
                 <dd>{report.partNumber}</dd>
               </div>
             )}
             {report.productFamily && (
               <div>
-                <dt>Rodzina produktu</dt>
+                <dt>{t("report.family")}</dt>
                 <dd>{report.productFamily}</dd>
               </div>
             )}
             {report.scadaUnitHistoryUrl && (
               <div>
-                <dt>Historia produktu</dt>
+                <dt>{t("report.history")}</dt>
                 <dd>
                   <a
                     href={report.scadaUnitHistoryUrl}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Otwórz historię w SCADA ↗
+                    {t("report.openHistory")}
                   </a>
                 </dd>
               </div>
@@ -2728,19 +2732,19 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
         </section>
 
         <section className="report-section">
-          <h2>Wykonanie</h2>
+          <h2>{t("report.execution")}</h2>
           <dl className="report-details">
             <div>
-              <dt>Data i godzina</dt>
+              <dt>{t("report.dateTime")}</dt>
               <dd>
-                {new Intl.DateTimeFormat("pl-PL", {
+                {new Intl.DateTimeFormat(locale, {
                   dateStyle: "long",
                   timeStyle: "medium",
                 }).format(new Date(report.completedAt))}
               </dd>
             </div>
             <div>
-              <dt>Stanowisko</dt>
+              <dt>{t("report.station")}</dt>
               <dd>
                 {report.station.name
                   ? `${report.station.name} (${report.station.code})`
@@ -2748,24 +2752,24 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
               </dd>
             </div>
             <div>
-              <dt>Proces</dt>
+              <dt>{t("report.process")}</dt>
               <dd>{report.process ?? "—"}</dd>
             </div>
             {report.operatorName && (
               <div>
-                <dt>Operator</dt>
+                <dt>{t("report.operator")}</dt>
                 <dd>{report.operatorName}</dd>
               </div>
             )}
             <div>
-              <dt>Synchronizacja z systemem zewnętrznym</dt>
+              <dt>{t("report.externalSync")}</dt>
               <dd>
                 <span
                   className={`sync-status ${report.externalSyncStatus === "SYNCED" ? "synced" : "pending"}`}
                 >
                   {report.externalSyncStatus === "SYNCED"
-                    ? "Zsynchronizowano"
-                    : "Oczekuje"}
+                    ? t("report.synced")
+                    : t("report.pending")}
                 </span>
               </dd>
             </div>
@@ -2773,7 +2777,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
         </section>
 
         <section className="report-section report-answers">
-          <h2>Odpowiedzi</h2>
+          <h2>{t("report.answers")}</h2>
           {report.answers.map((answer, index) => (
             <article className="report-answer" key={answer.questionId}>
               <span className="answer-index">
@@ -2782,7 +2786,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
               <div>
                 <h3>{answer.label}</h3>
                 {answer.imageUrl ? (
-                  <img src={answer.imageUrl} alt={`Zdjęcie: ${answer.label}`} />
+                  <img src={answer.imageUrl} alt={t("report.photo", { label: answer.label })} />
                 ) : (
                   <p>{formatValue(answer.value)}</p>
                 )}
@@ -2798,7 +2802,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
           ))}
         </section>
         <footer className="report-footer">
-          Inspect Hub · Raport {report.publicReportId}
+          {t("report.footer", { id: report.publicReportId })}
         </footer>
       </article>
     </main>
@@ -2806,12 +2810,23 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
 }
 
 function App() {
+  const { language, t } = useI18n();
   const [user, setUser] = useState<SessionUser | null>(() => {
     const raw = localStorage.getItem("inspect-hub-user");
     return raw ? (JSON.parse(raw) as SessionUser) : null;
   });
 
-  let path = window.location.pathname;
+  const route = (path: string) => `/${language === "uk" ? "ua" : language}${path}`;
+  const originalPath = window.location.pathname;
+  const routeMatch = originalPath.match(/^\/(pl|en|ua)(\/.*)?$/);
+  if (!routeMatch) {
+    window.history.replaceState(
+      {},
+      "",
+      `${route(originalPath === "/" ? "/" : originalPath)}${window.location.search}${window.location.hash}`,
+    );
+  }
+  let path = routeMatch?.[2] || originalPath;
   if (path === "/") return <Dashboard />;
   const publicReportMatch = path.match(/^\/reports\/([^/]+)\/?$/);
   if (publicReportMatch) {
@@ -2826,7 +2841,7 @@ function App() {
   }
   if (!user) {
     if (path !== "/login") {
-      window.history.replaceState({}, "", "/login");
+      window.history.replaceState({}, "", route("/login"));
     }
     return (
       <Login
@@ -2839,7 +2854,7 @@ function App() {
           window.history.replaceState(
             {},
             "",
-            session.user.role === "OPERATOR" ? "/inspection" : "/admin",
+            route(session.user.role === "OPERATOR" ? "/inspection" : "/admin"),
           );
           setUser(session.user);
         }}
@@ -2850,38 +2865,39 @@ function App() {
   function logoutUser() {
     localStorage.removeItem("inspect-hub-token");
     localStorage.removeItem("inspect-hub-user");
-    window.history.replaceState({}, "", "/login");
+    window.history.replaceState({}, "", route("/login"));
     setUser(null);
   }
 
   if (user.role === "OPERATOR" && path !== "/inspection") {
-    window.history.replaceState({}, "", "/inspection");
+    window.history.replaceState({}, "", route("/inspection"));
     path = "/inspection";
   } else if (path === "/login") {
-    window.history.replaceState({}, "", "/admin");
+    window.history.replaceState({}, "", route("/admin"));
     path = "/admin";
   }
 
   if (path !== "/admin") {
-    window.history.replaceState({}, "", "/admin");
+    window.history.replaceState({}, "", route("/admin"));
   }
 
   return (
     <>
       <nav>
-        <a className="brand" href="/admin">
+        <a className="brand" href={route("/admin")}>
           <span>IH</span> Inspect Hub
         </a>
         <div className="nav-actions">
-          <a className="station-link" href="/inspection">
-            Otwórz stanowisko
+          <a className="station-link" href={route("/inspection")}>
+            {t("nav.openStation")}
           </a>
           <span className="user-chip">
             {user.name} · {user.role}
           </span>
           <button className="ghost" onClick={logoutUser}>
-            Wyloguj
+            {t("common.logout")}
           </button>
+          <SettingsMenu />
         </div>
       </nav>
       <AdminPanel />

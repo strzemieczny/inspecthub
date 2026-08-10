@@ -5,3 +5,56 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
+
+.settings-menu { position: relative; flex: 0 0 auto; }
+.settings-trigger {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 9px;
+  color: #52615d;
+  background: rgba(127, 145, 138, .1);
+}
+.settings-trigger:hover, .settings-trigger[aria-expanded="true"] { color: #14795c; background: #e4f0eb; }
+.settings-trigger svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.settings-dropdown {
+  position: absolute;
+  z-index: 1100;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 210px;
+  padding: 8px;
+  border: 1px solid #dce3df;
+  border-radius: 12px;
+  color: #182021;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(24, 32, 33, .18);
+}
+.settings-dropdown > strong { display: block; padding: 8px 10px 6px; color: #75807d; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; }
+.settings-dropdown button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #34413e;
+  background: transparent;
+  text-align: left;
+}
+.settings-dropdown button:hover { background: #f1f5f3; }
+.settings-dropdown button.active { color: #11684f; background: #e7f2ed; font-weight: 700; }
+.settings-dropdown small { color: #84908c; font-size: 11px; font-weight: 700; }
+.dashboard-nav .settings-trigger { color: #d8e6e1; background: rgba(255,255,255,.08); }
+.dashboard-nav .settings-trigger:hover, .dashboard-nav .settings-trigger[aria-expanded="true"] { color: #fff; background: rgba(255,255,255,.15); }
+.auth-settings { position: absolute; top: 18px; right: 18px; }
+.report-nav-actions { display: flex; align-items: center; gap: 10px; }
+.public-report-state > .settings-menu { position: absolute; top: 18px; right: 18px; }
+
+@media (max-width: 640px) {
+  .settings-dropdown { width: 190px; }
+  .dashboard-nav-actions { gap: .55rem; }
+  .live-badge { display: none; }
+}

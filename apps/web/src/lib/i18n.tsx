@@ -1,0 +1,263 @@
+/* eslint-disable react-refresh/only-export-components */
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+export type Language = "pl" | "en" | "uk";
+
+const STORAGE_KEY = "inspect-hub-language";
+
+const translations = {
+  pl: {
+    "language.polish": "Polski", "language.english": "Angielski", "language.ukrainian": "Ukraiński", "language.switch": "Język", "settings.title": "Ustawienia",
+    "common.login": "Zaloguj się", "common.logout": "Wyloguj", "common.loading": "Ładowanie…", "common.save": "Zapisz", "common.delete": "Usuń", "common.yes": "Tak", "common.no": "Nie", "common.partNumber": "Numer części", "common.developedBy": "Opracowane przez", "common.qualityIntelligence": "Analityka jakości", "common.qualityOperations": "OPERACJE JAKOŚCIOWE",
+    "nav.openStation": "Otwórz stanowisko",
+    "aria.stationCode": "Kod stanowiska {{code}}", "aria.stationName": "Nazwa stanowiska {{code}}", "aria.instruction": "Instrukcja: {{label}}",
+    "confirm.removeStation": "Usunąć stanowisko {{code}}? Zostanie też usunięte z przypisań formularzy.", "confirm.removeUser": "Usunąć konto {{email}}?", "aria.stationProcess": "Proces stanowiska {{code}}", "aria.userRole": "Rola użytkownika {{name}}", "notice.revisionsError": "Nie udało się pobrać historii rewizji", "notice.referenceUploaded": "Zdjęcie referencyjne {{answer}} zostało przesłane.", "notice.revisionPublished": "Opublikowano rewizję {{version}}. Poprzednie wersje pozostały w historii.", "notice.stationPaired": "Urządzenie powiązano ze stanowiskiem {{name}}.", "notice.requiredItems": "Uzupełnij wymagane punkty: {{items}}", "notice.productDenied": "Produkt {{serial}} nie ma zgody na inspekcję w tym procesie. Odłóż produkt i skontaktuj się z liderem linii.", "notice.productCheckDetails": "Nie udało się sprawdzić produktu: {{message}}",
+    "dashboard.eyebrow": "CENTRUM JAKOŚCI · PRODUKCJA", "dashboard.title": "Wyniki inspekcji", "dashboard.subtitle": "Aktualny obraz jakości procesu na wszystkich stanowiskach.",
+    "dashboard.lastUpdated": "Ostatnia aktualizacja: {{time}}", "dashboard.unavailable": "Dane niedostępne", "dashboard.fetching": "Pobieranie danych…", "dashboard.dataAsOf": "Stan danych na", "dashboard.loadedOnOpen": "Pobrano przy otwarciu strony",
+    "dashboard.inspectionsToday": "Inspekcje dzisiaj", "dashboard.noComparison": "Brak danych porównawczych", "dashboard.vsYesterday": "vs. wczoraj", "dashboard.dailyTarget": "Cel dzienny: 97,0%", "dashboard.issues": "Niezgodności", "dashboard.activeStations": "Aktywne stanowiska", "dashboard.working": "Pracują prawidłowo",
+    "dashboard.throughput": "Przepustowość i jakość", "dashboard.last7Days": "Wyniki z ostatnich 7 dni", "dashboard.all": "Wszystkie", "dashboard.passed": "Zgodne", "dashboard.qualityStatus": "Stan jakości", "dashboard.todayProduction": "Dzisiejsza produkcja", "dashboard.compliant": "zgodnych", "dashboard.failed": "Niezgodne", "dashboard.scadaSync": "Synchronizacja SCADA",
+    "dashboard.reports": "Raporty z inspekcji", "dashboard.reportsSubtitle": "Wszystkie zapisane wyniki ze stanowisk kontrolnych", "dashboard.reportCount": "{{count}} raportów", "dashboard.time": "Czas", "dashboard.product": "Produkt", "dashboard.standard": "Standard kontroli", "dashboard.station": "Stanowisko", "dashboard.result": "Wynik", "dashboard.report": "Raport", "dashboard.pass": "Zgodna", "dashboard.fail": "Niezgodna", "dashboard.saved": "✓ Zapisano", "dashboard.pending": "○ Oczekuje", "dashboard.view": "Podejrzyj", "dashboard.apiError": "Nie udało się pobrać danych z API.", "dashboard.empty": "Brak zapisanych inspekcji.", "dashboard.privacy": "Dane pobierane przy otwarciu strony · Numery produktów zostały zanonimizowane",
+    "login.tagline": "Jedno miejsce dla standardów, inspekcji i traceability.", "login.password": "Hasło", "login.busy": "Logowanie…", "login.error": "Nie udało się zalogować", "login.note": "Konta tworzy administrator w sekcji Użytkownicy panelu administracyjnego.",
+    "inspection.mode": "Tryb stanowiskowy", "inspection.unassigned": "Nieprzypisana stacja", "inspection.publicAccess": "Dostęp publiczny", "inspection.eyebrow": "STANOWISKO KONTROLI", "inspection.title": "Nowa inspekcja", "inspection.subtitle": "Przeprowadź kontrolę zgodnie z aktywnym standardem jakości.", "inspection.online": "System online",
+    "inspection.blocked": "Inspekcja zablokowana", "inspection.ready": "Gotowe", "inspection.info": "Informacja", "inspection.loading": "Ładuję standardy kontroli…", "inspection.noForms": "Brak formularzy dla procesu", "inspection.noFormsProcess": "Administrator musi przypisać formularz do procesu tego stanowiska.", "inspection.noStationProcess": "Administrator musi najpierw przypisać proces do tego stanowiska.", "inspection.stationCode": "Kod stanowiska", "inspection.connecting": "Łączenie…", "inspection.changePairing": "Zmień powiązanie", "inspection.pairTitle": "Powiąż urządzenie ze stanowiskiem", "inspection.pairHelp": "Wpisz kod stanowiska. Przy kolejnych uruchomieniach zostanie ono rozpoznane automatycznie po urządzeniu i adresie IP. Jeśli kod jest nowy, stanowisko zostanie utworzone automatycznie.", "inspection.pair": "Powiąż urządzenie",
+    "inspection.identification": "IDENTYFIKACJA PRODUKTU", "inspection.scanTitle": "Zeskanuj numer seryjny", "inspection.scanHelp": "Użyj skanera lub wpisz numer ręcznie, aby rozpocząć inspekcję.", "inspection.serial": "Numer seryjny", "inspection.serialPlaceholder": "Zeskanuj lub wpisz numer seryjny", "inspection.checking": "Sprawdzanie trasy…", "inspection.start": "Rozpocznij inspekcję", "inspection.controlIdentification": "Identyfikacja kontroli", "inspection.chooseAndScan": "Wybierz standard i zeskanuj produkt.", "inspection.form": "Formularz", "inspection.chooseStandard": "Wybierz standard…", "inspection.station": "Stanowisko", "inspection.family": "Rodzina", "inspection.progress": "POSTĘP KONTROLI", "inspection.question": "PYTANIE {{current}} Z {{total}}", "inspection.instructionPhoto": "Zdjęcie instruktażowe", "inspection.enlarge": "⌕ Powiększ zdjęcie", "inspection.answer": "Odpowiedź", "inspection.back": "← Wstecz", "inspection.summaryNext": "Przejdź do podsumowania", "inspection.next": "Dalej", "inspection.summary": "PODSUMOWANIE", "inspection.standard": "Standard", "inspection.version": "Wersja", "inspection.answers": "Odpowiedzi", "inspection.result": "Wynik inspekcji", "inspection.backQuestion": "← Wróć do pytania", "inspection.sending": "Przesyłanie…", "inspection.finish": "Zakończ inspekcję", "inspection.submitHelp": "Zapisz wynik i wyślij do SCADA", "inspection.select": "Wybierz…", "inspection.photoAdded": "✓ Zdjęcie dodane", "inspection.addPhoto": "Dodaj zdjęcie usterki",
+    "admin.management": "Zarządzanie", "admin.panel": "PANEL ADMINA", "admin.forms": "Formularze", "admin.formsSubtitle": "Standardy inspekcji", "admin.newForm": "Nowy formularz", "admin.editForms": "Edycja formularzy", "admin.stations": "Stanowiska", "admin.stationsSubtitle": "Edycja stanowisk", "admin.users": "Użytkownicy", "admin.usersSubtitle": "Konta i uprawnienia", "admin.scada": "Integracja SCADA", "admin.scadaSubtitle": "Endpointy i połączenie", "admin.expand": "Rozwiń menu", "admin.collapse": "Zwiń menu", "admin.sections": "Sekcje panelu administratora", "admin.newTitle": "Nowy standard inspekcji", "admin.editTitle": "Edycja standardów", "admin.stationsTitle": "Zarządzanie stanowiskami", "admin.usersTitle": "Zarządzanie użytkownikami", "admin.scadaTitle": "Integracja SCADA", "admin.newHelp": "Utwórz i opublikuj nowy standard inspekcji.", "admin.editHelp": "Wybierz formularz, edytuj go i przeglądaj jego rewizje.", "admin.stationsHelp": "Dodawaj, edytuj i kontroluj dostępność stanowisk.", "admin.usersHelp": "Twórz konta oraz nadawaj role administratora i operatora.", "admin.scadaHelp": "Skonfiguruj komunikację ze sterującym systemem produkcyjnym.",
+    "stations.configuration": "KONFIGURACJA", "stations.description": "Zarządzaj stanowiskami dostępnymi przy przypisywaniu formularzy.", "stations.count": "Stanowisk: {{count}}", "stations.code": "Kod stanowiska", "stations.name": "Nazwa", "stations.process": "Proces inspekcji", "stations.adding": "Dodawanie…", "stations.add": "Dodaj stanowisko", "stations.unpaired": "jeszcze niepowiązane", "stations.processName": "Nazwa procesu", "stations.active": "Aktywne", "stations.inactive": "Nieaktywne", "stations.deactivate": "Dezaktywuj", "stations.activate": "Aktywuj", "stations.empty": "Nie dodano jeszcze żadnych stanowisk.",
+    "users.heading": "KONTA I UPRAWNIENIA", "users.count": "Kont: {{count}}", "users.fullName": "Imię i nazwisko", "users.password": "Hasło", "users.role": "Rola", "users.operator": "Operator", "users.admin": "Administrator", "users.creating": "Tworzenie…", "users.add": "Dodaj użytkownika",
+    "scada.eyebrow": "INTEGRACJA PRODUKCYJNA", "scada.description": "Kontroluj dostęp produktu do inspekcji i automatycznie przekazuj wyniki do systemu produkcyjnego.", "scada.simulation": "Symulacja DEV", "scada.info": "Route check działa synchronicznie. Wyniki zakończonych inspekcji są kolejkowane i wysyłane asynchronicznie.", "scada.baseUrl": "Bazowy URL SCADA", "scada.baseUrlHelp": "Protokół, host i opcjonalny port systemu SCADA.", "scada.publicUrl": "Publiczny URL Inspect Hub", "scada.publicUrlHelp": "Używany do generowania linków do raportów.", "scada.routePath": "Ścieżka route check", "scada.resultPath": "Ścieżka wysyłki wyniku", "scada.timeout": "Timeout połączenia", "scada.liveHelp": "Żądania będą wysyłane do skonfigurowanego serwera SCADA.", "scada.devHelp": "Aktywna lokalna symulacja: numery _OK / _NOK.", "scada.saving": "Zapisywanie…", "scada.save": "Zapisz ustawienia", "scada.loading": "Ładowanie ustawień…",
+    "report.loading": "Ładowanie raportu…", "report.notFound": "Nie znaleziono raportu", "report.checkAddress": "Sprawdź, czy adres raportu jest poprawny.", "report.error": "Nie udało się pobrać raportu", "report.tryLater": "Spróbuj ponownie później.", "report.print": "Drukuj raport", "report.eyebrow": "RAPORT Z INSPEKCJI", "report.allQuestions": "Wszystkie pytania", "report.passed": "Zaliczone", "report.failed": "Niezaliczone", "report.productData": "Dane produktu", "report.serial": "Numer seryjny", "report.family": "Rodzina produktu", "report.history": "Historia produktu", "report.execution": "Wykonanie", "report.dateTime": "Data i godzina", "report.station": "Stanowisko", "report.process": "Proces", "report.operator": "Operator", "report.externalSync": "Synchronizacja z systemem zewnętrznym", "report.answers": "Odpowiedzi", "report.noAnswer": "Brak odpowiedzi",
+    "form.published": "OPUBLIKOWANE STANDARDY", "form.existing": "Istniejące formularze", "form.settings": "Ustawienia formularza", "form.title": "Nazwa formularza", "form.code": "Kod formularza", "form.finalStatuses": "Statusy końcowe", "form.addStatus": "Dodaj status i naciśnij Enter", "form.statusInfo": "Status to decyzja jakościowa.", "form.assignedProcesses": "Przypisane procesy", "form.process": "PROCES", "form.questions": "Pytania kontrolne", "form.question": "Pytanie", "form.questionPlaceholder": "Czy element jest poprawnie zamocowany?", "form.type": "Typ odpowiedzi", "form.checkbox": "Tak / Nie", "form.text": "Tekst", "form.list": "Lista", "form.photo": "Zdjęcie", "form.required": "Wymagane", "form.expected": "Oczekiwana odpowiedź", "form.unspecified": "Nie określono", "form.expectedPlaceholder": "Podaj oczekiwaną odpowiedź", "form.okReady": "✓ Zdjęcie OK gotowe", "form.addOk": "Dodaj zdjęcie dla OK", "form.nokReady": "✓ Zdjęcie NOK gotowe", "form.addNok": "Dodaj zdjęcie dla NOK", "form.instructionReady": "✓ Obraz instruktażowy gotowy", "form.addInstruction": "Dodaj obraz instruktażowy", "form.addQuestion": "Dodaj pytanie", "form.publish": "Opublikuj formularz", "form.saving": "Zapisywanie…",
+    "inspection.data": "Dane inspekcji", "inspection.closeImage": "Zamknij powiększenie", "inspection.enlargedImage": "Powiększone zdjęcie instrukcji", "inspection.requiredAnswer": "Odpowiedz na wymagane pytanie, aby przejść dalej.", "inspection.allowed": "SCADA zezwoliła na inspekcję.",
+    "report.version": "wersja", "report.openHistory": "Otwórz historię w SCADA ↗", "report.synced": "Zsynchronizowano", "report.pending": "Oczekuje", "report.photo": "Zdjęcie: {{label}}", "report.footer": "Inspect Hub · Raport {{id}}",
+    "form.edit": "Edytuj", "form.empty": "Nie opublikowano jeszcze żadnego formularza.", "form.history": "Historia zmian: {{code}}", "form.counts": "Pytań: {{questions}} · procesów: {{processes}}", "form.titleLabel": "Tytuł", "form.statusTip": "Może odpowiadać słownikowi zakładowemu, np. ZDAŁ, DO POPRAWY, ZŁOM.", "form.noProcesses": "Najpierw przypisz nazwę procesu do stanowiska.", "form.processTip": "Formularz będzie dostępny na wszystkich stanowiskach należących do wybranych procesów.", "form.questionContent": "Treść pytania", "form.numeric": "Wartość liczbowa", "form.options": "Opcje (po przecinku)", "form.expectedValue": "Oczekiwana wartość", "form.rangeFrom": "Zakres od", "form.rangeTo": "Zakres do", "form.publishRevision": "Opublikuj rewizję {{version}}", "form.newRevision": "Nowa rewizja v{{version}}", "form.formCount": "Formularzy: {{count}}",
+    "notice.saveError": "Nie udało się zapisać", "notice.uploadError": "Błąd przesyłania pliku", "notice.scadaSaved": "Ustawienia connectora SCADA zostały zapisane.", "notice.stationAdded": "Stanowisko zostało dodane.", "notice.stationUpdated": "Zmiany stanowiska zostały zapisane.", "notice.stationRemoved": "Stanowisko zostało usunięte.", "notice.userCreated": "Użytkownik został utworzony.", "notice.userRole": "Rola użytkownika została zmieniona.", "notice.userRemoved": "Użytkownik został usunięty.", "notice.formPublished": "Formularz został opublikowany w wersji 1.", "notice.instructionUploaded": "Grafika instruktażowa została przesłana.", "notice.stationIdentifyError": "Nie udało się rozpoznać stanowiska", "notice.productCheckError": "Nie udało się sprawdzić produktu. Spróbuj ponownie lub skontaktuj się z liderem linii.", "placeholder.finalInspection": "Kontrola końcowa", "placeholder.finalDoorInspection": "Kontrola końcowa drzwi",
+  },
+  en: {
+    "language.polish": "Polish",
+    "language.english": "English",
+    "language.ukrainian": "Ukrainian",
+    "language.switch": "Language",
+    "settings.title": "Settings",
+    "common.login": "Sign in",
+    "common.logout": "Sign out",
+    "common.loading": "Loading…",
+    "common.save": "Save",
+    "common.delete": "Delete",
+    "common.yes": "Yes",
+    "common.no": "No",
+    "common.partNumber": "Part number",
+    "common.developedBy": "Developed by",
+    "common.qualityIntelligence": "Quality intelligence",
+    "common.qualityOperations": "QUALITY OPERATIONS",
+    "nav.openStation": "Open inspection station",
+    "aria.stationCode": "Code for station {{code}}", "aria.stationName": "Name for station {{code}}", "aria.instruction": "Instruction: {{label}}",
+    "confirm.removeStation": "Remove station {{code}}? It will also be removed from form assignments.", "confirm.removeUser": "Remove account {{email}}?", "aria.stationProcess": "Process for station {{code}}", "aria.userRole": "Role for user {{name}}", "notice.revisionsError": "Could not load revision history", "notice.referenceUploaded": "Reference image {{answer}} uploaded.", "notice.revisionPublished": "Revision {{version}} published. Previous versions remain in history.", "notice.stationPaired": "Device paired with station {{name}}.", "notice.requiredItems": "Complete the required items: {{items}}", "notice.productDenied": "Product {{serial}} is not allowed for inspection in this process. Set the product aside and contact the line leader.", "notice.productCheckDetails": "Could not check the product: {{message}}",
+    "dashboard.eyebrow": "QUALITY CENTER · PRODUCTION",
+    "dashboard.title": "Inspection results",
+    "dashboard.subtitle": "Current process quality across all stations.",
+    "dashboard.lastUpdated": "Last update: {{time}}",
+    "dashboard.unavailable": "Data unavailable",
+    "dashboard.fetching": "Fetching data…",
+    "dashboard.dataAsOf": "Data as of",
+    "dashboard.loadedOnOpen": "Fetched when the page was opened",
+    "dashboard.inspectionsToday": "Inspections today",
+    "dashboard.noComparison": "No comparison data",
+    "dashboard.vsYesterday": "vs. yesterday",
+    "dashboard.dailyTarget": "Daily target: 97.0%",
+    "dashboard.issues": "Nonconformities",
+    "dashboard.activeStations": "Active stations",
+    "dashboard.working": "Operating normally",
+    "dashboard.throughput": "Throughput and quality",
+    "dashboard.last7Days": "Results from the last 7 days",
+    "dashboard.all": "All",
+    "dashboard.passed": "Passed",
+    "dashboard.qualityStatus": "Quality status",
+    "dashboard.todayProduction": "Today's production",
+    "dashboard.compliant": "compliant",
+    "dashboard.failed": "Failed",
+    "dashboard.scadaSync": "SCADA synchronization",
+    "dashboard.reports": "Inspection reports",
+    "dashboard.reportsSubtitle": "All saved results from inspection stations",
+    "dashboard.reportCount": "{{count}} reports",
+    "dashboard.time": "Time",
+    "dashboard.product": "Product",
+    "dashboard.standard": "Inspection standard",
+    "dashboard.station": "Station",
+    "dashboard.result": "Result",
+    "dashboard.report": "Report",
+    "dashboard.pass": "Passed",
+    "dashboard.fail": "Failed",
+    "dashboard.saved": "✓ Saved",
+    "dashboard.pending": "○ Pending",
+    "dashboard.view": "View",
+    "dashboard.apiError": "Could not fetch data from the API.",
+    "dashboard.empty": "No inspections have been saved yet.",
+    "dashboard.privacy": "Data is fetched when the page opens · Product numbers have been anonymized",
+    "login.tagline": "One place for standards, inspections and traceability.",
+    "login.password": "Password",
+    "login.busy": "Signing in…",
+    "login.error": "Could not sign in",
+    "login.note": "Accounts are created by an administrator in the Users section of the admin panel.",
+    "inspection.mode": "Station mode", "inspection.unassigned": "Unassigned station", "inspection.publicAccess": "Public access", "inspection.eyebrow": "INSPECTION STATION", "inspection.title": "New inspection", "inspection.subtitle": "Perform the inspection according to the active quality standard.", "inspection.online": "System online",
+    "inspection.blocked": "Inspection blocked", "inspection.ready": "Ready", "inspection.info": "Information", "inspection.loading": "Loading inspection standards…", "inspection.noForms": "No forms for this process", "inspection.noFormsProcess": "An administrator must assign a form to this station's process.", "inspection.noStationProcess": "An administrator must first assign a process to this station.", "inspection.stationCode": "Station code", "inspection.connecting": "Connecting…", "inspection.changePairing": "Change pairing", "inspection.pairTitle": "Pair this device with a station", "inspection.pairHelp": "Enter the station code. On subsequent launches it will be recognized automatically from the device and IP address. A new station will be created automatically if the code is new.", "inspection.pair": "Pair device",
+    "inspection.identification": "PRODUCT IDENTIFICATION", "inspection.scanTitle": "Scan the serial number", "inspection.scanHelp": "Use a scanner or enter the number manually to begin the inspection.", "inspection.serial": "Serial number", "inspection.serialPlaceholder": "Scan or enter the serial number", "inspection.checking": "Checking route…", "inspection.start": "Start inspection", "inspection.controlIdentification": "Inspection identification", "inspection.chooseAndScan": "Choose a standard and scan the product.", "inspection.form": "Form", "inspection.chooseStandard": "Choose a standard…", "inspection.station": "Station", "inspection.family": "Family", "inspection.progress": "INSPECTION PROGRESS", "inspection.question": "QUESTION {{current}} OF {{total}}", "inspection.instructionPhoto": "Instruction image", "inspection.enlarge": "⌕ Enlarge image", "inspection.answer": "Answer", "inspection.back": "← Back", "inspection.summaryNext": "Go to summary", "inspection.next": "Next", "inspection.summary": "SUMMARY", "inspection.standard": "Standard", "inspection.version": "Version", "inspection.answers": "Answers", "inspection.result": "Inspection result", "inspection.backQuestion": "← Back to question", "inspection.sending": "Sending…", "inspection.finish": "Finish inspection", "inspection.submitHelp": "Save the result and send it to SCADA", "inspection.select": "Select…", "inspection.photoAdded": "✓ Photo added", "inspection.addPhoto": "Add a defect photo",
+    "admin.management": "Management", "admin.panel": "ADMIN PANEL", "admin.forms": "Forms", "admin.formsSubtitle": "Inspection standards", "admin.newForm": "New form", "admin.editForms": "Edit forms", "admin.stations": "Stations", "admin.stationsSubtitle": "Edit stations", "admin.users": "Users", "admin.usersSubtitle": "Accounts and permissions", "admin.scada": "SCADA integration", "admin.scadaSubtitle": "Endpoints and connection", "admin.expand": "Expand menu", "admin.collapse": "Collapse menu", "admin.sections": "Administrator panel sections", "admin.newTitle": "New inspection standard", "admin.editTitle": "Edit standards", "admin.stationsTitle": "Manage stations", "admin.usersTitle": "Manage users", "admin.scadaTitle": "SCADA integration", "admin.newHelp": "Create and publish a new inspection standard.", "admin.editHelp": "Select and edit a form and browse its revisions.", "admin.stationsHelp": "Add, edit and control station availability.", "admin.usersHelp": "Create accounts and assign administrator or operator roles.", "admin.scadaHelp": "Configure communication with the production control system.",
+    "stations.configuration": "CONFIGURATION", "stations.description": "Manage stations available when assigning forms.", "stations.count": "Stations: {{count}}", "stations.code": "Station code", "stations.name": "Name", "stations.process": "Inspection process", "stations.adding": "Adding…", "stations.add": "Add station", "stations.unpaired": "not paired yet", "stations.processName": "Process name", "stations.active": "Active", "stations.inactive": "Inactive", "stations.deactivate": "Deactivate", "stations.activate": "Activate", "stations.empty": "No stations have been added yet.",
+    "users.heading": "ACCOUNTS AND PERMISSIONS", "users.count": "Accounts: {{count}}", "users.fullName": "Full name", "users.password": "Password", "users.role": "Role", "users.operator": "Operator", "users.admin": "Administrator", "users.creating": "Creating…", "users.add": "Add user",
+    "scada.eyebrow": "PRODUCTION INTEGRATION", "scada.description": "Control product access to inspections and automatically send results to the production system.", "scada.simulation": "DEV simulation", "scada.info": "Route check runs synchronously. Completed inspection results are queued and sent asynchronously.", "scada.baseUrl": "SCADA base URL", "scada.baseUrlHelp": "Protocol, host and optional SCADA system port.", "scada.publicUrl": "Public Inspect Hub URL", "scada.publicUrlHelp": "Used to generate report links.", "scada.routePath": "Route check path", "scada.resultPath": "Result submission path", "scada.timeout": "Connection timeout", "scada.liveHelp": "Requests will be sent to the configured SCADA server.", "scada.devHelp": "Local simulation is active: _OK / _NOK numbers.", "scada.saving": "Saving…", "scada.save": "Save settings", "scada.loading": "Loading settings…",
+    "report.loading": "Loading report…", "report.notFound": "Report not found", "report.checkAddress": "Check that the report address is correct.", "report.error": "Could not load the report", "report.tryLater": "Try again later.", "report.print": "Print report", "report.eyebrow": "INSPECTION REPORT", "report.allQuestions": "All questions", "report.passed": "Passed", "report.failed": "Failed", "report.productData": "Product data", "report.serial": "Serial number", "report.family": "Product family", "report.history": "Product history", "report.execution": "Execution", "report.dateTime": "Date and time", "report.station": "Station", "report.process": "Process", "report.operator": "Operator", "report.externalSync": "External system synchronization", "report.answers": "Answers", "report.noAnswer": "No answer",
+    "form.published": "PUBLISHED STANDARDS", "form.existing": "Existing forms", "form.settings": "Form settings", "form.title": "Form name", "form.code": "Form code", "form.finalStatuses": "Final statuses", "form.addStatus": "Add a status and press Enter", "form.statusInfo": "A status is a quality decision.", "form.assignedProcesses": "Assigned processes", "form.process": "PROCESS", "form.questions": "Inspection questions", "form.question": "Question", "form.questionPlaceholder": "Is the component installed correctly?", "form.type": "Answer type", "form.checkbox": "Yes / No", "form.text": "Text", "form.list": "List", "form.photo": "Photo", "form.required": "Required", "form.expected": "Expected answer", "form.unspecified": "Not specified", "form.expectedPlaceholder": "Enter the expected answer", "form.okReady": "✓ OK image ready", "form.addOk": "Add image for OK", "form.nokReady": "✓ NOK image ready", "form.addNok": "Add image for NOK", "form.instructionReady": "✓ Instruction image ready", "form.addInstruction": "Add instruction image", "form.addQuestion": "Add question", "form.publish": "Publish form", "form.saving": "Saving…",
+    "inspection.data": "Inspection data", "inspection.closeImage": "Close enlargement", "inspection.enlargedImage": "Enlarged instruction image", "inspection.requiredAnswer": "Answer the required question to continue.", "inspection.allowed": "SCADA allowed the inspection.",
+    "report.version": "version", "report.openHistory": "Open history in SCADA ↗", "report.synced": "Synchronized", "report.pending": "Pending", "report.photo": "Photo: {{label}}", "report.footer": "Inspect Hub · Report {{id}}",
+    "form.edit": "Edit", "form.empty": "No forms have been published yet.", "form.history": "Change history: {{code}}", "form.counts": "Questions: {{questions}} · processes: {{processes}}", "form.titleLabel": "Title", "form.statusTip": "It can match the plant dictionary, e.g. PASSED, REWORK, SCRAP.", "form.noProcesses": "First assign a process name to a station.", "form.processTip": "The form will be available at every station belonging to the selected processes.", "form.questionContent": "Question content", "form.numeric": "Numeric value", "form.options": "Options (comma-separated)", "form.expectedValue": "Expected value", "form.rangeFrom": "Range from", "form.rangeTo": "Range to", "form.publishRevision": "Publish revision {{version}}", "form.newRevision": "New revision v{{version}}", "form.formCount": "Forms: {{count}}",
+    "notice.saveError": "Could not save", "notice.uploadError": "File upload failed", "notice.scadaSaved": "SCADA connector settings have been saved.", "notice.stationAdded": "Station added.", "notice.stationUpdated": "Station changes saved.", "notice.stationRemoved": "Station removed.", "notice.userCreated": "User created.", "notice.userRole": "User role changed.", "notice.userRemoved": "User removed.", "notice.formPublished": "The form was published as version 1.", "notice.instructionUploaded": "Instruction image uploaded.", "notice.stationIdentifyError": "Could not identify the station", "notice.productCheckError": "Could not check the product. Try again or contact the line leader.", "placeholder.finalInspection": "Final inspection", "placeholder.finalDoorInspection": "Final door inspection",
+  },
+  uk: {
+    "language.polish": "Польська", "language.english": "Англійська", "language.ukrainian": "Українська", "language.switch": "Мова", "settings.title": "Налаштування",
+    "common.login": "Увійти", "common.logout": "Вийти", "common.loading": "Завантаження…", "common.save": "Зберегти", "common.delete": "Видалити", "common.yes": "Так", "common.no": "Ні", "common.partNumber": "Номер деталі", "common.developedBy": "Розроблено", "common.qualityIntelligence": "Аналітика якості", "common.qualityOperations": "ОПЕРАЦІЇ З ЯКОСТІ",
+    "nav.openStation": "Відкрити станцію контролю",
+    "aria.stationCode": "Код станції {{code}}", "aria.stationName": "Назва станції {{code}}", "aria.instruction": "Інструкція: {{label}}",
+    "confirm.removeStation": "Видалити станцію {{code}}? Її також буде вилучено з призначень форм.", "confirm.removeUser": "Видалити обліковий запис {{email}}?", "aria.stationProcess": "Процес станції {{code}}", "aria.userRole": "Роль користувача {{name}}", "notice.revisionsError": "Не вдалося завантажити історію ревізій", "notice.referenceUploaded": "Еталонне зображення {{answer}} завантажено.", "notice.revisionPublished": "Ревізію {{version}} опубліковано. Попередні версії залишилися в історії.", "notice.stationPaired": "Пристрій прив’язано до станції {{name}}.", "notice.requiredItems": "Заповніть обов’язкові пункти: {{items}}", "notice.productDenied": "Продукт {{serial}} не має дозволу на інспекцію в цьому процесі. Відкладіть продукт і зверніться до керівника лінії.", "notice.productCheckDetails": "Не вдалося перевірити продукт: {{message}}",
+    "dashboard.eyebrow": "ЦЕНТР ЯКОСТІ · ВИРОБНИЦТВО", "dashboard.title": "Результати інспекцій", "dashboard.subtitle": "Поточний стан якості процесу на всіх станціях.",
+    "dashboard.lastUpdated": "Останнє оновлення: {{time}}", "dashboard.unavailable": "Дані недоступні", "dashboard.fetching": "Завантаження даних…", "dashboard.dataAsOf": "Дані станом на", "dashboard.loadedOnOpen": "Отримано під час відкриття сторінки",
+    "dashboard.inspectionsToday": "Інспекції сьогодні", "dashboard.noComparison": "Немає даних для порівняння", "dashboard.vsYesterday": "порівняно з учора", "dashboard.dailyTarget": "Денна ціль: 97,0%", "dashboard.issues": "Невідповідності", "dashboard.activeStations": "Активні станції", "dashboard.working": "Працюють належним чином",
+    "dashboard.throughput": "Продуктивність і якість", "dashboard.last7Days": "Результати за останні 7 днів", "dashboard.all": "Усі", "dashboard.passed": "Відповідні", "dashboard.qualityStatus": "Стан якості", "dashboard.todayProduction": "Сьогоднішнє виробництво", "dashboard.compliant": "відповідних", "dashboard.failed": "Невідповідні", "dashboard.scadaSync": "Синхронізація SCADA",
+    "dashboard.reports": "Звіти інспекцій", "dashboard.reportsSubtitle": "Усі збережені результати зі станцій контролю", "dashboard.reportCount": "Звітів: {{count}}", "dashboard.time": "Час", "dashboard.product": "Продукт", "dashboard.standard": "Стандарт контролю", "dashboard.station": "Станція", "dashboard.result": "Результат", "dashboard.report": "Звіт", "dashboard.pass": "Відповідає", "dashboard.fail": "Не відповідає", "dashboard.saved": "✓ Збережено", "dashboard.pending": "○ Очікує", "dashboard.view": "Переглянути", "dashboard.apiError": "Не вдалося отримати дані з API.", "dashboard.empty": "Ще немає збережених інспекцій.", "dashboard.privacy": "Дані отримуються під час відкриття сторінки · Номери продуктів анонімізовано",
+    "login.tagline": "Єдине місце для стандартів, інспекцій і простежуваності.", "login.password": "Пароль", "login.busy": "Вхід…", "login.error": "Не вдалося увійти", "login.note": "Облікові записи створює адміністратор у розділі «Користувачі» панелі адміністратора.",
+    "inspection.mode": "Режим станції", "inspection.unassigned": "Станцію не призначено", "inspection.publicAccess": "Публічний доступ", "inspection.eyebrow": "СТАНЦІЯ КОНТРОЛЮ", "inspection.title": "Нова інспекція", "inspection.subtitle": "Виконайте контроль відповідно до чинного стандарту якості.", "inspection.online": "Система онлайн",
+    "inspection.blocked": "Інспекцію заблоковано", "inspection.ready": "Готово", "inspection.info": "Інформація", "inspection.loading": "Завантаження стандартів контролю…", "inspection.noForms": "Немає форм для цього процесу", "inspection.noFormsProcess": "Адміністратор має призначити форму процесу цієї станції.", "inspection.noStationProcess": "Адміністратор має спочатку призначити процес цій станції.", "inspection.stationCode": "Код станції", "inspection.connecting": "Підключення…", "inspection.changePairing": "Змінити прив’язку", "inspection.pairTitle": "Прив’язати пристрій до станції", "inspection.pairHelp": "Введіть код станції. Під час наступних запусків її буде автоматично розпізнано за пристроєм та IP-адресою. Якщо код новий, станцію буде створено автоматично.", "inspection.pair": "Прив’язати пристрій",
+    "inspection.identification": "ІДЕНТИФІКАЦІЯ ПРОДУКТУ", "inspection.scanTitle": "Відскануйте серійний номер", "inspection.scanHelp": "Скористайтеся сканером або введіть номер вручну, щоб почати інспекцію.", "inspection.serial": "Серійний номер", "inspection.serialPlaceholder": "Відскануйте або введіть серійний номер", "inspection.checking": "Перевірка маршруту…", "inspection.start": "Почати інспекцію", "inspection.controlIdentification": "Ідентифікація контролю", "inspection.chooseAndScan": "Оберіть стандарт і відскануйте продукт.", "inspection.form": "Форма", "inspection.chooseStandard": "Оберіть стандарт…", "inspection.station": "Станція", "inspection.family": "Сімейство", "inspection.progress": "ПРОГРЕС КОНТРОЛЮ", "inspection.question": "ПИТАННЯ {{current}} З {{total}}", "inspection.instructionPhoto": "Зображення-інструкція", "inspection.enlarge": "⌕ Збільшити зображення", "inspection.answer": "Відповідь", "inspection.back": "← Назад", "inspection.summaryNext": "Перейти до підсумку", "inspection.next": "Далі", "inspection.summary": "ПІДСУМОК", "inspection.standard": "Стандарт", "inspection.version": "Версія", "inspection.answers": "Відповіді", "inspection.result": "Результат інспекції", "inspection.backQuestion": "← Повернутися до питання", "inspection.sending": "Надсилання…", "inspection.finish": "Завершити інспекцію", "inspection.submitHelp": "Зберегти результат і надіслати до SCADA", "inspection.select": "Оберіть…", "inspection.photoAdded": "✓ Фото додано", "inspection.addPhoto": "Додати фото дефекту",
+    "admin.management": "Керування", "admin.panel": "ПАНЕЛЬ АДМІНІСТРАТОРА", "admin.forms": "Форми", "admin.formsSubtitle": "Стандарти інспекцій", "admin.newForm": "Нова форма", "admin.editForms": "Редагування форм", "admin.stations": "Станції", "admin.stationsSubtitle": "Редагування станцій", "admin.users": "Користувачі", "admin.usersSubtitle": "Облікові записи та права", "admin.scada": "Інтеграція SCADA", "admin.scadaSubtitle": "Кінцеві точки та з’єднання", "admin.expand": "Розгорнути меню", "admin.collapse": "Згорнути меню", "admin.sections": "Розділи панелі адміністратора", "admin.newTitle": "Новий стандарт інспекції", "admin.editTitle": "Редагування стандартів", "admin.stationsTitle": "Керування станціями", "admin.usersTitle": "Керування користувачами", "admin.scadaTitle": "Інтеграція SCADA", "admin.newHelp": "Створіть і опублікуйте новий стандарт інспекції.", "admin.editHelp": "Оберіть і відредагуйте форму та перегляньте її ревізії.", "admin.stationsHelp": "Додавайте й редагуйте станції та керуйте їх доступністю.", "admin.usersHelp": "Створюйте облікові записи та призначайте ролі.", "admin.scadaHelp": "Налаштуйте зв’язок із системою керування виробництвом.",
+    "stations.configuration": "КОНФІГУРАЦІЯ", "stations.description": "Керуйте станціями, доступними під час призначення форм.", "stations.count": "Станцій: {{count}}", "stations.code": "Код станції", "stations.name": "Назва", "stations.process": "Процес інспекції", "stations.adding": "Додавання…", "stations.add": "Додати станцію", "stations.unpaired": "ще не прив’язано", "stations.processName": "Назва процесу", "stations.active": "Активна", "stations.inactive": "Неактивна", "stations.deactivate": "Деактивувати", "stations.activate": "Активувати", "stations.empty": "Ще не додано жодної станції.",
+    "users.heading": "ОБЛІКОВІ ЗАПИСИ ТА ПРАВА", "users.count": "Облікових записів: {{count}}", "users.fullName": "Ім’я та прізвище", "users.password": "Пароль", "users.role": "Роль", "users.operator": "Оператор", "users.admin": "Адміністратор", "users.creating": "Створення…", "users.add": "Додати користувача",
+    "scada.eyebrow": "ВИРОБНИЧА ІНТЕГРАЦІЯ", "scada.description": "Контролюйте доступ продукту до інспекції та автоматично передавайте результати у виробничу систему.", "scada.simulation": "DEV-симуляція", "scada.info": "Перевірка маршруту виконується синхронно. Результати завершених інспекцій стають у чергу та надсилаються асинхронно.", "scada.baseUrl": "Базова URL-адреса SCADA", "scada.baseUrlHelp": "Протокол, хост і необов’язковий порт системи SCADA.", "scada.publicUrl": "Публічна URL-адреса Inspect Hub", "scada.publicUrlHelp": "Використовується для створення посилань на звіти.", "scada.routePath": "Шлях перевірки маршруту", "scada.resultPath": "Шлях надсилання результату", "scada.timeout": "Тайм-аут з’єднання", "scada.liveHelp": "Запити надсилатимуться на налаштований сервер SCADA.", "scada.devHelp": "Активна локальна симуляція: номери _OK / _NOK.", "scada.saving": "Збереження…", "scada.save": "Зберегти налаштування", "scada.loading": "Завантаження налаштувань…",
+    "report.loading": "Завантаження звіту…", "report.notFound": "Звіт не знайдено", "report.checkAddress": "Перевірте правильність адреси звіту.", "report.error": "Не вдалося завантажити звіт", "report.tryLater": "Спробуйте пізніше.", "report.print": "Друкувати звіт", "report.eyebrow": "ЗВІТ ПРО ІНСПЕКЦІЮ", "report.allQuestions": "Усі питання", "report.passed": "Пройдено", "report.failed": "Не пройдено", "report.productData": "Дані продукту", "report.serial": "Серійний номер", "report.family": "Сімейство продукту", "report.history": "Історія продукту", "report.execution": "Виконання", "report.dateTime": "Дата й час", "report.station": "Станція", "report.process": "Процес", "report.operator": "Оператор", "report.externalSync": "Синхронізація із зовнішньою системою", "report.answers": "Відповіді", "report.noAnswer": "Немає відповіді",
+    "form.published": "ОПУБЛІКОВАНІ СТАНДАРТИ", "form.existing": "Наявні форми", "form.settings": "Налаштування форми", "form.title": "Назва форми", "form.code": "Код форми", "form.finalStatuses": "Кінцеві статуси", "form.addStatus": "Додайте статус і натисніть Enter", "form.statusInfo": "Статус — це рішення щодо якості.", "form.assignedProcesses": "Призначені процеси", "form.process": "ПРОЦЕС", "form.questions": "Контрольні питання", "form.question": "Питання", "form.questionPlaceholder": "Чи правильно встановлено компонент?", "form.type": "Тип відповіді", "form.checkbox": "Так / Ні", "form.text": "Текст", "form.list": "Список", "form.photo": "Фото", "form.required": "Обов’язкове", "form.expected": "Очікувана відповідь", "form.unspecified": "Не визначено", "form.expectedPlaceholder": "Введіть очікувану відповідь", "form.okReady": "✓ Зображення OK готове", "form.addOk": "Додати зображення для OK", "form.nokReady": "✓ Зображення NOK готове", "form.addNok": "Додати зображення для NOK", "form.instructionReady": "✓ Зображення-інструкція готове", "form.addInstruction": "Додати зображення-інструкцію", "form.addQuestion": "Додати питання", "form.publish": "Опублікувати форму", "form.saving": "Збереження…",
+    "inspection.data": "Дані інспекції", "inspection.closeImage": "Закрити збільшення", "inspection.enlargedImage": "Збільшене зображення-інструкція", "inspection.requiredAnswer": "Дайте відповідь на обов’язкове питання, щоб продовжити.", "inspection.allowed": "SCADA дозволила інспекцію.",
+    "report.version": "версія", "report.openHistory": "Відкрити історію в SCADA ↗", "report.synced": "Синхронізовано", "report.pending": "Очікує", "report.photo": "Фото: {{label}}", "report.footer": "Inspect Hub · Звіт {{id}}",
+    "form.edit": "Редагувати", "form.empty": "Ще не опубліковано жодної форми.", "form.history": "Історія змін: {{code}}", "form.counts": "Питань: {{questions}} · процесів: {{processes}}", "form.titleLabel": "Назва", "form.statusTip": "Може відповідати словнику підприємства, напр. ПРОЙДЕНО, ДОРОБКА, БРАК.", "form.noProcesses": "Спочатку призначте назву процесу станції.", "form.processTip": "Форма буде доступна на всіх станціях, що належать до вибраних процесів.", "form.questionContent": "Текст питання", "form.numeric": "Числове значення", "form.options": "Варіанти (через кому)", "form.expectedValue": "Очікуване значення", "form.rangeFrom": "Діапазон від", "form.rangeTo": "Діапазон до", "form.publishRevision": "Опублікувати ревізію {{version}}", "form.newRevision": "Нова ревізія v{{version}}", "form.formCount": "Форм: {{count}}",
+    "notice.saveError": "Не вдалося зберегти", "notice.uploadError": "Не вдалося завантажити файл", "notice.scadaSaved": "Налаштування конектора SCADA збережено.", "notice.stationAdded": "Станцію додано.", "notice.stationUpdated": "Зміни станції збережено.", "notice.stationRemoved": "Станцію видалено.", "notice.userCreated": "Користувача створено.", "notice.userRole": "Роль користувача змінено.", "notice.userRemoved": "Користувача видалено.", "notice.formPublished": "Форму опубліковано як версію 1.", "notice.instructionUploaded": "Зображення-інструкцію завантажено.", "notice.stationIdentifyError": "Не вдалося розпізнати станцію", "notice.productCheckError": "Не вдалося перевірити продукт. Спробуйте ще раз або зверніться до керівника лінії.", "placeholder.finalInspection": "Фінальний контроль", "placeholder.finalDoorInspection": "Фінальний контроль дверей",
+  },
+} as const;
+
+type TranslationKey = keyof (typeof translations)["en"];
+type Variables = Record<string, string | number>;
+
+interface I18nValue {
+  language: Language;
+  locale: string;
+  setLanguage: (language: Language) => void;
+  t: (key: TranslationKey, variables?: Variables) => string;
+}
+
+const I18nContext = createContext<I18nValue | null>(null);
+
+function initialLanguage(): Language {
+  const routeLanguage = window.location.pathname.match(/^\/(pl|en|ua)(?:\/|$)/)?.[1];
+  if (routeLanguage === "ua") return "uk";
+  if (routeLanguage === "pl" || routeLanguage === "en") return routeLanguage;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === "pl" || saved === "en" || saved === "uk") return saved;
+  const browserLanguage = navigator.language.toLowerCase();
+  if (browserLanguage.startsWith("pl")) return "pl";
+  if (browserLanguage.startsWith("uk")) return "uk";
+  return "en";
+}
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguage] = useState<Language>(initialLanguage);
+
+  const changeLanguage = (nextLanguage: Language) => {
+    const route = window.location.pathname.replace(/^\/(pl|en|ua)(?=\/|$)/, "") || "/";
+    const routeLanguage = nextLanguage === "uk" ? "ua" : nextLanguage;
+    window.history.replaceState(
+      {},
+      "",
+      `/${routeLanguage}${route}${window.location.search}${window.location.hash}`,
+    );
+    setLanguage(nextLanguage);
+  };
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, language);
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const value = useMemo<I18nValue>(() => ({
+    language,
+    locale: language === "pl" ? "pl-PL" : language === "uk" ? "uk-UA" : "en-US",
+    setLanguage: changeLanguage,
+    t: (key, variables = {}) => {
+      let result: string = translations[language][key];
+      for (const [name, replacement] of Object.entries(variables)) {
+        result = result.replaceAll(`{{${name}}}`, String(replacement));
+      }
+      return result;
+    },
+  }), [language]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n() {
+  const context = useContext(I18nContext);
+  if (!context) throw new Error("useI18n must be used inside I18nProvider");
+  return context;
+}
+
+export function SettingsMenu() {
+  const { language, setLanguage, t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const options: { code: Language; label: string }[] = [
+    { code: "pl", label: t("language.polish") },
+    { code: "en", label: t("language.english") },
+    { code: "uk", label: t("language.ukrainian") },
+  ];
+
+  return (
+    <div className="settings-menu" ref={menuRef}>
+      <button
+        type="button"
+        className="settings-trigger"
+        aria-label={t("settings.title")}
+        title={t("settings.title")}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+          <path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A8 8 0 0 0 14.7 6L14.3 3h-4.6l-.4 3A8 8 0 0 0 7.6 7L5.1 6l-2 3.4L5.1 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 3h4.6l.4-3a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6a7 7 0 0 0 .1-1Z" />
+        </svg>
+      </button>
+      {open && (
+        <div className="settings-dropdown">
+          <strong>{t("language.switch")}</strong>
+          {options.map((option) => (
+            <button key={option.code} type="button" className={language === option.code ? "active" : ""} onClick={() => { setLanguage(option.code); setOpen(false); }}>
+              <span>{option.label}</span><small>{option.code === "uk" ? "UA" : option.code.toUpperCase()}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
