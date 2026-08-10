@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -154,7 +155,7 @@ function hasNewFormDraftContent(draft: Omit<NewFormDraft, "updatedAt">) {
 function AdminMenuIcon({
   type,
 }: {
-  type: "forms" | "stations" | "users" | "settings";
+  type: "forms" | "stations" | "users" | "settings" | "logs";
 }) {
   if (type === "forms") {
     return (
@@ -178,11 +179,261 @@ function AdminMenuIcon({
         <path d="M17 8v6M14 11h6" />
       </svg>
     );
+  if (type === "logs")
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 5.5h16M4 12h16M4 18.5h16" />
+        <path d="M7 3v5M12 9.5v5M17 16v5" />
+      </svg>
+    );
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
       <path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A8 8 0 0 0 14.7 6L14.3 3h-4.6l-.4 3A8 8 0 0 0 7.6 7L5.1 6l-2 3.4L5.1 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 3h4.6l.4-3a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6a7 7 0 0 0 .1-1Z" />
     </svg>
+  );
+}
+
+type AuditEvent = {
+  id: string;
+  occurredAt: string;
+  receivedAt: string;
+  type: string;
+  category: string;
+  severity: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  outcome: "SUCCESS" | "FAILURE" | "UNKNOWN";
+  source: string;
+  correlationId: string;
+  actorId?: string;
+  actorType?: string;
+  stationCode?: string;
+  entityType?: string;
+  entityId?: string;
+  payload: Record<string, unknown>;
+  payloadHash: string;
+};
+
+function AuditEventsPanel() {
+  const { locale, t } = useI18n();
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [type, setType] = useState("");
+  const [stationCode, setStationCode] = useState("");
+  const [correlationId, setCorrelationId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setNotice("");
+    const query = new URLSearchParams({ limit: "250" });
+    if (type.trim()) query.set("type", type.trim());
+    if (stationCode.trim()) query.set("stationCode", stationCode.trim());
+    if (correlationId.trim()) query.set("correlationId", correlationId.trim());
+    if (from) query.set("from", new Date(from).toISOString());
+    if (to) query.set("to", new Date(to).toISOString());
+    try {
+      setEvents(await api<AuditEvent[]>(`/events?${query.toString()}`));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : t("logs.loadError"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void api<AuditEvent[]>("/events?limit=250")
+      .then(setEvents)
+      .catch((error: Error) => setNotice(error.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function reset() {
+    setType("");
+    setStationCode("");
+    setCorrelationId("");
+    setFrom("");
+    setTo("");
+  }
+
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        dateStyle: "short",
+        timeStyle: "medium",
+      }),
+    [locale],
+  );
+
+  return (
+    <section className="panel audit-events">
+      <form
+        className="audit-filters"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void load();
+        }}
+      >
+        <label>
+          {t("logs.type")}
+          <input
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            placeholder="INSPECTION_COMPLETED"
+          />
+        </label>
+        <label>
+          {t("logs.station")}
+          <input
+            value={stationCode}
+            onChange={(event) => setStationCode(event.target.value)}
+            placeholder="ST-01"
+          />
+        </label>
+        <label>
+          Correlation ID
+          <input
+            value={correlationId}
+            onChange={(event) => setCorrelationId(event.target.value)}
+          />
+        </label>
+        <label>
+          {t("logs.from")}
+          <input
+            type="datetime-local"
+            value={from}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+        </label>
+        <label>
+          {t("logs.to")}
+          <input
+            type="datetime-local"
+            value={to}
+            onChange={(event) => setTo(event.target.value)}
+          />
+        </label>
+        <div className="audit-filter-actions">
+          <button className="secondary" type="button" onClick={reset}>
+            {t("logs.clear")}
+          </button>
+          <button type="submit" disabled={loading}>
+            {loading ? t("common.loading") : t("logs.filter")}
+          </button>
+        </div>
+      </form>
+      <div className="audit-table-heading">
+        <span className="table-count">
+          {t("logs.count", { count: events.length })}
+        </span>
+        <small>{t("logs.utcHint")}</small>
+      </div>
+      {notice && <p className="notice">{notice}</p>}
+      <div className="table-scroll audit-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{t("logs.time")}</th>
+              <th>{t("logs.event")}</th>
+              <th>{t("logs.severity")}</th>
+              <th>{t("logs.outcome")}</th>
+              <th>{t("logs.context")}</th>
+              <th>{t("logs.details")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((item) => (
+              <Fragment key={item.id}>
+                <tr>
+                  <td>
+                    <strong>
+                      {dateFormatter.format(new Date(item.occurredAt))}
+                    </strong>
+                    <small>{item.source}</small>
+                  </td>
+                  <td>
+                    <strong>{item.type}</strong>
+                    <small>{item.category}</small>
+                  </td>
+                  <td>
+                    <span
+                      className={`audit-badge severity-${item.severity.toLowerCase()}`}
+                    >
+                      {item.severity}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`audit-badge outcome-${item.outcome.toLowerCase()}`}
+                    >
+                      {item.outcome}
+                    </span>
+                  </td>
+                  <td>
+                    <strong>{item.stationCode ?? item.actorType ?? "—"}</strong>
+                    <small title={item.correlationId}>
+                      {item.correlationId}
+                    </small>
+                  </td>
+                  <td>
+                    <button
+                      className="secondary audit-details-button"
+                      type="button"
+                      aria-expanded={expandedId === item.id}
+                      onClick={() =>
+                        setExpandedId((current) =>
+                          current === item.id ? null : item.id,
+                        )
+                      }
+                    >
+                      {expandedId === item.id ? t("logs.hide") : t("logs.show")}
+                    </button>
+                  </td>
+                </tr>
+                {expandedId === item.id && (
+                  <tr className="audit-detail-row">
+                    <td colSpan={6}>
+                      <dl>
+                        <div>
+                          <dt>ID</dt>
+                          <dd>{item.id}</dd>
+                        </div>
+                        <div>
+                          <dt>Correlation ID</dt>
+                          <dd>{item.correlationId}</dd>
+                        </div>
+                        <div>
+                          <dt>{t("logs.entity")}</dt>
+                          <dd>
+                            {item.entityType && item.entityId
+                              ? `${item.entityType} · ${item.entityId}`
+                              : "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>SHA-256</dt>
+                          <dd>{item.payloadHash}</dd>
+                        </div>
+                      </dl>
+                      <pre>{JSON.stringify(item.payload, null, 2)}</pre>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+            {!loading && events.length === 0 && (
+              <tr>
+                <td className="audit-empty" colSpan={6}>
+                  {t("logs.empty")}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -1244,7 +1495,7 @@ function AdminPanel() {
   const { locale, t } = useI18n();
   const initialDraft = useMemo(() => readNewFormDraft(), []);
   const [section, setSection] = useState<
-    "forms-new" | "forms-edit" | "stations" | "users" | "settings"
+    "forms-new" | "forms-edit" | "stations" | "users" | "settings" | "logs"
   >("forms-new");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("inspect-hub-admin-sidebar") === "collapsed",
@@ -1626,6 +1877,20 @@ function AdminPanel() {
             </span>
           </button>
           <button
+            className={section === "logs" ? "active" : ""}
+            type="button"
+            onClick={() => setSection("logs")}
+            title={sidebarCollapsed ? t("admin.logs") : undefined}
+          >
+            <i>
+              <AdminMenuIcon type="logs" />
+            </i>
+            <span>
+              {t("admin.logs")}
+              <small>{t("admin.logsSubtitle")}</small>
+            </span>
+          </button>
+          <button
             className={section === "settings" ? "active" : ""}
             type="button"
             onClick={() => setSection("settings")}
@@ -1656,7 +1921,9 @@ function AdminPanel() {
                     ? t("admin.stationsTitle")
                     : section === "users"
                       ? t("admin.usersTitle")
-                      : t("admin.scadaTitle")}
+                      : section === "logs"
+                        ? t("admin.logsTitle")
+                        : t("admin.scadaTitle")}
             </h1>
             <p className="heading-copy">
               {section === "forms-new"
@@ -1667,7 +1934,9 @@ function AdminPanel() {
                     ? t("admin.stationsHelp")
                     : section === "users"
                       ? t("admin.usersHelp")
-                      : t("admin.scadaHelp")}
+                      : section === "logs"
+                        ? t("admin.logsHelp")
+                        : t("admin.scadaHelp")}
             </p>
           </div>
           {section.startsWith("forms-") && (
@@ -1687,7 +1956,9 @@ function AdminPanel() {
             </span>
           )}
         </header>
-        {section === "settings" ? (
+        {section === "logs" ? (
+          <AuditEventsPanel />
+        ) : section === "settings" ? (
           <ScadaSettingsPanel />
         ) : section === "users" ? (
           <UsersManager />
@@ -2612,21 +2883,35 @@ function OperatorPanel({
           })}
         </div>
       );
-    if (question.type === "PHOTO_UPLOAD")
+    if (question.type === "PHOTO_UPLOAD") {
+      const answer = answers[question.id];
+      const photoUrl = typeof answer === "string" ? answer : "";
       return (
-        <label className="upload-box">
-          {answers[question.id]
-            ? t("inspection.photoAdded")
-            : t("inspection.addPhoto")}
+        <label
+          className={`upload-box inspection-photo-upload${photoUrl ? " has-photo" : ""}`}
+        >
+          {photoUrl && (
+            <img
+              src={photoUrl}
+              alt={t("inspection.uploadedPhoto", { label: question.label })}
+            />
+          )}
+          <span>
+            {photoUrl ? t("inspection.retakePhoto") : t("inspection.addPhoto")}
+          </span>
           <input
             type="file"
             accept="image/*"
             capture="environment"
             required={question.isRequired}
+            onClick={(event) => {
+              event.currentTarget.value = "";
+            }}
             onChange={(e) => void setPhoto(question.id, e.target.files?.[0])}
           />
         </label>
       );
+    }
     return (
       <input
         {...common}
