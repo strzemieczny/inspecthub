@@ -10,19 +10,39 @@ import type {
   InspectionAnswerValue,
   InspectionForm,
   InspectionQuestion,
+  PublicInspectionReport,
+  RouteCheckResult,
+  ScadaSettings,
   Station,
 } from "@inspect-hub/types";
-import { api, uploadImage, type Session, type SessionUser } from "./lib/api";
+import {
+  ApiError,
+  api,
+  uploadImage,
+  type Session,
+  type SessionUser,
+} from "./lib/api";
 import "./App.css";
 
+function createClientId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `question-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 const emptyQuestion = (): InspectionQuestion => ({
-  id: crypto.randomUUID(),
+  id: createClientId(),
   label: "",
   type: "CHECKBOX",
   isRequired: true,
 });
 
-function AdminMenuIcon({ type }: { type: "forms" | "stations" | "users" }) {
+function AdminMenuIcon({
+  type,
+}: {
+  type: "forms" | "stations" | "users" | "settings";
+}) {
   if (type === "forms") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -38,11 +58,165 @@ function AdminMenuIcon({ type }: { type: "forms" | "stations" | "users" }) {
         <path d="M12.5 13.5h1M17 13.5h1M12.5 17h1M17 17h1M6.5 10.5h.01M6.5 14h.01" />
       </svg>
     );
+  if (type === "users")
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+        <path d="M17 8v6M14 11h6" />
+      </svg>
+    );
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20M9 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M17 8v6M14 11h6" />
+      <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+      <path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1A8 8 0 0 0 14.7 6L14.3 3h-4.6l-.4 3A8 8 0 0 0 7.6 7L5.1 6l-2 3.4L5.1 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 3h4.6l.4-3a8 8 0 0 0 1.7-1l2.5 1 2-3.4-2-1.6a7 7 0 0 0 .1-1Z" />
     </svg>
+  );
+}
+
+function ScadaSettingsPanel() {
+  const [settings, setSettings] = useState<ScadaSettings | null>(null);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void api<ScadaSettings>("/scada/settings")
+      .then(setSettings)
+      .catch((error: Error) => setNotice(error.message));
+  }, []);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!settings) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      setSettings(
+        await api<ScadaSettings>("/scada/settings", {
+          method: "PATCH",
+          body: JSON.stringify(settings),
+        }),
+      );
+      setNotice("Ustawienia connectora SCADA zostały zapisane.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Nie udało się zapisać ustawień",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!settings)
+    return (
+      <section className="panel">{notice || "Ładowanie ustawień…"}</section>
+    );
+  const update = <K extends keyof ScadaSettings>(
+    key: K,
+    value: ScadaSettings[K],
+  ) =>
+    setSettings((current) =>
+      current ? { ...current, [key]: value } : current,
+    );
+
+  return (
+    <form className="panel scada-settings" onSubmit={save}>
+      <header className="scada-settings-header">
+        <div className="scada-settings-title">
+          <p className="eyebrow">INTEGRACJA PRODUKCYJNA</p>
+          <h2>Connector SCADA</h2>
+          <p>
+            Kontroluj dostęp produktu do inspekcji i automatycznie przekazuj
+            wyniki do systemu produkcyjnego.
+          </p>
+        </div>
+        <label className="scada-toggle">
+          <input
+            type="checkbox"
+            checked={settings.enabled}
+            onChange={(event) => update("enabled", event.target.checked)}
+          />
+          <span className="scada-toggle-track" aria-hidden="true">
+            <i />
+          </span>
+          <span>{settings.enabled ? "SCADA" : "Symulacja DEV"}</span>
+        </label>
+      </header>
+      <div className="scada-settings-body">
+        <div className="scada-info">
+          <span aria-hidden="true">↔</span>
+          <p>
+            Route check działa synchronicznie. Wyniki zakończonych inspekcji są
+            kolejkowane i wysyłane asynchronicznie.
+          </p>
+        </div>
+        <div className="settings-grid">
+          <label>
+            Bazowy URL SCADA
+            <input
+              type="url"
+              value={settings.baseUrl}
+              onChange={(e) => update("baseUrl", e.target.value)}
+              placeholder="http://scada.local:8080"
+              required={settings.enabled}
+            />
+            <small>Protokół, host i opcjonalny port systemu SCADA.</small>
+          </label>
+          <label>
+            Publiczny URL Inspect Hub
+            <input
+              type="url"
+              value={settings.publicWebUrl}
+              onChange={(e) => update("publicWebUrl", e.target.value)}
+              required
+            />
+            <small>Używany do generowania linków do raportów.</small>
+          </label>
+          <label>
+            Ścieżka route check
+            <input
+              value={settings.routeCheckPath}
+              onChange={(e) => update("routeCheckPath", e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Ścieżka wysyłki wyniku
+            <input
+              value={settings.submitResultPath}
+              onChange={(e) => update("submitResultPath", e.target.value)}
+              required
+            />
+          </label>
+          <label className="timeout-field">
+            Timeout połączenia
+            <div className="input-with-suffix">
+              <input
+                type="number"
+                min="500"
+                max="30000"
+                value={settings.timeoutMs}
+                onChange={(e) => update("timeoutMs", Number(e.target.value))}
+                required
+              />
+              <span>ms</span>
+            </div>
+          </label>
+        </div>
+        {notice && <p className="notice">{notice}</p>}
+      </div>
+      <footer className="scada-settings-actions">
+        <span>
+          {settings.enabled
+            ? "Żądania będą wysyłane do skonfigurowanego serwera SCADA."
+            : "Aktywna lokalna symulacja: numery _OK / _NOK."}
+        </span>
+        <button className="primary" disabled={busy}>
+          {busy ? "Zapisywanie…" : "Zapisz ustawienia"}
+        </button>
+      </footer>
+    </form>
   );
 }
 
@@ -59,7 +233,7 @@ interface DashboardData {
   };
   daily: { date: string; total: number; passed: number }[];
   recent: {
-    id: string;
+    publicReportId: string;
     vinOrSerialNumber: string;
     stationId: string;
     status: string;
@@ -303,7 +477,7 @@ function Dashboard() {
               </div>
             </div>
             <div className="mes-health">
-              <span>Synchronizacja MES</span>
+              <span>Synchronizacja SCADA</span>
               <strong>
                 {data.summary.mesSyncRate.toFixed(1)}% <i />
               </strong>
@@ -314,10 +488,10 @@ function Dashboard() {
         <section className="dashboard-card recent-card">
           <div className="card-heading">
             <div>
-              <h2>Ostatnie inspekcje</h2>
-              <p>Najnowsze wyniki ze stanowisk kontrolnych</p>
+              <h2>Raporty z inspekcji</h2>
+              <p>Wszystkie zapisane wyniki ze stanowisk kontrolnych</p>
             </div>
-            <span className="table-count">{data.recent.length} ostatnich</span>
+            <span className="table-count">{data.recent.length} raportów</span>
           </div>
           <div className="table-scroll">
             <table>
@@ -328,12 +502,13 @@ function Dashboard() {
                   <th>Standard kontroli</th>
                   <th>Stanowisko</th>
                   <th>Wynik</th>
-                  <th>MES</th>
+                  <th>SCADA</th>
+                  <th>Raport</th>
                 </tr>
               </thead>
               <tbody>
                 {data.recent.map((item) => (
-                  <tr key={item.id}>
+                  <tr key={item.publicReportId}>
                     <td>{time(item.createdAt)}</td>
                     <td>
                       <strong>{item.vinOrSerialNumber}</strong>
@@ -363,6 +538,14 @@ function Dashboard() {
                       >
                         {item.mesSynced ? "✓ Zapisano" : "○ Oczekuje"}
                       </span>
+                    </td>
+                    <td>
+                      <a
+                        className="report-table-link"
+                        href={`/reports/${item.publicReportId}`}
+                      >
+                        Podejrzyj <span aria-hidden="true">↗</span>
+                      </a>
                     </td>
                   </tr>
                 ))}
@@ -505,7 +688,12 @@ function StationsManager({
     try {
       await api(`/stations/${station.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ code: draft.code, name: draft.name, processName: draft.processName, ...patch }),
+        body: JSON.stringify({
+          code: draft.code,
+          name: draft.name,
+          processName: draft.processName,
+          ...patch,
+        }),
       });
       setDrafts((current) => {
         const next = { ...current };
@@ -875,7 +1063,7 @@ function UsersManager() {
 
 function AdminPanel() {
   const [section, setSection] = useState<
-    "forms-new" | "forms-edit" | "stations" | "users"
+    "forms-new" | "forms-edit" | "stations" | "users" | "settings"
   >("forms-new");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("inspect-hub-admin-sidebar") === "collapsed",
@@ -895,8 +1083,15 @@ function AdminPanel() {
   const [revisions, setRevisions] = useState<InspectionForm[]>([]);
   const processes = useMemo(
     () =>
-      [...new Map(stations.flatMap((station) => station.process ? [[station.process.id, station.process] as const] : [])).values()]
-        .sort((left, right) => left.name.localeCompare(right.name, "pl")),
+      [
+        ...new Map(
+          stations.flatMap((station) =>
+            station.process
+              ? [[station.process.id, station.process] as const]
+              : [],
+          ),
+        ).values(),
+      ].sort((left, right) => left.name.localeCompare(right.name, "pl")),
     [stations],
   );
 
@@ -908,7 +1103,9 @@ function AdminPanel() {
     const data = await api<Station[]>("/stations");
     setStations(data);
     setProcessIds((current) =>
-      current.filter((id) => data.some((station) => station.process?.id === id)),
+      current.filter((id) =>
+        data.some((station) => station.process?.id === id),
+      ),
     );
   }
 
@@ -1163,6 +1360,19 @@ function AdminPanel() {
               Użytkownicy<small>Konta i uprawnienia</small>
             </span>
           </button>
+          <button
+            className={section === "settings" ? "active" : ""}
+            type="button"
+            onClick={() => setSection("settings")}
+            title={sidebarCollapsed ? "Integracja SCADA" : undefined}
+          >
+            <i>
+              <AdminMenuIcon type="settings" />
+            </i>
+            <span>
+              Integracja SCADA<small>Endpointy i połączenie</small>
+            </span>
+          </button>
         </nav>
       </aside>
       <div className="workspace admin-content">
@@ -1178,7 +1388,9 @@ function AdminPanel() {
                     : "Edycja formularzy"
                   : section === "stations"
                     ? "Zarządzanie stanowiskami"
-                    : "Zarządzanie użytkownikami"}
+                    : section === "users"
+                      ? "Zarządzanie użytkownikami"
+                      : "Integracja SCADA"}
             </h1>
             <p className="heading-copy">
               {section === "forms-new"
@@ -1187,7 +1399,9 @@ function AdminPanel() {
                   ? "Wybierz formularz, edytuj go i przeglądaj jego rewizje."
                   : section === "stations"
                     ? "Dodawaj, edytuj i kontroluj dostępność stanowisk."
-                    : "Twórz konta oraz nadawaj role administratora i operatora."}
+                    : section === "users"
+                      ? "Twórz konta oraz nadawaj role administratora i operatora."
+                      : "Skonfiguruj komunikację ze sterującym systemem produkcyjnym."}
             </p>
           </div>
           {section.startsWith("forms-") && (
@@ -1200,7 +1414,9 @@ function AdminPanel() {
             </span>
           )}
         </header>
-        {section === "users" ? (
+        {section === "settings" ? (
+          <ScadaSettingsPanel />
+        ) : section === "users" ? (
           <UsersManager />
         ) : section === "stations" ? (
           <StationsManager stations={stations} onChange={loadStations} />
@@ -1230,8 +1446,8 @@ function AdminPanel() {
                       </div>
                       <span className="revision-badge">v{form.version}</span>
                       <small>
-                        {form.questions.length} pytań ·{" "}
-                        {form.processIds.length} procesów
+                        {form.questions.length} pytań · {form.processIds.length}{" "}
+                        procesów
                       </small>
                       <button
                         className="secondary"
@@ -1325,10 +1541,7 @@ function AdminPanel() {
                   <label>Przypisane procesy</label>
                   <div className="station-picker">
                     {processes.map((process) => (
-                      <label
-                        className="station-pick"
-                        key={process.id}
-                      >
+                      <label className="station-pick" key={process.id}>
                         <input
                           type="checkbox"
                           checked={processIds.includes(process.id)}
@@ -1622,7 +1835,9 @@ function AdminPanel() {
                   {notice && <p className="notice">{notice}</p>}
                   <button
                     className="primary publish"
-                    disabled={busy || statuses.length === 0 || processIds.length === 0}
+                    disabled={
+                      busy || statuses.length === 0 || processIds.length === 0
+                    }
                   >
                     {busy
                       ? "Zapisywanie…"
@@ -1644,13 +1859,18 @@ function OperatorPanel({
   user,
   onLogout,
 }: {
-  user: SessionUser;
-  onLogout: () => void;
+  user: SessionUser | null;
+  onLogout?: () => void;
 }) {
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [formId, setFormId] = useState("");
   const [vin, setVin] = useState("");
   const [productIdentified, setProductIdentified] = useState(false);
+  const [routeCheckId, setRouteCheckId] = useState<string | null>(null);
+  const [product, setProduct] = useState<{
+    partNumber: string;
+    productFamily: string;
+  } | null>(null);
   const [stationId, setStationId] = useState("");
   const [stationName, setStationName] = useState("");
   const [stationProcessId, setStationProcessId] = useState("");
@@ -1660,6 +1880,9 @@ function OperatorPanel({
     {},
   );
   const [notice, setNotice] = useState("");
+  const [operatorNoticeKind, setOperatorNoticeKind] = useState<
+    "info" | "success" | "error"
+  >("info");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -1718,6 +1941,8 @@ function OperatorPanel({
     setStatus("");
     setQuestionIndex(0);
     setShowSummary(false);
+    setRouteCheckId(null);
+    setProduct(null);
   }
 
   async function identifyStation(event: FormEvent) {
@@ -1740,7 +1965,9 @@ function OperatorPanel({
       );
       setFormId(nextForms[0]?.id ?? "");
       setNotice(`Urządzenie powiązano ze stanowiskiem ${station.name}.`);
+      setOperatorNoticeKind("success");
     } catch (error) {
+      setOperatorNoticeKind("error");
       setNotice(
         error instanceof Error
           ? error.message
@@ -1796,6 +2023,7 @@ function OperatorPanel({
         method: "POST",
         body: JSON.stringify({
           formId,
+          routeCheckId,
           vinOrSerialNumber: vin,
           stationId,
           status,
@@ -1805,15 +2033,19 @@ function OperatorPanel({
           })),
         }),
       });
-      setNotice("Inspekcja zapisana i przekazana do MES.");
+      setNotice("Inspekcja zapisana. Wynik oczekuje na potwierdzenie SCADA.");
+      setOperatorNoticeKind("success");
       setVin("");
       setProductIdentified(false);
       setStatus("");
       setAnswers({});
       setQuestionIndex(0);
       setShowSummary(false);
+      setRouteCheckId(null);
+      setProduct(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
+      setOperatorNoticeKind("error");
       setNotice(
         error instanceof Error ? error.message : "Nie udało się zapisać",
       );
@@ -1822,13 +2054,40 @@ function OperatorPanel({
     }
   }
 
-  function identifyProduct(event: FormEvent) {
+  async function identifyProduct(event: FormEvent) {
     event.preventDefault();
     const serialNumber = vin.trim();
     if (!serialNumber) return;
-    setVin(serialNumber);
-    setProductIdentified(true);
+    setBusy(true);
     setNotice("");
+    try {
+      const result = await api<RouteCheckResult>("/scada/route-check", {
+        method: "POST",
+        body: JSON.stringify({ serialNumber, stationCode: stationId }),
+      });
+      if (!result.allowed) {
+        setNotice(
+          `Produkt ${serialNumber} nie ma zgody na inspekcję w tym procesie. Odłóż produkt i skontaktuj się z liderem linii.`,
+        );
+        setOperatorNoticeKind("error");
+        return;
+      }
+      setVin(serialNumber);
+      setRouteCheckId(result.routeCheckId);
+      setProduct(result.integrationEnabled ? result.product : null);
+      setProductIdentified(true);
+      setNotice("SCADA zezwoliła na inspekcję.");
+      setOperatorNoticeKind("success");
+    } catch (error) {
+      setOperatorNoticeKind("error");
+      setNotice(
+        error instanceof Error
+          ? `Nie udało się sprawdzić produktu: ${error.message}`
+          : "Nie udało się sprawdzić produktu. Spróbuj ponownie lub skontaktuj się z liderem linii.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function goToNextQuestion() {
@@ -1931,7 +2190,9 @@ function OperatorPanel({
   }
 
   return (
-    <main className="station-shell">
+    <main
+      className={`station-shell${productIdentified && form ? " inspection-in-progress" : ""}`}
+    >
       <header className="station-bar">
         <a className="brand" href="/inspection">
           <span>IH</span>
@@ -1944,11 +2205,13 @@ function OperatorPanel({
             <strong>
               {stationName || stationId || "Nieprzypisana stacja"}
             </strong>
-            <small>{user.name}</small>
+            <small>{user?.name ?? "Dostęp publiczny"}</small>
           </span>
-          <button className="ghost" type="button" onClick={onLogout}>
-            Wyloguj
-          </button>
+          {onLogout && (
+            <button className="ghost" type="button" onClick={onLogout}>
+              Wyloguj
+            </button>
+          )}
         </div>
       </header>
       <div className="workspace operator-workspace">
@@ -1965,17 +2228,28 @@ function OperatorPanel({
           </span>
         </header>
         {notice && (
-          <p
-            className={
-              notice.startsWith("Inspekcja zapisana")
-                ? "notice operator-notice success"
-                : notice.startsWith("Urządzenie powiązano")
-                  ? "notice operator-notice success pairing-notice"
-                  : "notice operator-notice"
-            }
+          <div
+            className={`notice operator-notice ${operatorNoticeKind}`}
+            role={operatorNoticeKind === "error" ? "alert" : "status"}
           >
-            {notice}
-          </p>
+            <span className="operator-notice-icon" aria-hidden="true">
+              {operatorNoticeKind === "error"
+                ? "!"
+                : operatorNoticeKind === "success"
+                  ? "✓"
+                  : "i"}
+            </span>
+            <span>
+              <strong>
+                {operatorNoticeKind === "error"
+                  ? "Inspekcja zablokowana"
+                  : operatorNoticeKind === "success"
+                    ? "Gotowe"
+                    : "Informacja"}
+              </strong>
+              <small>{notice}</small>
+            </span>
+          </div>
         )}
         {loading && (
           <section className="panel operator-empty">
@@ -2056,14 +2330,19 @@ function OperatorPanel({
                   autoFocus
                   required
                 />
-                <button className="primary">Rozpocznij inspekcję</button>
+                <button className="primary" disabled={busy}>
+                  {busy ? "Sprawdzanie trasy…" : "Rozpocznij inspekcję"}
+                </button>
               </div>
             </form>
           </section>
         )}
         {!loading && availableForms.length > 0 && productIdentified && (
           <form onSubmit={submit}>
-            <section className="panel inspection-meta">
+            <section
+              className="panel inspection-meta"
+              aria-label="Dane inspekcji"
+            >
               <div className="meta-title">
                 <span>01</span>
                 <div>
@@ -2092,14 +2371,30 @@ function OperatorPanel({
                   ))}
                 </select>
               </label>
-              <label>
-                VIN / Numer seryjny
-                <input value={vin} readOnly />
-              </label>
-              <label>
-                Stanowisko rozpoznane po IP
-                <input value={`${stationName} · ${stationId}`} readOnly />
-              </label>
+              <dl className="inspection-context">
+                <div>
+                  <dt>Numer seryjny</dt>
+                  <dd>{vin}</dd>
+                </div>
+                <div>
+                  <dt>Stanowisko</dt>
+                  <dd>
+                    {stationName} · {stationId}
+                  </dd>
+                </div>
+                {product && (
+                  <>
+                    <div>
+                      <dt>Part number</dt>
+                      <dd>{product.partNumber}</dd>
+                    </div>
+                    <div>
+                      <dt>Rodzina</dt>
+                      <dd>{product.productFamily}</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
             </section>
             {form && (
               <div className="inspection-progress">
@@ -2141,24 +2436,32 @@ function OperatorPanel({
                       <p className="muted">{currentQuestion.description}</p>
                     )}
                     {currentQuestion.instructionImageUrl && (
-                      <button
-                        className="instruction-image"
-                        type="button"
-                        onClick={() =>
-                          setEnlargedImage({
-                            url: currentQuestion.instructionImageUrl!,
-                            alt: `Instrukcja: ${currentQuestion.label}`,
-                          })
-                        }
-                      >
-                        <img
-                          src={currentQuestion.instructionImageUrl}
-                          alt={`Instrukcja: ${currentQuestion.label}`}
-                        />
-                        <span>⌕ Powiększ zdjęcie</span>
-                      </button>
+                      <div className="instruction-visual">
+                        <span className="question-section-label">
+                          Zdjęcie instruktażowe
+                        </span>
+                        <button
+                          className="instruction-image"
+                          type="button"
+                          onClick={() =>
+                            setEnlargedImage({
+                              url: currentQuestion.instructionImageUrl!,
+                              alt: `Instrukcja: ${currentQuestion.label}`,
+                            })
+                          }
+                        >
+                          <img
+                            src={currentQuestion.instructionImageUrl}
+                            alt={`Instrukcja: ${currentQuestion.label}`}
+                          />
+                          <span>⌕ Powiększ zdjęcie</span>
+                        </button>
+                      </div>
                     )}
-                    {answerField(currentQuestion)}
+                    <div className="question-answer">
+                      <span className="question-section-label">Odpowiedź</span>
+                      {answerField(currentQuestion)}
+                    </div>
                   </div>
                 </article>
                 <div className="step-actions">
@@ -2233,7 +2536,7 @@ function OperatorPanel({
                   </button>
                   <button className="primary submit-inspection" disabled={busy}>
                     {busy ? "Przesyłanie…" : "Zakończ inspekcję"}
-                    <small>Zapisz wynik i wyślij do MES</small>
+                    <small>Zapisz wynik i wyślij do SCADA</small>
                   </button>
                 </div>
               </section>
@@ -2241,6 +2544,21 @@ function OperatorPanel({
           </form>
         )}
       </div>
+      <footer className="station-footer">
+        <div className="station-footer-content">
+          <span className="station-footer-brand" aria-label="Inspect Hub">
+            <strong>Inspect Hub</strong>
+          </span>
+          <span className="station-footer-divider" aria-hidden="true" />
+          <span className="station-footer-credit">
+            <span>Developed by</span>
+            <strong>Bartosz Strzemieczny</strong>
+            <a href="mailto:strzemieczny@borgwarner.com">
+              strzemieczny@borgwarner.com
+            </a>
+          </span>
+        </div>
+      </footer>
       {enlargedImage && (
         <div
           className="image-lightbox"
@@ -2268,6 +2586,225 @@ function OperatorPanel({
   );
 }
 
+function PublicReport({ publicReportId }: { publicReportId: string }) {
+  const [report, setReport] = useState<PublicInspectionReport | null>(null);
+  const [state, setState] = useState<"loading" | "not-found" | "error">(
+    "loading",
+  );
+
+  useEffect(() => {
+    void api<PublicInspectionReport>(
+      `/public/reports/${encodeURIComponent(publicReportId)}`,
+    )
+      .then(setReport)
+      .catch((error: unknown) =>
+        setState(
+          error instanceof ApiError && error.status === 404
+            ? "not-found"
+            : "error",
+        ),
+      );
+  }, [publicReportId]);
+
+  if (!report) {
+    return (
+      <main className="public-report-state">
+        <a className="brand" href="/">
+          <span>IH</span> Inspect Hub
+        </a>
+        <section className="panel">
+          {state === "loading" ? (
+            <>
+              <span className="spinner" />
+              <h1>Ładowanie raportu…</h1>
+            </>
+          ) : state === "not-found" ? (
+            <>
+              <span className="report-state-icon">?</span>
+              <h1>Nie znaleziono raportu</h1>
+              <p>Sprawdź, czy adres raportu jest poprawny.</p>
+            </>
+          ) : (
+            <>
+              <span className="report-state-icon">!</span>
+              <h1>Nie udało się pobrać raportu</h1>
+              <p>Spróbuj ponownie później.</p>
+            </>
+          )}
+        </section>
+      </main>
+    );
+  }
+
+  const passed = ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
+    report.result.toUpperCase(),
+  );
+  const formatValue = (
+    value: PublicInspectionReport["answers"][number]["value"],
+  ) => {
+    if (value === null || value === "") return "Brak odpowiedzi";
+    if (typeof value === "boolean") return value ? "Tak" : "Nie";
+    return String(value);
+  };
+
+  return (
+    <main className="public-report-shell">
+      <header className="report-nav print-hidden">
+        <a className="brand" href="/">
+          <span>IH</span> Inspect Hub
+        </a>
+        <button
+          className="primary"
+          type="button"
+          onClick={() => window.print()}
+        >
+          Drukuj raport
+        </button>
+      </header>
+      <article className="public-report">
+        <header className="report-heading">
+          <div>
+            <p className="eyebrow">RAPORT Z INSPEKCJI</p>
+            <h1>{report.serialNumber}</h1>
+            <p>
+              {report.form.name} · {report.form.code} · wersja{" "}
+              {report.form.version}
+            </p>
+          </div>
+          <span className={`report-result ${passed ? "pass" : "fail"}`}>
+            {passed ? "✓" : "×"} {report.result}
+          </span>
+        </header>
+
+        <section className="report-summary-grid">
+          <div>
+            <span>Wszystkie pytania</span>
+            <strong>{report.summary.total}</strong>
+          </div>
+          <div>
+            <span>Zaliczone</span>
+            <strong className="report-ok">{report.summary.passed}</strong>
+          </div>
+          <div>
+            <span>Niezaliczone</span>
+            <strong className="report-nok">{report.summary.failed}</strong>
+          </div>
+        </section>
+
+        <section className="report-section">
+          <h2>Dane produktu</h2>
+          <dl className="report-details">
+            <div>
+              <dt>Numer seryjny</dt>
+              <dd>{report.serialNumber}</dd>
+            </div>
+            {report.partNumber && (
+              <div>
+                <dt>Part number</dt>
+                <dd>{report.partNumber}</dd>
+              </div>
+            )}
+            {report.productFamily && (
+              <div>
+                <dt>Rodzina produktu</dt>
+                <dd>{report.productFamily}</dd>
+              </div>
+            )}
+            {report.scadaUnitHistoryUrl && (
+              <div>
+                <dt>Historia produktu</dt>
+                <dd>
+                  <a
+                    href={report.scadaUnitHistoryUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Otwórz historię w SCADA ↗
+                  </a>
+                </dd>
+              </div>
+            )}
+          </dl>
+        </section>
+
+        <section className="report-section">
+          <h2>Wykonanie</h2>
+          <dl className="report-details">
+            <div>
+              <dt>Data i godzina</dt>
+              <dd>
+                {new Intl.DateTimeFormat("pl-PL", {
+                  dateStyle: "long",
+                  timeStyle: "medium",
+                }).format(new Date(report.completedAt))}
+              </dd>
+            </div>
+            <div>
+              <dt>Stanowisko</dt>
+              <dd>
+                {report.station.name
+                  ? `${report.station.name} (${report.station.code})`
+                  : report.station.code}
+              </dd>
+            </div>
+            <div>
+              <dt>Proces</dt>
+              <dd>{report.process ?? "—"}</dd>
+            </div>
+            {report.operatorName && (
+              <div>
+                <dt>Operator</dt>
+                <dd>{report.operatorName}</dd>
+              </div>
+            )}
+            <div>
+              <dt>Synchronizacja z systemem zewnętrznym</dt>
+              <dd>
+                <span
+                  className={`sync-status ${report.externalSyncStatus === "SYNCED" ? "synced" : "pending"}`}
+                >
+                  {report.externalSyncStatus === "SYNCED"
+                    ? "Zsynchronizowano"
+                    : "Oczekuje"}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="report-section report-answers">
+          <h2>Odpowiedzi</h2>
+          {report.answers.map((answer, index) => (
+            <article className="report-answer" key={answer.questionId}>
+              <span className="answer-index">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <div>
+                <h3>{answer.label}</h3>
+                {answer.imageUrl ? (
+                  <img src={answer.imageUrl} alt={`Zdjęcie: ${answer.label}`} />
+                ) : (
+                  <p>{formatValue(answer.value)}</p>
+                )}
+              </div>
+              {answer.assessment && (
+                <span
+                  className={`answer-assessment ${answer.assessment === "OK" ? "ok" : "nok"}`}
+                >
+                  {answer.assessment === "OK" ? "✓ OK" : "× NOK"}
+                </span>
+              )}
+            </article>
+          ))}
+        </section>
+        <footer className="report-footer">
+          Inspect Hub · Raport {report.publicReportId}
+        </footer>
+      </article>
+    </main>
+  );
+}
+
 function App() {
   const [user, setUser] = useState<SessionUser | null>(() => {
     const raw = localStorage.getItem("inspect-hub-user");
@@ -2276,6 +2813,17 @@ function App() {
 
   let path = window.location.pathname;
   if (path === "/") return <Dashboard />;
+  const publicReportMatch = path.match(/^\/reports\/([^/]+)\/?$/);
+  if (publicReportMatch) {
+    return (
+      <PublicReport publicReportId={decodeURIComponent(publicReportMatch[1])} />
+    );
+  }
+  if (path === "/inspection") {
+    return (
+      <OperatorPanel user={user} onLogout={user ? logoutUser : undefined} />
+    );
+  }
   if (!user) {
     if (path !== "/login") {
       window.history.replaceState({}, "", "/login");
@@ -2299,12 +2847,12 @@ function App() {
     );
   }
 
-  const logout = () => {
+  function logoutUser() {
     localStorage.removeItem("inspect-hub-token");
     localStorage.removeItem("inspect-hub-user");
     window.history.replaceState({}, "", "/login");
     setUser(null);
-  };
+  }
 
   if (user.role === "OPERATOR" && path !== "/inspection") {
     window.history.replaceState({}, "", "/inspection");
@@ -2313,9 +2861,6 @@ function App() {
     window.history.replaceState({}, "", "/admin");
     path = "/admin";
   }
-
-  if (path === "/inspection")
-    return <OperatorPanel user={user} onLogout={logout} />;
 
   if (path !== "/admin") {
     window.history.replaceState({}, "", "/admin");
@@ -2334,7 +2879,7 @@ function App() {
           <span className="user-chip">
             {user.name} · {user.role}
           </span>
-          <button className="ghost" onClick={logout}>
+          <button className="ghost" onClick={logoutUser}>
             Wyloguj
           </button>
         </div>
