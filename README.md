@@ -1,5 +1,8 @@
 # Inspect Hub
 
+Pełna dokumentacja techniczna i operacyjna znajduje się w
+[`docs/README.md`](docs/README.md).
+
 Inspect Hub to aplikacja do cyfrowej obsługi kontroli jakości na stanowiskach
 produkcyjnych. Łączy konfigurowalne formularze inspekcji, identyfikację
 stanowisk i operatorów oraz publiczny dashboard wyników w jednym systemie.
