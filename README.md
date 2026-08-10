@@ -111,6 +111,11 @@ Najważniejsze zmienne znajdują się w `.env.example`:
 | `MINIO_*`      | połączenie i dane dostępowe MinIO          | lokalna usługa na porcie `9000`                  |
 | `VITE_API_URL` | bazowy adres API dla frontendu             | `http://localhost:3000/api`                      |
 
+Logowanie operatorów kartą korzysta z bazy MSSQL `APACS`. Ustaw zmienne
+`APACS_DB_*` zgodnie z `.env.example`; konto bazy powinno mieć wyłącznie
+uprawnienie `SELECT` do `dbo.TCARDISSUE` i `dbo.TCARDHOLDERS`. Czytnik może
+zwracać `FCARDNUM`, `FLONGCARDNUM` albo `FUUID` — API rozpoznaje te warianty.
+
 `TRUST_PROXY=true` ustawiaj tylko wtedy, gdy API działa za zaufanym reverse
 proxy, które prawidłowo przekazuje adres klienta.
 
