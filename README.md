@@ -17,7 +17,7 @@ inspekcji są przechowywane w kompatybilnym z S3 MinIO.
 - identyfikacja stanowiska na podstawie kodu oraz zapamiętanie urządzenia,
 - zarządzanie stanowiskami, użytkownikami i rolami z panelu administratora,
 - uwierzytelnianie JWT i autoryzacja oparta na rolach `ADMIN` / `OPERATOR`,
-- wydzielona granica integracji z systemem MES.
+- route check i przekazywanie wyników do systemu SCADA.
 
 ## Architektura
 
@@ -141,10 +141,19 @@ pnpm --filter @inspect-hub/database db:studio
 - Dashboard publiczny prezentuje zagregowane wyniki bez ujawniania pełnych
   numerów VIN lub numerów seryjnych.
 
-Aktualny konektor MES stanowi punkt rozszerzenia: przygotowuje rekord
-traceability, zapisuje go w logu API i oznacza inspekcję jako zsynchronizowaną.
-Docelowy transport HTTP lub kolejkę komunikatów należy podłączyć w
-`apps/api/src/mes-connector/mes-connector.service.ts`.
+Connector SCADA wykonuje synchroniczny route check po zeskanowaniu numeru
+seryjnego i asynchronicznie przekazuje wynik zakończonej inspekcji wraz z
+publicznym linkiem do raportu. Adres SCADA, ścieżki endpointów, timeout i
+publiczny adres frontendu konfiguruje administrator w panelu aplikacji.
+
+W środowisku deweloperskim API udostępnia symulator SCADA:
+
+- `POST /api/dev/scada/route-check` — numery zakończone `_OK` otrzymują zgodę,
+  adres historii produktu i dane produktu, a zakończone `_NOK` odmowę,
+- `POST /api/dev/scada/inspection-result` — potwierdza przyjęcie wyniku.
+
+Do testów ustaw bazowy URL na `http://localhost:3000`, a ścieżki odpowiednio
+na `/api/dev/scada/route-check` oraz `/api/dev/scada/inspection-result`.
 
 ## Zatrzymywanie środowiska
 
