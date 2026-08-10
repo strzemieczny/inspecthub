@@ -66,6 +66,33 @@ class ValidNumberRange implements ValidatorConstraintInterface {
   }
 }
 
+class QuestionTranslationDto {
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  options?: string[];
+}
+
+class QuestionTranslationsDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuestionTranslationDto)
+  en?: QuestionTranslationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuestionTranslationDto)
+  uk?: QuestionTranslationDto;
+}
+
 export class QuestionDto {
   @IsString()
   id!: string;
@@ -107,6 +134,11 @@ export class QuestionDto {
   @IsOptional()
   @Validate(ValidNumberRange)
   range?: { min: number; max: number };
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => QuestionTranslationsDto)
+  translations?: QuestionTranslationsDto;
 }
 
 export class CreateFormDto {

@@ -15,6 +15,12 @@ export interface NumberRange {
   max: number;
 }
 
+export interface InspectionQuestionTranslation {
+  label?: string;
+  description?: string;
+  options?: string[];
+}
+
 export interface InspectionQuestion {
   id: string;
   label: string;
@@ -27,6 +33,10 @@ export interface InspectionQuestion {
   options?: string[];
   expectedValue?: Exclude<InspectionAnswerValue, null>;
   range?: NumberRange;
+  /** Optional display copy keyed by ISO language code; Polish fields above are the source. */
+  translations?: Partial<
+    Record<"en" | "uk", InspectionQuestionTranslation>
+  >;
 }
 
 export interface InspectionForm {
@@ -122,6 +132,8 @@ export interface PublicReportAnswer {
   value: InspectionAnswerValue;
   assessment: PublicAnswerAssessment;
   imageUrl: string | null;
+  options?: string[];
+  translations?: InspectionQuestion["translations"];
 }
 
 export interface PublicInspectionReport {

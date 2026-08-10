@@ -295,6 +295,8 @@ export class InspectionsService {
           question.type === 'PHOTO_UPLOAD' && typeof value === 'string'
             ? value
             : null,
+        translations: question.translations,
+        options: question.options,
       };
     });
 
