@@ -7,6 +7,28 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 320ms;
+  animation-timing-function: ease-in-out;
+}
+
+::view-transition-old(root) { animation-name: theme-fade-out; }
+::view-transition-new(root) { animation-name: theme-fade-in; }
+
+@keyframes theme-fade-out {
+  to { opacity: 0; filter: saturate(.9) brightness(.96); }
+}
+
+@keyframes theme-fade-in {
+  from { opacity: 0; filter: saturate(.9) brightness(1.04); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}
+
 .settings-menu { position: relative; flex: 0 0 auto; }
 .settings-trigger {
   display: grid;

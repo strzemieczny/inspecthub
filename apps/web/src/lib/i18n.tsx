@@ -1272,9 +1272,26 @@ export function SettingsMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const changeTheme = (nextTheme: Theme) => {
-    document.documentElement.dataset.theme = nextTheme;
-    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-    setTheme(nextTheme);
+    if (nextTheme === theme) return;
+
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = nextTheme;
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+      setTheme(nextTheme);
+    };
+    const animatedDocument = document as Document & {
+      startViewTransition?: (update: () => void) => void;
+    };
+
+    if (
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      !animatedDocument.startViewTransition
+    ) {
+      applyTheme();
+      return;
+    }
+
+    animatedDocument.startViewTransition(applyTheme);
   };
 
   useEffect(() => {
