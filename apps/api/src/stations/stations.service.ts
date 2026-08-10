@@ -7,7 +7,11 @@ import {
 import { Prisma } from '@inspect-hub/database';
 import { createHash, randomBytes } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
-import { CreateStationDto, UpdateStationDto } from './dto/station.dto';
+import {
+  CreateStationDto,
+  IdentifyStationDto,
+  UpdateStationDto,
+} from './dto/station.dto';
 
 @Injectable()
 export class StationsService {
@@ -83,16 +87,33 @@ export class StationsService {
     await this.database.station.delete({ where: { id } });
   }
 
-  async identify(code: string, ipAddress: string) {
-    const normalizedCode = this.code(code);
-    const station = await this.database.station.upsert({
+  async identify(dto: IdentifyStationDto, ipAddress: string) {
+    const normalizedCode = this.code(dto.code);
+    let station = await this.database.station.findUnique({
       where: { code: normalizedCode },
-      create: {
-        code: normalizedCode,
-        name: normalizedCode,
-      },
-      update: {},
     });
+
+    if (!station) {
+      const name = dto.name?.trim();
+      const processName = dto.processName?.trim();
+      if (!name || !processName) {
+        throw new BadRequestException(
+          'Nowe stanowisko wymaga nazwy i procesu inspekcji',
+        );
+      }
+      station = await this.database.station.create({
+        data: {
+          code: normalizedCode,
+          name,
+          process: {
+            connectOrCreate: {
+              where: { name: processName },
+              create: { name: processName },
+            },
+          },
+        },
+      });
+    }
     if (!station.active)
       throw new BadRequestException('Stanowisko jest nieaktywne');
 

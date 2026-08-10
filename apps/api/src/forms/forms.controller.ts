@@ -13,7 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
-import { CreateFormDto, UpdateFormDto } from './dto/form.dto';
+import { CreateFormDto, DuplicateFormDto, UpdateFormDto } from './dto/form.dto';
 import { FormsService } from './forms.service';
 
 @Controller('forms')
@@ -25,6 +25,13 @@ export class FormsController {
   @Roles('ADMIN')
   create(@Body() dto: CreateFormDto) {
     return this.forms.create(dto);
+  }
+
+  @Post(':id/duplicate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  duplicate(@Param('id') id: string, @Body() dto: DuplicateFormDto) {
+    return this.forms.duplicate(id, dto);
   }
 
   @Get()

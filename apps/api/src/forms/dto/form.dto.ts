@@ -4,6 +4,9 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUrl,
@@ -107,6 +110,14 @@ export class QuestionDto {
   isRequired!: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isCritical?: boolean;
+
+  @IsOptional()
+  @IsIn(['NORMAL', 'MAJOR', 'CRITICAL'])
+  severity?: 'NORMAL' | 'MAJOR' | 'CRITICAL';
+
+  @IsOptional()
   @IsUrl({ require_tld: false })
   instructionImageUrl?: string;
 
@@ -148,6 +159,14 @@ export class CreateFormDto {
   @IsString()
   code!: string;
 
+  @IsInt()
+  @Min(2)
+  @Max(100)
+  nokStreakThreshold!: number;
+
+  @IsBoolean()
+  requiresLogin!: boolean;
+
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
@@ -170,6 +189,16 @@ export class UpdateFormDto {
   title?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(100)
+  nokStreakThreshold?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresLogin?: boolean;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
@@ -186,4 +215,12 @@ export class UpdateFormDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   processIds?: string[];
+}
+
+export class DuplicateFormDto {
+  @IsString()
+  title!: string;
+
+  @IsString()
+  code!: string;
 }

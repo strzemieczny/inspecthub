@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@inspect-hub/database';
 import type { InspectionForm, InspectionQuestion } from '@inspect-hub/types';
 import { DatabaseService } from '../database/database.service';
-import { CreateFormDto, UpdateFormDto } from './dto/form.dto';
+import { CreateFormDto, DuplicateFormDto, UpdateFormDto } from './dto/form.dto';
 
 @Injectable()
 export class FormsService {
@@ -14,6 +14,8 @@ export class FormsService {
         title: dto.title,
         code: dto.code.trim().toUpperCase(),
         version: 1,
+        nokStreakThreshold: dto.nokStreakThreshold,
+        requiresLogin: dto.requiresLogin,
         allowedStatuses: dto.allowedStatuses,
         questions: this.portableQuestions(dto.questions),
         processes: {
@@ -51,6 +53,29 @@ export class FormsService {
       .map((form) => this.toContract(form));
   }
 
+  async duplicate(id: string, dto: DuplicateFormDto): Promise<InspectionForm> {
+    const source = await this.database.form.findUnique({
+      where: { id },
+      include: { processes: true },
+    });
+    if (!source) throw new NotFoundException('Nie znaleziono formularza');
+    const copy = await this.database.form.create({
+      data: {
+        title: dto.title.trim(),
+        code: dto.code.trim().toUpperCase(),
+        version: 1,
+        nokStreakThreshold: source.nokStreakThreshold,
+        allowedStatuses: source.allowedStatuses as Prisma.InputJsonValue,
+        questions: source.questions as Prisma.InputJsonValue,
+        processes: {
+          connect: source.processes.map((process) => ({ id: process.id })),
+        },
+      },
+      include: { processes: true },
+    });
+    return this.toContract(copy);
+  }
+
   async findOne(id: string): Promise<InspectionForm> {
     const form = await this.database.form.findUnique({
       where: { id },
@@ -78,6 +103,8 @@ export class FormsService {
         title: dto.title ?? latest.title,
         code: latest.code,
         version: latest.version + 1,
+        nokStreakThreshold: dto.nokStreakThreshold ?? latest.nokStreakThreshold,
+        requiresLogin: dto.requiresLogin ?? latest.requiresLogin,
         allowedStatuses:
           (dto.allowedStatuses as Prisma.InputJsonValue | undefined) ??
           (latest.allowedStatuses as Prisma.InputJsonValue),
@@ -128,6 +155,8 @@ export class FormsService {
     title: string;
     code: string;
     version: number;
+    nokStreakThreshold: number;
+    requiresLogin: boolean;
     allowedStatuses: Prisma.JsonValue;
     questions: Prisma.JsonValue;
     processes: { id: string }[];
@@ -139,6 +168,8 @@ export class FormsService {
       title: form.title,
       code: form.code,
       version: form.version,
+      nokStreakThreshold: form.nokStreakThreshold,
+      requiresLogin: form.requiresLogin,
       allowedStatuses: form.allowedStatuses as string[],
       questions: form.questions as unknown as InspectionQuestion[],
       processIds: form.processes.map((process) => process.id),

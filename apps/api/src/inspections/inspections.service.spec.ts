@@ -9,10 +9,13 @@ describe('InspectionsService public reports', () => {
   const findUniqueReport = jest.fn();
   const findManyResults = jest.fn();
   const findUniqueStation = jest.fn();
+  const findManyStations = jest.fn();
+  const findManyForms = jest.fn();
   const countStations = jest.fn();
   const createResult = jest.fn();
+  const findFirstResult = jest.fn().mockResolvedValue(null);
   const transactionClient = {
-    inspectionResult: { create: createResult },
+    inspectionResult: { create: createResult, findFirst: findFirstResult },
     scadaDelivery: { create: jest.fn() },
     auditEvent: { create: jest.fn() },
   };
@@ -25,8 +28,12 @@ describe('InspectionsService public reports', () => {
       findMany: findManyResults,
       create: createResult,
     },
-    station: { findUnique: findUniqueStation, count: countStations },
-    form: { findUnique: jest.fn() },
+    station: {
+      findUnique: findUniqueStation,
+      findMany: findManyStations,
+      count: countStations,
+    },
+    form: { findUnique: jest.fn(), findMany: findManyForms },
     routeCheck: { findUnique: jest.fn() },
     $transaction: jest.fn(runTransaction),
   } as unknown as DatabaseService;
@@ -46,6 +53,8 @@ describe('InspectionsService public reports', () => {
 
   it('counts active stations from station configuration', async () => {
     findManyResults.mockResolvedValue([]);
+    findManyStations.mockResolvedValue([]);
+    findManyForms.mockResolvedValue([]);
     countStations.mockResolvedValueOnce(4).mockResolvedValueOnce(9);
 
     const dashboard = await service.getPublicDashboard();

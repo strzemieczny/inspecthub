@@ -9,3 +9,7 @@ export interface AuthenticatedUser {
 export interface RequestWithUser extends Request {
   user: AuthenticatedUser;
 }
+
+export interface RequestWithOptionalUser extends Request {
+  user?: AuthenticatedUser | null;
+}

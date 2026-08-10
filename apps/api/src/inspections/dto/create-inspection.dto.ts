@@ -2,8 +2,12 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsDefined,
+  IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -16,6 +20,21 @@ export class InspectionAnswerDto {
 }
 
 export class CreateInspectionDto {
+  @IsOptional()
+  @IsUUID()
+  clientSubmissionId?: string;
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(86400)
+  durationSeconds?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  answerCorrections?: number;
+
   @IsOptional()
   @IsString()
   routeCheckId?: string;

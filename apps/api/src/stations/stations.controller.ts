@@ -52,10 +52,7 @@ export class StationsController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.stations.identify(
-      dto.code,
-      this.clientIp(request),
-    );
+    const result = await this.stations.identify(dto, this.clientIp(request));
     this.setDeviceCookie(response, result.token);
     return result.station;
   }
