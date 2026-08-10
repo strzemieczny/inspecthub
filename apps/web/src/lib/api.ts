@@ -4,8 +4,14 @@ const API_URL =
 
 function normalizeMediaUrls<T>(value: T): T {
   if (typeof value === "string") {
+    if (value.startsWith("/api/media/object?")) {
+      return `${API_URL}${value.slice("/api".length)}` as T;
+    }
     try {
       const url = new URL(value);
+      if (url.pathname === "/api/media/object") {
+        return `${API_URL}/media/object${url.search}` as T;
+      }
       if (url.hostname === "localhost" && url.port === "9000") {
         const [, , ...objectPath] = decodeURIComponent(url.pathname).split("/");
         return `${API_URL}/media/object?name=${encodeURIComponent(objectPath.join("/"))}` as T;
@@ -20,7 +26,10 @@ function normalizeMediaUrls<T>(value: T): T {
   }
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, normalizeMediaUrls(item)]),
+      Object.entries(value).map(([key, item]) => [
+        key,
+        normalizeMediaUrls(item),
+      ]),
     ) as T;
   }
   return value;
@@ -37,6 +46,10 @@ export interface Session {
   accessToken: string;
   user: SessionUser;
 }
+
+export type CardLoginResult =
+  | Session
+  | { requiresPairing: true; verification?: true };
 
 export class ApiError extends Error {
   readonly status: number;
@@ -82,11 +95,56 @@ export async function api<T>(
 }
 
 export async function uploadImage(file: File): Promise<string> {
+  const uploadFile = await prepareImageForUpload(file);
   const body = new FormData();
-  body.append("file", file);
-  const result = await api<{ url: string }>("/media/upload", {
+  body.append("file", uploadFile);
+  const result = await api<{ objectName: string }>("/media/upload", {
     method: "POST",
     body,
   });
-  return result.url;
+  return `${API_URL}/media/object?name=${encodeURIComponent(result.objectName)}`;
+}
+
+const MAX_IMAGE_DIMENSION = 2560;
+const JPEG_QUALITY = 0.85;
+
+async function prepareImageForUpload(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    // Starsze przeglądarki lub nieobsługiwany kodek: serwer spróbuje
+    // przyjąć oryginał zamiast blokować wykonanie inspekcji.
+    return file;
+  }
+
+  try {
+    const scale = Math.min(
+      1,
+      MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height),
+    );
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
+    );
+    if (!blob) return file;
+
+    const baseName = file.name.replace(/\.[^.]+$/, "") || "inspection-photo";
+    return new File([blob], `${baseName}.jpg`, {
+      type: "image/jpeg",
+      lastModified: file.lastModified,
+    });
+  } finally {
+    bitmap.close();
+  }
 }

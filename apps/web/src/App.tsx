@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -19,6 +20,7 @@ import {
   ApiError,
   api,
   uploadImage,
+  type CardLoginResult,
   type Session,
   type SessionUser,
 } from "./lib/api";
@@ -679,10 +681,43 @@ function Dashboard() {
 
 function Login({ onLogin }: { onLogin: (session: Session) => void }) {
   const { t } = useI18n();
+  const cardInput = useRef<HTMLInputElement>(null);
+  const [identifier, setIdentifier] = useState("");
+  const [cardCode, setCardCode] = useState("");
+  const [pairingRequired, setPairingRequired] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function submitCard(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const result = pairingRequired
+        ? await api<Session>("/auth/pair-card", {
+            method: "POST",
+            body: JSON.stringify({ identifier, cardCode }),
+          })
+        : await api<CardLoginResult>("/auth/card-login", {
+            method: "POST",
+            body: JSON.stringify({ identifier }),
+          });
+      if ("requiresPairing" in result) {
+        setPairingRequired(true);
+        return;
+      }
+      onLogin(result);
+    } catch (reason) {
+      if (pairingRequired) setCardCode("");
+      else setIdentifier("");
+      setError(reason instanceof Error ? reason.message : t("login.cardError"));
+      window.setTimeout(() => cardInput.current?.focus(), 0);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -711,31 +746,81 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
         <p className="eyebrow">{t("common.qualityOperations")}</p>
         <h1>Inspect Hub</h1>
         <p className="muted">{t("login.tagline")}</p>
-        <form onSubmit={submit}>
-          <label>
-            Email
+        <form className="card-login-form" onSubmit={submitCard}>
+          <div className="card-reader-icon" aria-hidden="true">
+            ▣
+          </div>
+          <h2>{t("login.cardTitle")}</h2>
+          <p className="muted">{t("login.cardHint")}</p>
+          <label className="card-identifier-label">
+            {t("login.cardIdentifier")}
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              ref={cardInput}
+              inputMode="text"
+              autoComplete="off"
+              pattern="[A-Za-z0-9]+"
+              maxLength={30}
+              value={identifier}
+              onChange={(event) =>
+                setIdentifier(
+                  event.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
+                )
+              }
+              autoFocus
               required
+              readOnly={pairingRequired}
             />
           </label>
-          <label>
-            {t("login.password")}
-            <input
-              type="password"
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
+          {pairingRequired && (
+            <label className="card-identifier-label">
+              {t("login.cardCode")}
+              <input
+                inputMode="numeric"
+                autoComplete="off"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                value={cardCode}
+                onChange={(event) =>
+                  setCardCode(event.target.value.replace(/\D/g, ""))
+                }
+                autoFocus
+                required
+              />
+              <small>{t("login.cardCodeHint")}</small>
+            </label>
+          )}
           {error && <p className="error">{error}</p>}
           <button className="primary" disabled={busy}>
-            {busy ? t("login.busy") : t("common.login")}
+            {busy ? t("login.cardBusy") : t("login.cardButton")}
           </button>
         </form>
+        <details className="password-login">
+          <summary>{t("login.adminLogin")}</summary>
+          <form onSubmit={submit}>
+            <label>
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              {t("login.password")}
+              <input
+                type="password"
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </label>
+            <button className="primary" disabled={busy}>
+              {busy ? t("login.busy") : t("common.login")}
+            </button>
+          </form>
+        </details>
         <p className="auth-note">{t("login.note")}</p>
       </section>
     </main>
@@ -766,7 +851,11 @@ function StationsManager({
     try {
       await api("/stations", {
         method: "POST",
-        body: JSON.stringify({ code, name, processName }),
+        body: JSON.stringify({
+          code,
+          name,
+          processName,
+        }),
       });
       setCode("");
       setName("");
@@ -2132,12 +2221,21 @@ function AdminPanel() {
 
 function OperatorPanel({
   user,
+  onLogin,
   onLogout,
 }: {
   user: SessionUser | null;
+  onLogin: (session: Session) => void;
   onLogout?: () => void;
 }) {
   const { language, t } = useI18n();
+  const operatorCardInput = useRef<HTMLInputElement>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginCardCode, setLoginCardCode] = useState("");
+  const [pairingRequired, setPairingRequired] = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [formId, setFormId] = useState("");
   const [vin, setVin] = useState("");
@@ -2152,6 +2250,55 @@ function OperatorPanel({
   const [stationProcessId, setStationProcessId] = useState("");
   const [identifying, setIdentifying] = useState(false);
   const [status, setStatus] = useState("");
+
+  function openOperatorLogin() {
+    setLoginError("");
+    setLoginIdentifier("");
+    setLoginCardCode("");
+    setPairingRequired(false);
+    setLoginOpen(true);
+    window.setTimeout(() => operatorCardInput.current?.focus(), 0);
+  }
+
+  function closeOperatorLogin() {
+    setLoginOpen(false);
+  }
+
+  async function loginOperator(event: FormEvent) {
+    event.preventDefault();
+    setLoginBusy(true);
+    setLoginError("");
+    try {
+      const result = pairingRequired
+        ? await api<Session>("/auth/pair-card", {
+            method: "POST",
+            body: JSON.stringify({
+              identifier: loginIdentifier,
+              cardCode: loginCardCode,
+            }),
+          })
+        : await api<CardLoginResult>("/auth/card-login", {
+            method: "POST",
+            body: JSON.stringify({ identifier: loginIdentifier }),
+          });
+      if ("requiresPairing" in result) {
+        setPairingRequired(true);
+        return;
+      }
+      onLogin(result);
+      setLoginOpen(false);
+      if (pairingRequired) setLoginCardCode("");
+      else setLoginIdentifier("");
+    } catch (reason) {
+      setLoginIdentifier("");
+      setLoginError(
+        reason instanceof Error ? reason.message : t("login.cardError"),
+      );
+      window.setTimeout(() => operatorCardInput.current?.focus(), 0);
+    } finally {
+      setLoginBusy(false);
+    }
+  }
   const [answers, setAnswers] = useState<Record<string, InspectionAnswerValue>>(
     {},
   );
@@ -2190,9 +2337,7 @@ function OperatorPanel({
   const automaticStatus = useMemo(() => {
     if (
       !form ||
-      !form.questions.every(
-        (question) => question.expectedValue !== undefined,
-      )
+      !form.questions.every((question) => question.expectedValue !== undefined)
     )
       return null;
     const passed = form.questions.every(
@@ -2526,9 +2671,96 @@ function OperatorPanel({
               {t("common.logout")}
             </button>
           )}
+          {!user && (
+            <button
+              className="operator-login-button"
+              type="button"
+              onClick={openOperatorLogin}
+            >
+              {t("login.operatorButton")}
+            </button>
+          )}
           <SettingsMenu />
         </div>
       </header>
+      {loginOpen && (
+        <div
+          className="operator-login-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeOperatorLogin();
+          }}
+        >
+          <section
+            className="operator-login-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="operator-login-title"
+          >
+            <button
+              className="dialog-close"
+              type="button"
+              aria-label={t("common.close")}
+              onClick={closeOperatorLogin}
+            >
+              ×
+            </button>
+            <div className="card-reader-icon" aria-hidden="true">
+              ▣
+            </div>
+            <h2 id="operator-login-title">{t("login.cardTitle")}</h2>
+            <p className="muted">
+              {pairingRequired
+                ? t("login.cardCodePrompt")
+                : t("login.cardHint")}
+            </p>
+            <form onSubmit={loginOperator}>
+              <label className="card-identifier-label">
+                {t("login.cardIdentifier")}
+                <input
+                  ref={operatorCardInput}
+                  inputMode="text"
+                  autoComplete="off"
+                  pattern="[A-Za-z0-9]+"
+                  maxLength={30}
+                  value={loginIdentifier}
+                  onChange={(event) =>
+                    setLoginIdentifier(
+                      event.target.value
+                        .replace(/[^A-Za-z0-9]/g, "")
+                        .toUpperCase(),
+                    )
+                  }
+                  required
+                  readOnly={pairingRequired}
+                />
+              </label>
+              {pairingRequired && (
+                <label className="card-identifier-label">
+                  {t("login.cardCode")}
+                  <input
+                    inputMode="numeric"
+                    autoComplete="off"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    value={loginCardCode}
+                    onChange={(event) =>
+                      setLoginCardCode(event.target.value.replace(/\D/g, ""))
+                    }
+                    autoFocus
+                    required
+                  />
+                  <small>{t("login.cardCodeHint")}</small>
+                </label>
+              )}
+              {loginError && <p className="error">{loginError}</p>}
+              <button className="primary" disabled={loginBusy}>
+                {loginBusy ? t("login.cardBusy") : t("login.cardButton")}
+              </button>
+            </form>
+          </section>
+        </div>
+      )}
       <div className="workspace operator-workspace">
         <header className="page-heading operator-heading">
           <div>
@@ -2828,31 +3060,30 @@ function OperatorPanel({
                     </dd>
                   </div>
                 </dl>
-                <div className="summary-divider" />
-                <h3>{t("inspection.result")}</h3>
-                <div className="status-options">
-                  {form.allowedStatuses.map((item) => (
-                    <label
-                      className={
-                        finalStatus === item
-                          ? "status-option selected"
-                          : "status-option"
-                      }
-                      key={item}
-                    >
-                      <input
-                        type="radio"
-                        name="status"
-                        value={item}
-                        checked={finalStatus === item}
-                        onChange={() => setStatus(item)}
-                        disabled={automaticStatus !== null}
-                        required
-                      />
-                      <span>{item}</span>
-                    </label>
-                  ))}
-                </div>
+                {automaticStatus === null && (
+                  <>
+                    <div className="summary-divider" />
+                    <h3>{t("inspection.result")}</h3>
+                    <div className="status-options">
+                      {form.allowedStatuses.map((item) => (
+                        <label
+                          className={`status-option ${item.toUpperCase() === "PASSED" ? "passed" : item.toUpperCase() === "FAILED" ? "failed" : ""}${status === item ? " selected" : ""}`}
+                          key={item}
+                        >
+                          <input
+                            type="radio"
+                            name="status"
+                            value={item}
+                            checked={status === item}
+                            onChange={() => setStatus(item)}
+                            required
+                          />
+                          <span>{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div className="step-actions summary-actions">
                   <button className="secondary" type="button" onClick={goBack}>
                     {t("inspection.backQuestion")}
@@ -3174,30 +3405,29 @@ function App() {
   }
   if (path === "/inspection") {
     return (
-      <OperatorPanel user={user} onLogout={user ? logoutUser : undefined} />
+      <OperatorPanel
+        user={user}
+        onLogin={loginUser}
+        onLogout={user ? logoutUser : undefined}
+      />
     );
   }
   if (!user) {
     if (path !== "/login") {
       window.history.replaceState({}, "", route("/login"));
     }
-    return (
-      <Login
-        onLogin={(session) => {
-          localStorage.setItem("inspect-hub-token", session.accessToken);
-          localStorage.setItem(
-            "inspect-hub-user",
-            JSON.stringify(session.user),
-          );
-          window.history.replaceState(
-            {},
-            "",
-            route(session.user.role === "OPERATOR" ? "/inspection" : "/admin"),
-          );
-          setUser(session.user);
-        }}
-      />
+    return <Login onLogin={loginUser} />;
+  }
+
+  function loginUser(session: Session) {
+    localStorage.setItem("inspect-hub-token", session.accessToken);
+    localStorage.setItem("inspect-hub-user", JSON.stringify(session.user));
+    window.history.replaceState(
+      {},
+      "",
+      route(session.user.role === "OPERATOR" ? "/inspection" : "/admin"),
     );
+    setUser(session.user);
   }
 
   function logoutUser() {
@@ -3209,7 +3439,9 @@ function App() {
 
   if (user.role === "OPERATOR" && path !== "/inspection") {
     window.history.replaceState({}, "", route("/inspection"));
-    path = "/inspection";
+    return (
+      <OperatorPanel user={user} onLogin={loginUser} onLogout={logoutUser} />
+    );
   } else if (path === "/login") {
     window.history.replaceState({}, "", route("/admin"));
     path = "/admin";

@@ -1479,6 +1479,46 @@ label.check {
 .auth-card .primary {
   margin-top: 1.25rem;
 }
+.card-login-form {
+  text-align: center;
+}
+.card-login-form h2 {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 1.15rem;
+}
+.card-reader-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: #25634f;
+  font-size: 1.55rem;
+}
+.card-identifier-label {
+  margin-top: 1rem;
+  text-align: left;
+}
+.card-identifier-label input {
+  text-align: center;
+  letter-spacing: 0.12em;
+}
+.password-login {
+  margin-top: 1.3rem;
+  border-top: 1px solid #e3e8e4;
+  padding-top: 1rem;
+}
+.password-login summary {
+  cursor: pointer;
+  color: #53615c;
+  font-size: 0.82rem;
+  text-align: center;
+}
+.password-login form {
+  margin-top: 1rem;
+}
 .auth-note {
   margin: 1rem 0 0;
   color: #7b8581;
@@ -1576,6 +1616,58 @@ label.check {
   color: #dce7e2;
   border: 1px solid #40534b;
   border-radius: 7px;
+}
+.operator-login-button {
+  padding: 0.55rem 0.85rem;
+  color: #10271f;
+  background: #d8f0e5;
+  border: 1px solid #d8f0e5;
+  border-radius: 7px;
+  font-weight: 700;
+}
+.operator-login-button:hover {
+  background: #fff;
+}
+.operator-login-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 20, 15, 0.66);
+}
+.operator-login-dialog {
+  position: relative;
+  width: min(410px, 100%);
+  padding: 2rem;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+.operator-login-dialog h2 {
+  margin: 0.8rem 0 0.35rem;
+}
+.operator-login-dialog form {
+  margin-top: 1.2rem;
+  text-align: left;
+}
+.operator-login-dialog .primary {
+  width: 100%;
+  margin-top: 1rem;
+}
+.dialog-close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.8rem;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: #53615c;
+  background: transparent;
+  border: 0;
+  font-size: 1.5rem;
 }
 .operator-heading {
   align-items: center;
@@ -2143,10 +2235,31 @@ label.check {
   border-color: #62a28c;
   background: #edf6f2;
 }
+.status-option.passed {
+  color: #126349;
+  border-color: #9bc9b9;
+  background: #f4faf7;
+}
+.status-option.passed.selected {
+  border-color: #3f9477;
+  background: #dff2e9;
+}
+.status-option.failed {
+  color: #9d3934;
+  border-color: #e1aaa6;
+  background: #fff7f6;
+}
+.status-option.failed.selected {
+  border-color: #c85f58;
+  background: #fde5e3;
+}
 .status-option input {
   width: auto;
   margin: 0;
   accent-color: #16765b;
+}
+.status-option.failed input {
+  accent-color: #b74740;
 }
 .submit-inspection {
   margin-top: 1.2rem;
