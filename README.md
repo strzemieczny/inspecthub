@@ -18,6 +18,7 @@ inspekcji są przechowywane w kompatybilnym z S3 MinIO.
 - zarządzanie stanowiskami, użytkownikami i rolami z panelu administratora,
 - uwierzytelnianie JWT i autoryzacja oparta na rolach `ADMIN` / `OPERATOR`,
 - route check i przekazywanie wyników do systemu SCADA.
+- ustrukturyzowane logi techniczne i trwały dziennik zdarzeń jakościowych/audytowych.
 
 ## Architektura
 
@@ -118,6 +119,36 @@ zwracać `FCARDNUM`, `FLONGCARDNUM` albo `FUUID` — API rozpoznaje te warianty.
 
 `TRUST_PROXY=true` ustawiaj tylko wtedy, gdy API działa za zaufanym reverse
 proxy, które prawidłowo przekazuje adres klienta.
+
+## Logi i zdarzenia audytowe
+
+API emituje na standardowe wyjście logi JSON dla każdego żądania. Pole
+`correlationId` jest przyjmowane z poprawnego nagłówka `X-Correlation-ID` albo
+generowane przez serwer i zwracane w odpowiedzi. Log nie zawiera body, tokenów
+ani parametrów zapytania.
+
+Trwałe zdarzenia są zapisywane w tabeli `AuditEvent` w UTC. Zawierają typ,
+kategorię, ważność, wynik, źródło, aktora, stanowisko, obiekt domenowy,
+identyfikator korelacji i wersjonowany payload. Pola wrażliwe są automatycznie
+redagowane, a `payloadHash` pozwala zweryfikować integralność treści. Zapis
+zdarzenia `INSPECTION_COMPLETED` jest częścią tej samej transakcji co wynik
+inspekcji.
+
+Każda operacja zmieniająca stan API (`POST`, `PATCH`, `PUT`, `DELETE`) tworzy
+zdarzenie audytowe zarówno dla powodzenia, jak i błędu. Obejmuje to m.in.
+tworzenie, rewizje i archiwizację formularzy, zmiany stanowisk i użytkowników,
+konfigurację SCADA, logowanie, parowanie kart oraz przesyłanie mediów. Typ jest
+budowany z kontrolera i operacji, np. `FORMS_CREATE` lub `USERS_UPDATE`.
+
+- `POST /api/events` — kolekcjonuje zdarzenie klienta od zalogowanego użytkownika,
+- `GET /api/events` — wyszukuje zdarzenia (tylko `ADMIN`; filtry `from`, `to`,
+  `type`, `correlationId`, `stationCode`, `limit`).
+
+Na produkcji należy wysyłać stdout do centralnego systemu logów, ograniczyć
+dostęp do dziennika, synchronizować czas przez NTP i ustalić retencję zgodnie z
+oceną ryzyka oraz wymaganiami klienta/OEM. Moduł wspiera traceability typowe dla
+Automotive SPICE i ISO/SAE 21434, ale sam w sobie nie stanowi certyfikacji
+zgodności procesu ani produktu.
 
 ## Przydatne komendy
 
