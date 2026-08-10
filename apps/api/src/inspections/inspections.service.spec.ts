@@ -7,7 +7,9 @@ import { EventsService } from '../observability/events.service';
 describe('InspectionsService public reports', () => {
   const publicReportId = '9f466df4-ffbc-47ad-96c2-4b633f06a334';
   const findUniqueReport = jest.fn();
+  const findManyResults = jest.fn();
   const findUniqueStation = jest.fn();
+  const countStations = jest.fn();
   const createResult = jest.fn();
   const transactionClient = {
     inspectionResult: { create: createResult },
@@ -20,9 +22,10 @@ describe('InspectionsService public reports', () => {
   const database = {
     inspectionResult: {
       findUnique: findUniqueReport,
+      findMany: findManyResults,
       create: createResult,
     },
-    station: { findUnique: findUniqueStation },
+    station: { findUnique: findUniqueStation, count: countStations },
     form: { findUnique: jest.fn() },
     routeCheck: { findUnique: jest.fn() },
     $transaction: jest.fn(runTransaction),
@@ -40,6 +43,17 @@ describe('InspectionsService public reports', () => {
   const service = new InspectionsService(database, scadaConnector, events);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('counts active stations from station configuration', async () => {
+    findManyResults.mockResolvedValue([]);
+    countStations.mockResolvedValueOnce(4).mockResolvedValueOnce(9);
+
+    const dashboard = await service.getPublicDashboard();
+
+    expect(countStations).toHaveBeenCalledWith({ where: { active: true } });
+    expect(dashboard.summary.activeStations).toBe(4);
+    expect(dashboard.summary.totalStations).toBe(9);
+  });
 
   it('returns a minimal public report based on the stored form revision', async () => {
     findUniqueReport.mockResolvedValue({

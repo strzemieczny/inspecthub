@@ -578,6 +578,7 @@ interface DashboardData {
     passRate: number;
     issuesToday: number;
     activeStations: number;
+    totalStations: number;
     mesSyncRate: number;
     completedTrend: number | null;
     issuesTrend: number | null;
@@ -601,6 +602,7 @@ const emptyDashboard: DashboardData = {
     passRate: 0,
     issuesToday: 0,
     activeStations: 0,
+    totalStations: 0,
     mesSyncRate: 0,
     completedTrend: null,
     issuesTrend: null,
@@ -734,7 +736,7 @@ function Dashboard() {
               <span>{t("dashboard.activeStations")}</span>
               <strong>
                 {data.summary.activeStations}
-                <em>/ 14</em>
+                <em>/ {data.summary.totalStations}</em>
               </strong>
               <small>
                 <i className="tiny-live" /> {t("dashboard.working")}

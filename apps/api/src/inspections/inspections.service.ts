@@ -33,7 +33,7 @@ export class InspectionsService {
     weekAgo.setDate(weekAgo.getDate() - 6);
     weekAgo.setHours(0, 0, 0, 0);
 
-    const [results, recent] = await Promise.all([
+    const [results, recent, activeStations, totalStations] = await Promise.all([
       this.database.inspectionResult.findMany({
         where: { createdAt: { gte: weekAgo } },
         select: {
@@ -55,6 +55,8 @@ export class InspectionsService {
           form: { select: { title: true, code: true } },
         },
       }),
+      this.database.station.count({ where: { active: true } }),
+      this.database.station.count(),
     ]);
 
     const isPassed = (status: string) =>
@@ -89,8 +91,6 @@ export class InspectionsService {
         passed: items.filter((item) => isPassed(item.status)).length,
       };
     });
-    const stations = [...new Set(results.map((item) => item.stationId))];
-
     return {
       generatedAt: now,
       summary: {
@@ -107,7 +107,8 @@ export class InspectionsService {
           todayResults.length - passedToday,
           yesterdayResults.length - passedYesterday,
         ),
-        activeStations: stations.length,
+        activeStations,
+        totalStations,
         mesSyncRate: results.length
           ? Math.round(
               (results.filter((item) => item.mesSynced).length /
