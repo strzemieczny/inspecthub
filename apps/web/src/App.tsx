@@ -3045,7 +3045,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
               </div>
             )}
             {report.scadaUnitHistoryUrl && (
-              <div>
+              <div className="print-hidden">
                 <dt>{t("report.history")}</dt>
                 <dd>
                   <a
