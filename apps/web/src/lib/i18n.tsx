@@ -10,8 +10,21 @@ import {
 } from "react";
 
 export type Language = "pl" | "en" | "uk";
+type Theme = "light" | "dark";
 
 const STORAGE_KEY = "inspect-hub-language";
+const THEME_STORAGE_KEY = "inspect-hub-theme";
+
+function initialTheme(): Theme {
+  const saved = localStorage.getItem(THEME_STORAGE_KEY);
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+// Apply the theme while the module is loading, before React paints the app.
+document.documentElement.dataset.theme = initialTheme();
 
 const translations = {
   pl: {
@@ -1253,7 +1266,16 @@ export function useI18n() {
 export function SettingsMenu() {
   const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(
+    () => (document.documentElement.dataset.theme as Theme) || "light",
+  );
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const changeTheme = (nextTheme: Theme) => {
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    setTheme(nextTheme);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -1304,6 +1326,42 @@ export function SettingsMenu() {
               </small>
             </button>
           ))}
+          <div className="settings-divider" />
+          <strong>
+            {language === "pl"
+              ? "Motyw"
+              : language === "uk"
+                ? "Тема"
+                : "Theme"}
+          </strong>
+          <button
+            type="button"
+            className={theme === "light" ? "active" : ""}
+            onClick={() => changeTheme("light")}
+          >
+            <span>
+              {language === "pl"
+                ? "Jasny"
+                : language === "uk"
+                  ? "Світла"
+                  : "Light"}
+            </span>
+            <small aria-hidden="true">☀</small>
+          </button>
+          <button
+            type="button"
+            className={theme === "dark" ? "active" : ""}
+            onClick={() => changeTheme("dark")}
+          >
+            <span>
+              {language === "pl"
+                ? "Ciemny"
+                : language === "uk"
+                  ? "Темна"
+                  : "Dark"}
+            </span>
+            <small aria-hidden="true">☾</small>
+          </button>
         </div>
       )}
     </div>

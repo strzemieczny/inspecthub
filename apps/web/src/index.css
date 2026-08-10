@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
 
-:root { font-family: 'DM Sans', sans-serif; color: #182021; background: #f3f5f2; font-synthesis: none; text-rendering: optimizeLegibility; }
+:root { font-family: 'DM Sans', sans-serif; color: #182021; background: #f3f5f2; color-scheme: light; font-synthesis: none; text-rendering: optimizeLegibility; }
+:root[data-theme="dark"] { color: #f1f3f5; background: #0d0f12; color-scheme: dark; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input, select { font: inherit; }
@@ -47,11 +48,24 @@ button { cursor: pointer; }
 .settings-dropdown button:hover { background: #f1f5f3; }
 .settings-dropdown button.active { color: #11684f; background: #e7f2ed; font-weight: 700; }
 .settings-dropdown small { color: #84908c; font-size: 11px; font-weight: 700; }
+.settings-divider { height: 1px; margin: 7px 4px; background: #e5eae7; }
 .dashboard-nav .settings-trigger { color: #d8e6e1; background: rgba(255,255,255,.08); }
 .dashboard-nav .settings-trigger:hover, .dashboard-nav .settings-trigger[aria-expanded="true"] { color: #fff; background: rgba(255,255,255,.15); }
 .auth-settings { position: absolute; top: 18px; right: 18px; }
 .report-nav-actions { display: flex; align-items: center; gap: 10px; }
 .public-report-state > .settings-menu { position: absolute; top: 18px; right: 18px; }
+
+:root[data-theme="dark"] body { color: #f1f3f5; background: #0d0f12; }
+:root[data-theme="dark"] .settings-trigger { color: #c7ccd2; background: rgba(255, 255, 255, .08); }
+:root[data-theme="dark"] .settings-trigger:hover,
+:root[data-theme="dark"] .settings-trigger[aria-expanded="true"] { color: #fff; background: #2b3037; }
+:root[data-theme="dark"] .settings-dropdown { color: #f1f3f5; background: #1a1d22; border-color: #363b44; box-shadow: 0 14px 40px rgba(0, 0, 0, .5); }
+:root[data-theme="dark"] .settings-dropdown > strong,
+:root[data-theme="dark"] .settings-dropdown small { color: #969da7; }
+:root[data-theme="dark"] .settings-dropdown button { color: #e3e6ea; }
+:root[data-theme="dark"] .settings-dropdown button:hover { background: #252a31; }
+:root[data-theme="dark"] .settings-dropdown button.active { color: #74d9b5; background: #20342e; }
+:root[data-theme="dark"] .settings-divider { background: #363b44; }
 
 @media (max-width: 640px) {
   .settings-dropdown { width: 190px; }
