@@ -43,31 +43,31 @@ model User {
   name              String
   createdAt         DateTime           @default(now())
   inspectionResults InspectionResult[] @relation("OperatorInspections")
-  auditEvents       AuditEvent[]        @relation("AuditEventActor")
+  auditEvents       AuditEvent[]       @relation("AuditEventActor")
 
   @@unique([externalProvider, externalId])
 }
 
 /// Append-only operational and audit trail. Application code exposes no update/delete API.
 model AuditEvent {
-  id               String        @id @default(uuid())
-  occurredAt       DateTime
-  receivedAt       DateTime      @default(now())
-  type             String
-  category         String
-  severity         EventSeverity @default(INFO)
-  outcome          EventOutcome  @default(UNKNOWN)
-  source           String
-  schemaVersion    Int           @default(1)
-  correlationId    String
-  actorId          String?
-  actorType        String?
-  stationCode      String?
-  entityType       String?
-  entityId         String?
-  payload          Json
-  payloadHash      String
-  actor            User?         @relation("AuditEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  id            String        @id @default(uuid())
+  occurredAt    DateTime
+  receivedAt    DateTime      @default(now())
+  type          String
+  category      String
+  severity      EventSeverity @default(INFO)
+  outcome       EventOutcome  @default(UNKNOWN)
+  source        String
+  schemaVersion Int           @default(1)
+  correlationId String
+  actorId       String?
+  actorType     String?
+  stationCode   String?
+  entityType    String?
+  entityId      String?
+  payload       Json
+  payloadHash   String
+  actor         User?         @relation("AuditEventActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([occurredAt])
   @@index([receivedAt])
@@ -87,16 +87,18 @@ model AccessCardMapping {
 }
 
 model Form {
-  id                String             @id @default(cuid())
-  title             String
-  code              String
-  version           Int                @default(1)
-  allowedStatuses   Json
-  questions         Json
-  archivedAt        DateTime?
-  processes         Process[]          @relation("FormProcesses")
-  createdAt         DateTime           @default(now())
-  inspectionResults InspectionResult[]
+  id                 String             @id @default(cuid())
+  title              String
+  code               String
+  version            Int                @default(1)
+  nokStreakThreshold Int                @default(3)
+  requiresLogin      Boolean            @default(false)
+  allowedStatuses    Json
+  questions          Json
+  archivedAt         DateTime?
+  processes          Process[]          @relation("FormProcesses")
+  createdAt          DateTime           @default(now())
+  inspectionResults  InspectionResult[]
 
   @@unique([code, version])
   @@index([code])
@@ -127,28 +129,35 @@ model Station {
 }
 
 model InspectionResult {
-  id                String         @id @default(cuid())
-  publicReportId    String         @unique
-  formId            String
-  vinOrSerialNumber String
-  stationId         String
-  operatorId        String?
-  status            String
-  answers           Json
-  mesSynced         Boolean        @default(false)
-  partNumber        String?
-  productFamily     String?
-  scadaServerUrl    String?
-  routeCheckId      String?        @unique
-  scadaDelivery     ScadaDelivery?
-  routeCheck        RouteCheck?    @relation(fields: [routeCheckId], references: [id])
-  createdAt         DateTime       @default(now())
-  form              Form           @relation(fields: [formId], references: [id])
-  operator          User?          @relation("OperatorInspections", fields: [operatorId], references: [id])
+  id                   String             @id @default(cuid())
+  publicReportId       String             @unique
+  clientSubmissionId   String?            @unique
+  formId               String
+  vinOrSerialNumber    String
+  stationId            String
+  operatorId           String?
+  status               String
+  answers              Json
+  durationSeconds      Int?
+  answerCorrections    Int                @default(0)
+  mesSynced            Boolean            @default(false)
+  partNumber           String?
+  productFamily        String?
+  scadaServerUrl       String?
+  routeCheckId         String?            @unique
+  originalInspectionId String?
+  scadaDelivery        ScadaDelivery?
+  routeCheck           RouteCheck?        @relation(fields: [routeCheckId], references: [id])
+  originalInspection   InspectionResult?  @relation("InspectionRetests", fields: [originalInspectionId], references: [id], onDelete: SetNull)
+  retests              InspectionResult[] @relation("InspectionRetests")
+  createdAt            DateTime           @default(now())
+  form                 Form               @relation(fields: [formId], references: [id])
+  operator             User?              @relation("OperatorInspections", fields: [operatorId], references: [id])
 
   @@index([formId])
   @@index([operatorId])
   @@index([vinOrSerialNumber])
+  @@index([originalInspectionId])
   @@index([mesSynced])
 }
 

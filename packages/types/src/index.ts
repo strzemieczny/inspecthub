@@ -9,6 +9,7 @@ export type FieldType =
 
 /** A form-specific status configured by an administrator. */
 export type InspectionStatus = string;
+export type QuestionSeverity = "NORMAL" | "MAJOR" | "CRITICAL";
 
 export interface NumberRange {
   min: number;
@@ -26,6 +27,9 @@ export interface InspectionQuestion {
   label: string;
   type: FieldType;
   isRequired: boolean;
+  severity?: QuestionSeverity;
+  /** @deprecated Kept for forms saved before severity levels were introduced. */
+  isCritical?: boolean;
   instructionImageUrl?: string;
   okImageUrl?: string;
   nokImageUrl?: string;
@@ -42,6 +46,10 @@ export interface InspectionForm {
   title: string;
   code: string;
   version: number;
+  /** Consecutive NOK results required to raise a quality-series alert. */
+  nokStreakThreshold: number;
+  /** Whether an authenticated operator is required to complete this form. */
+  requiresLogin: boolean;
   allowedStatuses: InspectionStatus[];
   questions: InspectionQuestion[];
   /** Processes in which this form can be used. */
@@ -131,6 +139,7 @@ export interface PublicReportAnswer {
   type: FieldType;
   value: InspectionAnswerValue;
   assessment: PublicAnswerAssessment;
+  severity: QuestionSeverity;
   imageUrl: string | null;
   options?: string[];
   translations?: InspectionQuestion["translations"];
@@ -141,6 +150,11 @@ export interface PublicInspectionReport {
   serialNumber: string;
   result: string;
   completedAt: string;
+  retest: {
+    isRetest: boolean;
+    originalReportId: string | null;
+    originalCompletedAt: string | null;
+  };
   station: { code: string; name: string | null };
   process: string | null;
   operatorName: string | null;

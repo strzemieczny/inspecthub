@@ -1,0 +1,1 @@
+ALTER TABLE "Form" ADD COLUMN "requiresLogin" BOOLEAN NOT NULL DEFAULT false;
