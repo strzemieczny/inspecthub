@@ -75,6 +75,7 @@ Szczegółowa checklista przedwdrożeniowa znajduje się w
 ```text
 apps/
 ├── api/                  # REST API w NestJS
+├── inspect-hub-mobile/   # operator na Android / Zebra (React Native)
 └── web/                  # aplikacja React + Vite
 packages/
 ├── database/             # schema i klient Prisma
@@ -278,3 +279,16 @@ docker compose down
 
 Aby usunąć również lokalne wolumeny PostgreSQL i MinIO, użyj świadomie
 `docker compose down --volumes` — ta operacja usuwa dane deweloperskie.
+
+
+## Aplikacja operatora na Androida / Zebra
+
+Dedykowana aplikacja React Native znajduje się w
+[`apps/inspect-hub-mobile`](apps/inspect-hub-mobile/README.md).
+Korzysta z istniejącego API i kontraktów `@inspect-hub/types`; panel administratora
+i dashboard nadal działają w `apps/web`.
+
+Po ustawieniu `apps/inspect-hub-mobile/.env` uruchom `pnpm mobile:android`
+(Android SDK, JDK i urządzenie z debugowaniem USB) albo `pnpm mobile:start`,
+jeśli aplikacja deweloperska jest już zainstalowana. Moduł DataWedge wymaga
+własnego builda Androida.
