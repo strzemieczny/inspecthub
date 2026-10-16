@@ -3,7 +3,10 @@
 :root { font-family: 'DM Sans', sans-serif; color: #182021; background: #f3f5f2; color-scheme: light; font-synthesis: none; text-rendering: optimizeLegibility; }
 :root[data-theme="dark"] { color: #f1f3f5; background: #0d0f12; color-scheme: dark; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; min-width: 320px; min-height: 100vh; min-height: 100dvh; }
+:root:fullscreen,
+:root:-webkit-full-screen { background: #10261f; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
@@ -29,7 +32,7 @@ button { cursor: pointer; }
   ::view-transition-new(root) { animation: none; }
 }
 
-.settings-menu { position: relative; flex: 0 0 auto; }
+.settings-menu { position: relative; display: flex; gap: 8px; flex: 0 0 auto; }
 .settings-trigger {
   display: grid;
   place-items: center;
@@ -42,6 +45,7 @@ button { cursor: pointer; }
 }
 .settings-trigger:hover, .settings-trigger[aria-expanded="true"] { color: #14795c; background: #e4f0eb; }
 .settings-trigger svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.fullscreen-trigger svg { stroke-width: 1.9; }
 .settings-dropdown {
   position: absolute;
   z-index: 1100;

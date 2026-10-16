@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
+  type ImgHTMLAttributes,
 } from "react";
 import type {
   FieldType,
@@ -19,6 +20,7 @@ import type {
   Station,
 } from "@inspect-hub/types";
 import {
+  AUTH_UNAUTHORIZED_EVENT,
   ApiError,
   absoluteApiUrl,
   api,
@@ -32,11 +34,41 @@ import {
 import "./App.css";
 import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
 
-function createClientId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
+function readStoredUser(): SessionUser | null {
+  const token = localStorage.getItem("inspect-hub-token");
+  const rawUser = localStorage.getItem("inspect-hub-user");
+  if (!token || !rawUser) {
+    localStorage.removeItem("inspect-hub-token");
+    localStorage.removeItem("inspect-hub-user");
+    return null;
   }
-  return `question-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  try {
+    return JSON.parse(rawUser) as SessionUser;
+  } catch {
+    localStorage.removeItem("inspect-hub-token");
+    localStorage.removeItem("inspect-hub-user");
+    return null;
+  }
+}
+
+function createClientId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (typeof cryptoApi?.randomUUID === "function") {
+    return cryptoApi.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof cryptoApi?.getRandomValues === "function") {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }
 
 const emptyQuestion = (): InspectionQuestion => ({
@@ -110,6 +142,31 @@ function removeEmptyOptions(question: InspectionQuestion): InspectionQuestion {
         }
       : undefined,
   };
+}
+
+function SkeletonImage({
+  className = "",
+  src,
+  ...props
+}: ImgHTMLAttributes<HTMLImageElement>) {
+  const [loadedSrc, setLoadedSrc] = useState("");
+  const isLoaded = Boolean(src && loadedSrc === src);
+
+  return (
+    <span
+      className={`image-skeleton-frame${isLoaded ? " is-loaded" : ""}`}
+      aria-busy={!isLoaded}
+    >
+      {!isLoaded && <span className="image-skeleton" aria-hidden="true" />}
+      <img
+        {...props}
+        src={src}
+        className={`${className}${className ? " " : ""}skeleton-image${isLoaded ? " is-loaded" : ""}`}
+        decoding="async"
+        onLoad={() => setLoadedSrc(src ?? "")}
+      />
+    </span>
+  );
 }
 
 function localizeQuestion(
@@ -601,6 +658,16 @@ function ScadaSettingsPanel() {
               onChange={(e) => update("submitResultPath", e.target.value)}
               required
             />
+          </label>
+          <label>
+            {t("scada.unitHistoryPath")}
+            <input
+              value={settings.unitHistoryPath}
+              onChange={(e) => update("unitHistoryPath", e.target.value)}
+              placeholder="/std_public/unithistory"
+              required
+            />
+            <small>{t("scada.unitHistoryPathHelp")}</small>
           </label>
           <label className="timeout-field">
             {t("scada.timeout")}
@@ -1136,10 +1203,13 @@ function Dashboard() {
             <h1>{t("dashboard.title")}</h1>
             <p>{t("dashboard.subtitle")}</p>
           </div>
-          <div className="dashboard-updated">
-            <span>{t("dashboard.dataAsOf")}</span>
-            <strong>{time(data.generatedAt)}</strong>
-            <small>{t("dashboard.loadedOnOpen")}</small>
+          <div className="dashboard-title-tools">
+            <ReportSearch />
+            <div className="dashboard-updated">
+              <span>{t("dashboard.dataAsOf")}</span>
+              <strong>{time(data.generatedAt)}</strong>
+              <small>{t("dashboard.loadedOnOpen")}</small>
+            </div>
           </div>
         </section>
 
@@ -2498,6 +2568,7 @@ function AdminPanel() {
   );
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState<string | null>(null);
   const [stations, setStations] = useState<Station[]>([]);
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [editingForm, setEditingForm] = useState<InspectionForm | null>(null);
@@ -2721,6 +2792,7 @@ function AdminPanel() {
   async function uploadInstruction(id: string, file?: File) {
     if (!file) return;
     setBusy(true);
+    setUploadingImage(`${id}:instruction`);
     try {
       updateQuestion(id, { instructionImageUrl: await uploadImage(file) });
       setNotice(t("notice.instructionUploaded"));
@@ -2730,6 +2802,7 @@ function AdminPanel() {
       );
     } finally {
       setBusy(false);
+      setUploadingImage(null);
     }
   }
 
@@ -2740,6 +2813,7 @@ function AdminPanel() {
   ) {
     if (!file) return;
     setBusy(true);
+    setUploadingImage(`${id}:${answer}`);
     try {
       const imageUrl = await uploadImage(file);
       updateQuestion(
@@ -2755,6 +2829,7 @@ function AdminPanel() {
       );
     } finally {
       setBusy(false);
+      setUploadingImage(null);
     }
   }
 
@@ -3491,10 +3566,13 @@ function AdminPanel() {
                       )}
                       {question.type === "CHECKBOX" && (
                         <div className="answer-image-fields">
-                          <label className="upload-box answer-image-upload">
+                          <label
+                            className={`upload-box answer-image-upload${uploadingImage === `${question.id}:ok` ? " is-uploading" : ""}`}
+                            aria-busy={uploadingImage === `${question.id}:ok`}
+                          >
                             {question.okImageUrl ? (
                               <>
-                                <img
+                                <SkeletonImage
                                   src={question.okImageUrl}
                                   alt="Wzorzec OK"
                                 />
@@ -3503,9 +3581,16 @@ function AdminPanel() {
                             ) : (
                               t("form.addOk")
                             )}
+                            {uploadingImage === `${question.id}:ok` && (
+                              <span className="photo-upload-loader">
+                                <span className="spinner" aria-hidden="true" />
+                                <span>{t("inspection.uploadingPhoto")}</span>
+                              </span>
+                            )}
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp"
+                              disabled={busy}
                               onChange={(e) =>
                                 void uploadAnswerImage(
                                   question.id,
@@ -3515,10 +3600,13 @@ function AdminPanel() {
                               }
                             />
                           </label>
-                          <label className="upload-box answer-image-upload nok">
+                          <label
+                            className={`upload-box answer-image-upload nok${uploadingImage === `${question.id}:nok` ? " is-uploading" : ""}`}
+                            aria-busy={uploadingImage === `${question.id}:nok`}
+                          >
                             {question.nokImageUrl ? (
                               <>
-                                <img
+                                <SkeletonImage
                                   src={question.nokImageUrl}
                                   alt="Wzorzec NOK"
                                 />
@@ -3527,9 +3615,16 @@ function AdminPanel() {
                             ) : (
                               t("form.addNok")
                             )}
+                            {uploadingImage === `${question.id}:nok` && (
+                              <span className="photo-upload-loader">
+                                <span className="spinner" aria-hidden="true" />
+                                <span>{t("inspection.uploadingPhoto")}</span>
+                              </span>
+                            )}
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp"
+                              disabled={busy}
                               onChange={(e) =>
                                 void uploadAnswerImage(
                                   question.id,
@@ -3541,13 +3636,25 @@ function AdminPanel() {
                           </label>
                         </div>
                       )}
-                      <label className="upload-box">
+                      <label
+                        className={`upload-box${uploadingImage === `${question.id}:instruction` ? " is-uploading" : ""}`}
+                        aria-busy={
+                          uploadingImage === `${question.id}:instruction`
+                        }
+                      >
                         {question.instructionImageUrl
                           ? t("form.instructionReady")
                           : t("form.addInstruction")}
+                        {uploadingImage === `${question.id}:instruction` && (
+                          <span className="photo-upload-loader">
+                            <span className="spinner" aria-hidden="true" />
+                            <span>{t("inspection.uploadingPhoto")}</span>
+                          </span>
+                        )}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
+                          disabled={busy}
                           onChange={(e) =>
                             void uploadInstruction(
                               question.id,
@@ -3635,7 +3742,7 @@ function AdminPanel() {
                     </p>
                   )}
                   {questions[previewIndex].instructionImageUrl && (
-                    <img
+                    <SkeletonImage
                       className="preview-instruction"
                       src={questions[previewIndex].instructionImageUrl}
                       alt="Instrukcja"
@@ -3695,6 +3802,10 @@ function OperatorPanel({
   const [forms, setForms] = useState<InspectionForm[]>([]);
   const [formId, setFormId] = useState("");
   const [vin, setVin] = useState("");
+  const [serialScannerOpen, setSerialScannerOpen] = useState(false);
+  const [serialScannerError, setSerialScannerError] = useState("");
+  const [serialPhotoBusy, setSerialPhotoBusy] = useState(false);
+  const serialScannerVideo = useRef<HTMLVideoElement>(null);
   const [productIdentified, setProductIdentified] = useState(false);
   const [routeCheckId, setRouteCheckId] = useState<string | null>(null);
   const [product, setProduct] = useState<{
@@ -3798,12 +3909,15 @@ function OperatorPanel({
   >("info");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<{
     url: string;
     alt: string;
   } | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
+  const lightboxStageRef = useRef<HTMLDivElement>(null);
   const form = useMemo(
     () => forms.find((item) => item.id === formId),
     [forms, formId],
@@ -3851,6 +3965,201 @@ function OperatorPanel({
     );
   }, [answers, form]);
   const finalStatus = automaticStatus === null ? status : automaticStatus;
+
+  useEffect(() => {
+    if (!serialScannerOpen) return;
+
+    let cancelled = false;
+    let scannerControls: { stop: () => void } | null = null;
+
+    const stopScanner = () => {
+      scannerControls?.stop();
+      if (serialScannerVideo.current) {
+        const stream = serialScannerVideo.current.srcObject;
+        if (stream instanceof MediaStream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        serialScannerVideo.current.srcObject = null;
+      }
+    };
+
+    const startScanner = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setSerialScannerError(t("inspection.cameraUnsupported"));
+        return;
+      }
+
+      try {
+        const video = serialScannerVideo.current;
+        if (!video) return;
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const reader = new BrowserMultiFormatReader(undefined, {
+          delayBetweenScanAttempts: 150,
+          delayBetweenScanSuccess: 500,
+        });
+        const controls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: { facingMode: { ideal: "environment" } },
+          },
+          video,
+          (result) => {
+            if (cancelled || !result) return;
+            const serialNumber = result.getText().trim();
+            if (!serialNumber) return;
+            setVin(serialNumber.toUpperCase());
+            setNotice(t("inspection.cameraScanned"));
+            setOperatorNoticeKind("success");
+            setSerialScannerOpen(false);
+          },
+        );
+        if (cancelled) controls.stop();
+        else scannerControls = controls;
+      } catch (error) {
+        if (cancelled) return;
+        const denied =
+          error instanceof DOMException &&
+          (error.name === "NotAllowedError" || error.name === "SecurityError");
+        setSerialScannerError(
+          t(
+            denied
+              ? "inspection.cameraPermissionDenied"
+              : "inspection.cameraError",
+          ),
+        );
+      }
+    };
+
+    void startScanner();
+    return () => {
+      cancelled = true;
+      stopScanner();
+    };
+  }, [serialScannerOpen, t]);
+
+  useEffect(() => {
+    if (!serialScannerOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSerialScannerOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [serialScannerOpen]);
+
+  async function scanSerialFromPhoto(file?: File) {
+    if (!file) return;
+    setSerialPhotoBusy(true);
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const { BarcodeFormat, BrowserMultiFormatReader } =
+        await import("@zxing/browser");
+      const reader = new BrowserMultiFormatReader();
+      reader.possibleFormats = [
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.CODE_93,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.ITF,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.DATA_MATRIX,
+        BarcodeFormat.PDF_417,
+      ];
+
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = reject;
+        element.src = imageUrl;
+      });
+
+      let decodedText = "";
+      const cropRatios = [1, 0.82, 0.64];
+      for (const cropRatio of cropRatios) {
+        const sourceWidth = Math.round(image.naturalWidth * cropRatio);
+        const sourceHeight = Math.round(image.naturalHeight * cropRatio);
+        const sourceX = Math.round((image.naturalWidth - sourceWidth) / 2);
+        const sourceY = Math.round((image.naturalHeight - sourceHeight) / 2);
+        const outputScale = Math.min(
+          1,
+          1800 / Math.max(sourceWidth, sourceHeight),
+        );
+        const outputWidth = Math.max(1, Math.round(sourceWidth * outputScale));
+        const outputHeight = Math.max(
+          1,
+          Math.round(sourceHeight * outputScale),
+        );
+
+        for (const rotate of [false, true]) {
+          const canvas = document.createElement("canvas");
+          canvas.width = rotate ? outputHeight : outputWidth;
+          canvas.height = rotate ? outputWidth : outputHeight;
+          const context = canvas.getContext("2d", {
+            willReadFrequently: true,
+          });
+          if (!context) continue;
+          if (rotate) {
+            context.translate(canvas.width, 0);
+            context.rotate(Math.PI / 2);
+          }
+          context.drawImage(
+            image,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            outputWidth,
+            outputHeight,
+          );
+
+          try {
+            decodedText = reader.decodeFromCanvas(canvas).getText().trim();
+          } catch {
+            const pixels = context.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height,
+            );
+            for (let index = 0; index < pixels.data.length; index += 4) {
+              const gray =
+                pixels.data[index] * 0.299 +
+                pixels.data[index + 1] * 0.587 +
+                pixels.data[index + 2] * 0.114;
+              const contrasted = gray < 150 ? 0 : 255;
+              pixels.data[index] = contrasted;
+              pixels.data[index + 1] = contrasted;
+              pixels.data[index + 2] = contrasted;
+            }
+            context.putImageData(pixels, 0, 0);
+            try {
+              decodedText = reader.decodeFromCanvas(canvas).getText().trim();
+            } catch {
+              // Continue with another crop or orientation.
+            }
+          }
+          if (decodedText) break;
+        }
+        if (decodedText) break;
+      }
+
+      const serialNumber = decodedText;
+      if (!serialNumber) throw new Error("Empty barcode");
+      setVin(serialNumber.toUpperCase());
+      setNotice(t("inspection.cameraScanned"));
+      setOperatorNoticeKind("success");
+      setSerialScannerOpen(false);
+    } catch {
+      setSerialScannerError(t("inspection.cameraPhotoUnreadable"));
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+      setSerialPhotoBusy(false);
+    }
+  }
 
   function updateAnswer(
     questionId: string,
@@ -3979,15 +4288,35 @@ function OperatorPanel({
 
   useEffect(() => {
     if (!enlargedImage) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
+    const handleLightboxKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setEnlargedImage(null);
+      if (event.key === "+" || event.key === "=") {
+        setImageZoom((zoom) => Math.min(4, zoom + 0.5));
+      }
+      if (event.key === "-") {
+        setImageZoom((zoom) => Math.max(1, zoom - 0.5));
+      }
+      if (event.key === "0") setImageZoom(1);
     };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", handleLightboxKey);
+    return () => window.removeEventListener("keydown", handleLightboxKey);
   }, [enlargedImage]);
+
+  useEffect(() => {
+    const stage = lightboxStageRef.current;
+    if (!stage || imageZoom === 1) return;
+    const frame = window.requestAnimationFrame(() => {
+      stage.scrollTo({
+        left: (stage.scrollWidth - stage.clientWidth) / 2,
+        top: (stage.scrollHeight - stage.clientHeight) / 2,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [imageZoom]);
 
   async function setPhoto(questionId: string, file?: File) {
     if (!file) return;
+    setUploadingPhotoId(questionId);
     try {
       const url = await uploadImage(file);
       updateAnswer(questionId, url);
@@ -3995,6 +4324,8 @@ function OperatorPanel({
       setNotice(
         error instanceof Error ? error.message : t("notice.uploadError"),
       );
+    } finally {
+      setUploadingPhotoId(null);
     }
   }
 
@@ -4042,7 +4373,7 @@ function OperatorPanel({
     }
     setBusy(true);
     setNotice("");
-    const clientSubmissionId = crypto.randomUUID();
+    const clientSubmissionId = createClientId();
     const payload = {
       clientSubmissionId,
       formId,
@@ -4098,7 +4429,7 @@ function OperatorPanel({
   async function identifyProduct(event: FormEvent) {
     event.preventDefault();
     const inspectionStart = event.timeStamp;
-    const serialNumber = vin.trim();
+    const serialNumber = vin.trim().toUpperCase();
     if (!serialNumber) return;
     if (form?.requiresLogin && !user) {
       setNotice(t("inspection.loginRequired"));
@@ -4173,7 +4504,7 @@ function OperatorPanel({
             onClick={() => updateAnswer(question.id, true)}
           >
             {question.okImageUrl && (
-              <img src={question.okImageUrl} alt="Wzorzec OK" />
+              <SkeletonImage src={question.okImageUrl} alt="Wzorzec OK" />
             )}
             <span>✓ OK</span>
           </button>
@@ -4185,7 +4516,7 @@ function OperatorPanel({
             onClick={() => updateAnswer(question.id, false)}
           >
             {question.nokImageUrl && (
-              <img src={question.nokImageUrl} alt="Wzorzec NOK" />
+              <SkeletonImage src={question.nokImageUrl} alt="Wzorzec NOK" />
             )}
             <span>× NOK</span>
           </button>
@@ -4219,24 +4550,33 @@ function OperatorPanel({
     if (question.type === "PHOTO_UPLOAD") {
       const answer = answers[question.id];
       const photoUrl = typeof answer === "string" ? answer : "";
+      const isUploadingPhoto = uploadingPhotoId === question.id;
       return (
         <label
-          className={`upload-box inspection-photo-upload${photoUrl ? " has-photo" : ""}`}
+          className={`upload-box inspection-photo-upload${photoUrl ? " has-photo" : ""}${isUploadingPhoto ? " is-uploading" : ""}`}
+          aria-busy={isUploadingPhoto}
         >
           {photoUrl && (
-            <img
+            <SkeletonImage
               src={photoUrl}
               alt={t("inspection.uploadedPhoto", { label: question.label })}
             />
           )}
-          <span>
+          <span className="photo-upload-action">
             {photoUrl ? t("inspection.retakePhoto") : t("inspection.addPhoto")}
           </span>
+          {isUploadingPhoto && (
+            <span className="photo-upload-loader">
+              <span className="spinner" aria-hidden="true" />
+              <span>{t("inspection.uploadingPhoto")}</span>
+            </span>
+          )}
           <input
             type="file"
             accept="image/*"
             capture="environment"
             required={question.isRequired}
+            disabled={isUploadingPhoto}
             onClick={(event) => {
               event.currentTarget.value = "";
             }}
@@ -4526,12 +4866,46 @@ function OperatorPanel({
                 <input
                   id="inspection-serial-number"
                   value={vin}
-                  onChange={(event) => setVin(event.target.value)}
+                  onChange={(event) => setVin(event.target.value.toUpperCase())}
                   placeholder={t("inspection.serialPlaceholder")}
                   autoComplete="off"
+                  autoCapitalize="characters"
                   autoFocus
                   required
                 />
+                <button
+                  className="secondary camera-scan-button"
+                  type="button"
+                  aria-label={t("inspection.openCamera")}
+                  title={t("inspection.openCamera")}
+                  onClick={() => {
+                    setSerialScannerError("");
+                    setSerialScannerOpen(true);
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="22"
+                    height="22"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M8.4 5.5 9.6 3.8h4.8l1.2 1.7H19a2 2 0 0 1 2 2v10.7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h3.4Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinejoin="round"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12.7"
+                      r="3.6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    />
+                  </svg>
+                </button>
                 <button className="primary" disabled={busy}>
                   {busy ? t("inspection.checking") : t("inspection.start")}
                 </button>
@@ -4664,22 +5038,25 @@ function OperatorPanel({
                         <button
                           className="instruction-image"
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
+                            setImageZoom(1);
                             setEnlargedImage({
                               url: currentQuestion.instructionImageUrl!,
                               alt: t("aria.instruction", {
                                 label: currentQuestion.label,
                               }),
-                            })
-                          }
+                            });
+                          }}
                         >
-                          <img
+                          <SkeletonImage
                             src={currentQuestion.instructionImageUrl}
                             alt={t("aria.instruction", {
                               label: currentQuestion.label,
                             })}
                           />
-                          <span>{t("inspection.enlarge")}</span>
+                          <span className="instruction-enlarge">
+                            {t("inspection.enlarge")}
+                          </span>
                         </button>
                       </div>
                     )}
@@ -4786,6 +5163,80 @@ function OperatorPanel({
           </span>
         </div>
       </footer>
+      {serialScannerOpen && (
+        <div
+          className="serial-scanner-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSerialScannerOpen(false);
+            }
+          }}
+        >
+          <section
+            className="serial-scanner-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="serial-scanner-title"
+          >
+            <button
+              className="dialog-close"
+              type="button"
+              aria-label={t("common.close")}
+              onClick={() => setSerialScannerOpen(false)}
+            >
+              ×
+            </button>
+            <h2 id="serial-scanner-title">{t("inspection.cameraTitle")}</h2>
+            <p className="muted">{t("inspection.cameraHelp")}</p>
+            <div className="serial-camera-preview">
+              <video
+                ref={serialScannerVideo}
+                muted
+                playsInline
+                aria-label={t("inspection.cameraPreview")}
+              />
+              {!serialScannerError && (
+                <div className="serial-camera-target" aria-hidden="true" />
+              )}
+              {serialScannerError && (
+                <div className="serial-camera-error" role="alert">
+                  {serialScannerError}
+                </div>
+              )}
+            </div>
+            {serialScannerError && (
+              <label
+                className={`secondary serial-photo-button${serialPhotoBusy ? " disabled" : ""}`}
+              >
+                <input
+                  className="serial-photo-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  disabled={serialPhotoBusy}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    void scanSerialFromPhoto(file);
+                  }}
+                />
+                <span aria-hidden="true">▣</span>
+                {serialPhotoBusy
+                  ? t("inspection.cameraPhotoReading")
+                  : t("inspection.cameraTakePhoto")}
+              </label>
+            )}
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => setSerialScannerOpen(false)}
+            >
+              {t("inspection.cameraCancel")}
+            </button>
+          </section>
+        </div>
+      )}
       {enlargedImage && (
         <div
           className="image-lightbox"
@@ -4794,6 +5245,35 @@ function OperatorPanel({
           aria-label={t("inspection.enlargedImage")}
           onClick={() => setEnlargedImage(null)}
         >
+          <div
+            className="lightbox-toolbar"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              aria-label={t("inspection.zoomOut")}
+              disabled={imageZoom === 1}
+              onClick={() => setImageZoom((zoom) => Math.max(1, zoom - 0.5))}
+            >
+              −
+            </button>
+            <button
+              className="lightbox-zoom-value"
+              type="button"
+              aria-label={t("inspection.resetZoom")}
+              onClick={() => setImageZoom(1)}
+            >
+              {Math.round(imageZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              aria-label={t("inspection.zoomIn")}
+              disabled={imageZoom === 4}
+              onClick={() => setImageZoom((zoom) => Math.min(4, zoom + 0.5))}
+            >
+              +
+            </button>
+          </div>
           <button
             type="button"
             className="lightbox-close"
@@ -4802,14 +5282,69 @@ function OperatorPanel({
           >
             ×
           </button>
-          <img
-            src={enlargedImage.url}
-            alt={enlargedImage.alt}
-            onClick={(event) => event.stopPropagation()}
-          />
+          <div className="image-lightbox-stage" ref={lightboxStageRef}>
+            <div
+              className="image-lightbox-canvas"
+              style={{
+                width: `${imageZoom * 100}%`,
+                height: `${imageZoom * 100}%`,
+              }}
+            >
+              <img
+                className={imageZoom === 1 ? "can-zoom-in" : "can-zoom-out"}
+                src={enlargedImage.url}
+                alt={enlargedImage.alt}
+                style={{ transform: `scale(${imageZoom})` }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setImageZoom((zoom) => (zoom === 1 ? 2 : 1));
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
     </main>
+  );
+}
+
+function ReportSearch() {
+  const { language, t } = useI18n();
+  const [reportId, setReportId] = useState("");
+  const normalizeReportId = (value: string) =>
+    value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "").toLowerCase();
+
+  function openReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedReportId = normalizeReportId(reportId);
+    if (!normalizedReportId) return;
+    const languagePath = language === "uk" ? "ua" : language;
+    window.location.assign(
+      `/${languagePath}/reports/${encodeURIComponent(normalizedReportId)}`,
+    );
+  }
+
+  return (
+    <form className="report-search print-hidden" onSubmit={openReport}>
+      <label htmlFor="report-search-id">{t("report.searchLabel")}</label>
+      <div>
+        <input
+          id="report-search-id"
+          type="search"
+          value={reportId}
+          onChange={(event) =>
+            setReportId(normalizeReportId(event.target.value))
+          }
+          placeholder={t("report.searchPlaceholder")}
+          aria-label={t("report.searchLabel")}
+          pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}"
+          autoComplete="off"
+          spellCheck={false}
+          required
+        />
+        <button type="submit">{t("report.searchAction")}</button>
+      </div>
+    </form>
   );
 }
 
@@ -4860,6 +5395,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
               <span className="report-state-icon">?</span>
               <h1>{t("report.notFound")}</h1>
               <p>{t("report.checkAddress")}</p>
+              <ReportSearch />
             </>
           ) : (
             <>
@@ -4876,6 +5412,54 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   const passed = ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
     report.result.toUpperCase(),
   );
+  const isPassedResult = (result: string) =>
+    ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(result.toUpperCase());
+  const originalRetestReport = report.retest.reports.find(
+    (relatedReport) => relatedReport.isOriginal,
+  );
+  const retestReports = report.retest.reports.filter(
+    (relatedReport) => !relatedReport.isOriginal,
+  );
+  const reportPath = (reportId: string) =>
+    `/${language === "uk" ? "ua" : language}/reports/${reportId}`;
+  const reportTreeNode = (
+    relatedReport: PublicInspectionReport["retest"]["reports"][number],
+    label: string,
+  ) => {
+    const nodePassed = isPassedResult(relatedReport.result);
+    const content = (
+      <>
+        <span className="report-tree-node-copy">
+          <strong>{label}</strong>
+          <small>
+            {new Intl.DateTimeFormat(locale, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(relatedReport.completedAt))}
+          </small>
+          <code>{relatedReport.reportId}</code>
+        </span>
+        <span className={`report-tree-result ${nodePassed ? "pass" : "fail"}`}>
+          {nodePassed ? "✓" : "×"} {relatedReport.result}
+        </span>
+        <span className="report-tree-action">
+          {relatedReport.isCurrent
+            ? t("report.currentReport")
+            : `${t("report.openReport")} ↗`}
+        </span>
+      </>
+    );
+
+    return relatedReport.isCurrent ? (
+      <div className="report-tree-node current" aria-current="page">
+        {content}
+      </div>
+    ) : (
+      <a className="report-tree-node" href={reportPath(relatedReport.reportId)}>
+        {content}
+      </a>
+    );
+  };
   const formatValue = (answer: PublicInspectionReport["answers"][number]) => {
     const value = answer.value;
     if (value === null || value === "") return t("report.noAnswer");
@@ -4922,25 +5506,28 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
           </span>
         </header>
 
-        {report.retest.isRetest && report.retest.originalReportId && (
-          <aside className="retest-notice">
-            <span>↻</span>
-            <div>
-              <strong>Ponowna inspekcja (retest)</strong>
-              <p>
-                Powiązana z wcześniejszą inspekcją NOK
-                {report.retest.originalCompletedAt
-                  ? ` z ${new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(report.retest.originalCompletedAt))}`
-                  : ""}
-                .
-              </p>
-            </div>
-            <a
-              href={`/${language === "uk" ? "ua" : language}/reports/${report.retest.originalReportId}`}
-            >
-              Otwórz pierwotny raport ↗
-            </a>
-          </aside>
+        {originalRetestReport && retestReports.length > 0 && (
+          <section className="report-section report-tree-section">
+            <h2>{t("report.retestTree")}</h2>
+            <ul className="report-tree">
+              <li>
+                {reportTreeNode(
+                  originalRetestReport,
+                  t("report.originalInspection"),
+                )}
+                <ul>
+                  {retestReports.map((relatedReport, index) => (
+                    <li key={relatedReport.reportId}>
+                      {reportTreeNode(
+                        relatedReport,
+                        t("report.retestNumber", { number: index + 1 }),
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            </ul>
+          </section>
         )}
 
         <section className="report-summary-grid">
@@ -5293,10 +5880,7 @@ function QualityDashboard() {
 
 function App() {
   const { language, t } = useI18n();
-  const [user, setUser] = useState<SessionUser | null>(() => {
-    const raw = localStorage.getItem("inspect-hub-user");
-    return raw ? (JSON.parse(raw) as SessionUser) : null;
-  });
+  const [user, setUser] = useState<SessionUser | null>(readStoredUser);
 
   const route = (path: string) =>
     `/${language === "uk" ? "ua" : language}${path}`;
@@ -5327,6 +5911,22 @@ function App() {
   useEffect(() => {
     document.title = pageTitle;
   }, [pageTitle]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      localStorage.removeItem("inspect-hub-token");
+      localStorage.removeItem("inspect-hub-user");
+      window.history.replaceState(
+        {},
+        "",
+        `/${language === "uk" ? "ua" : language}/login`,
+      );
+      setUser(null);
+    };
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () =>
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, [language]);
 
   if (path === "/") return <Dashboard />;
   if (path === "/quality") return <QualityDashboard />;

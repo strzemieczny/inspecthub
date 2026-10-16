@@ -33,6 +33,8 @@ const translations = {
     "language.ukrainian": "Ukraiński",
     "language.switch": "Język",
     "settings.title": "Ustawienia",
+    "settings.enterFullscreen": "Włącz pełny ekran",
+    "settings.exitFullscreen": "Wyłącz pełny ekran",
     "pageTitle.dashboard": "Wyniki inspekcji",
     "pageTitle.quality": "Jakość na żywo",
     "pageTitle.report": "Raport z inspekcji",
@@ -183,6 +185,23 @@ const translations = {
       "Użyj skanera lub wpisz numer ręcznie, aby rozpocząć inspekcję.",
     "inspection.serial": "Numer seryjny",
     "inspection.serialPlaceholder": "Zeskanuj lub wpisz numer seryjny",
+    "inspection.openCamera": "Skanuj aparatem",
+    "inspection.cameraTitle": "Skanowanie numeru seryjnego",
+    "inspection.cameraHelp":
+      "Umieść kod QR lub kod kreskowy wewnątrz ramki. Numer zostanie odczytany automatycznie.",
+    "inspection.cameraPreview": "Podgląd obrazu z aparatu",
+    "inspection.cameraCancel": "Anuluj skanowanie",
+    "inspection.cameraScanned": "Numer seryjny został zeskanowany.",
+    "inspection.cameraUnsupported":
+      "Ta przeglądarka nie udostępnia dostępu do aparatu. Wpisz numer ręcznie lub sprawdź ustawienia przeglądarki.",
+    "inspection.cameraPermissionDenied":
+      "Brak dostępu do aparatu. Zezwól tej stronie na używanie aparatu i spróbuj ponownie.",
+    "inspection.cameraError":
+      "Nie udało się uruchomić aparatu. Sprawdź, czy nie jest używany przez inną aplikację.",
+    "inspection.cameraTakePhoto": "Zrób zdjęcie kodu",
+    "inspection.cameraPhotoReading": "Odczytywanie kodu…",
+    "inspection.cameraPhotoUnreadable":
+      "Nie udało się odczytać kodu ze zdjęcia. Zbliż aparat, zadbaj o dobre oświetlenie i spróbuj ponownie.",
     "inspection.checking": "Sprawdzanie trasy…",
     "inspection.start": "Rozpocznij inspekcję",
     "inspection.controlIdentification": "Identyfikacja kontroli",
@@ -195,6 +214,9 @@ const translations = {
     "inspection.question": "PYTANIE {{current}} Z {{total}}",
     "inspection.instructionPhoto": "Zdjęcie instruktażowe",
     "inspection.enlarge": "⌕ Powiększ zdjęcie",
+    "inspection.zoomIn": "Powiększ",
+    "inspection.zoomOut": "Pomniejsz",
+    "inspection.resetZoom": "Przywróć rozmiar",
     "inspection.answer": "Odpowiedź",
     "inspection.back": "← Wstecz",
     "inspection.summaryNext": "Przejdź do podsumowania",
@@ -212,6 +234,7 @@ const translations = {
     "inspection.photoAdded": "✓ Zdjęcie dodane",
     "inspection.addPhoto": "Dodaj zdjęcie usterki",
     "inspection.retakePhoto": "Wykonaj zdjęcie ponownie",
+    "inspection.uploadingPhoto": "Przesyłanie zdjęcia…",
     "inspection.uploadedPhoto": "Dodane zdjęcie: {{label}}",
     "admin.management": "Zarządzanie",
     "admin.panel": "PANEL ADMINA",
@@ -301,6 +324,9 @@ const translations = {
     "scada.publicUrlHelp": "Używany do generowania linków do raportów.",
     "scada.routePath": "Ścieżka route check",
     "scada.resultPath": "Ścieżka wysyłki wyniku",
+    "scada.unitHistoryPath": "Ścieżka historii sztuki",
+    "scada.unitHistoryPathHelp":
+      "Link w raporcie zostanie uzupełniony o parametr unit z numerem seryjnym.",
     "scada.timeout": "Timeout połączenia",
     "scada.liveHelp":
       "Żądania będą wysyłane do skonfigurowanego serwera SCADA.",
@@ -322,6 +348,11 @@ const translations = {
     "report.serial": "Numer seryjny",
     "report.family": "Rodzina produktu",
     "report.history": "Historia produktu",
+    "report.retestTree": "Drzewo raportów i retestów",
+    "report.originalInspection": "Inspekcja pierwotna",
+    "report.retestNumber": "Retest {{number}}",
+    "report.currentReport": "Aktualnie otwarty raport",
+    "report.openReport": "Otwórz raport",
     "report.execution": "Wykonanie",
     "report.dateTime": "Data i godzina",
     "report.station": "Stanowisko",
@@ -330,6 +361,9 @@ const translations = {
     "report.externalSync": "Synchronizacja z systemem zewnętrznym",
     "report.answers": "Odpowiedzi",
     "report.noAnswer": "Brak odpowiedzi",
+    "report.searchLabel": "Wyszukaj raport po UUID",
+    "report.searchPlaceholder": "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
+    "report.searchAction": "Otwórz raport",
     "form.published": "OPUBLIKOWANE STANDARDY",
     "form.existing": "Istniejące formularze",
     "form.settings": "Ustawienia formularza",
@@ -425,6 +459,8 @@ const translations = {
     "language.ukrainian": "Ukrainian",
     "language.switch": "Language",
     "settings.title": "Settings",
+    "settings.enterFullscreen": "Enter full screen",
+    "settings.exitFullscreen": "Exit full screen",
     "pageTitle.dashboard": "Inspection results",
     "pageTitle.quality": "Live quality",
     "pageTitle.report": "Inspection report",
@@ -572,6 +608,23 @@ const translations = {
       "Use a scanner or enter the number manually to begin the inspection.",
     "inspection.serial": "Serial number",
     "inspection.serialPlaceholder": "Scan or enter the serial number",
+    "inspection.openCamera": "Scan with camera",
+    "inspection.cameraTitle": "Scan serial number",
+    "inspection.cameraHelp":
+      "Place the QR code or barcode inside the frame. The number will be read automatically.",
+    "inspection.cameraPreview": "Camera preview",
+    "inspection.cameraCancel": "Cancel scanning",
+    "inspection.cameraScanned": "The serial number has been scanned.",
+    "inspection.cameraUnsupported":
+      "This browser does not provide camera access. Enter the number manually or check the browser settings.",
+    "inspection.cameraPermissionDenied":
+      "Camera access was denied. Allow this site to use the camera and try again.",
+    "inspection.cameraError":
+      "The camera could not be started. Check whether another application is using it.",
+    "inspection.cameraTakePhoto": "Take a photo of the code",
+    "inspection.cameraPhotoReading": "Reading the code…",
+    "inspection.cameraPhotoUnreadable":
+      "The code could not be read from the photo. Move closer, ensure good lighting, and try again.",
     "inspection.checking": "Checking route…",
     "inspection.start": "Start inspection",
     "inspection.controlIdentification": "Inspection identification",
@@ -584,6 +637,9 @@ const translations = {
     "inspection.question": "QUESTION {{current}} OF {{total}}",
     "inspection.instructionPhoto": "Instruction image",
     "inspection.enlarge": "⌕ Enlarge image",
+    "inspection.zoomIn": "Zoom in",
+    "inspection.zoomOut": "Zoom out",
+    "inspection.resetZoom": "Reset zoom",
     "inspection.answer": "Answer",
     "inspection.back": "← Back",
     "inspection.summaryNext": "Go to summary",
@@ -601,6 +657,7 @@ const translations = {
     "inspection.photoAdded": "✓ Photo added",
     "inspection.addPhoto": "Add a defect photo",
     "inspection.retakePhoto": "Retake photo",
+    "inspection.uploadingPhoto": "Uploading photo…",
     "inspection.uploadedPhoto": "Uploaded photo: {{label}}",
     "admin.management": "Management",
     "admin.panel": "ADMIN PANEL",
@@ -689,6 +746,9 @@ const translations = {
     "scada.publicUrlHelp": "Used to generate report links.",
     "scada.routePath": "Route check path",
     "scada.resultPath": "Result submission path",
+    "scada.unitHistoryPath": "Unit history path",
+    "scada.unitHistoryPathHelp":
+      "The report link will include the serial number in the unit parameter.",
     "scada.timeout": "Connection timeout",
     "scada.liveHelp": "Requests will be sent to the configured SCADA server.",
     "scada.devHelp": "Local simulation is active: _OK / _NOK numbers.",
@@ -709,6 +769,11 @@ const translations = {
     "report.serial": "Serial number",
     "report.family": "Product family",
     "report.history": "Product history",
+    "report.retestTree": "Report and retest tree",
+    "report.originalInspection": "Original inspection",
+    "report.retestNumber": "Retest {{number}}",
+    "report.currentReport": "Currently open report",
+    "report.openReport": "Open report",
     "report.execution": "Execution",
     "report.dateTime": "Date and time",
     "report.station": "Station",
@@ -717,6 +782,9 @@ const translations = {
     "report.externalSync": "External system synchronization",
     "report.answers": "Answers",
     "report.noAnswer": "No answer",
+    "report.searchLabel": "Find a report by UUID",
+    "report.searchPlaceholder": "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
+    "report.searchAction": "Open report",
     "form.published": "PUBLISHED STANDARDS",
     "form.existing": "Existing forms",
     "form.settings": "Form settings",
@@ -810,6 +878,8 @@ const translations = {
     "language.ukrainian": "Українська",
     "language.switch": "Мова",
     "settings.title": "Налаштування",
+    "settings.enterFullscreen": "Увімкнути повний екран",
+    "settings.exitFullscreen": "Вийти з повного екрана",
     "pageTitle.dashboard": "Результати інспекцій",
     "pageTitle.quality": "Якість наживо",
     "pageTitle.report": "Звіт про інспекцію",
@@ -956,6 +1026,23 @@ const translations = {
       "Скористайтеся сканером або введіть номер вручну, щоб почати інспекцію.",
     "inspection.serial": "Серійний номер",
     "inspection.serialPlaceholder": "Відскануйте або введіть серійний номер",
+    "inspection.openCamera": "Сканувати камерою",
+    "inspection.cameraTitle": "Сканування серійного номера",
+    "inspection.cameraHelp":
+      "Розмістіть QR-код або штрихкод у рамці. Номер буде зчитано автоматично.",
+    "inspection.cameraPreview": "Попередній перегляд із камери",
+    "inspection.cameraCancel": "Скасувати сканування",
+    "inspection.cameraScanned": "Серійний номер відскановано.",
+    "inspection.cameraUnsupported":
+      "Цей браузер не надає доступу до камери. Введіть номер вручну або перевірте налаштування браузера.",
+    "inspection.cameraPermissionDenied":
+      "Доступ до камери заборонено. Дозвольте цьому сайту використовувати камеру та повторіть спробу.",
+    "inspection.cameraError":
+      "Не вдалося запустити камеру. Перевірте, чи не використовується вона іншою програмою.",
+    "inspection.cameraTakePhoto": "Зробити фото коду",
+    "inspection.cameraPhotoReading": "Зчитування коду…",
+    "inspection.cameraPhotoUnreadable":
+      "Не вдалося прочитати код із фото. Наблизьте камеру, забезпечте добре освітлення та повторіть спробу.",
     "inspection.checking": "Перевірка маршруту…",
     "inspection.start": "Почати інспекцію",
     "inspection.controlIdentification": "Ідентифікація контролю",
@@ -968,6 +1055,9 @@ const translations = {
     "inspection.question": "ПИТАННЯ {{current}} З {{total}}",
     "inspection.instructionPhoto": "Зображення-інструкція",
     "inspection.enlarge": "⌕ Збільшити зображення",
+    "inspection.zoomIn": "Збільшити",
+    "inspection.zoomOut": "Зменшити",
+    "inspection.resetZoom": "Скинути масштаб",
     "inspection.answer": "Відповідь",
     "inspection.back": "← Назад",
     "inspection.summaryNext": "Перейти до підсумку",
@@ -985,6 +1075,7 @@ const translations = {
     "inspection.photoAdded": "✓ Фото додано",
     "inspection.addPhoto": "Додати фото дефекту",
     "inspection.retakePhoto": "Зробити фото ще раз",
+    "inspection.uploadingPhoto": "Завантаження фото…",
     "inspection.uploadedPhoto": "Додане фото: {{label}}",
     "admin.management": "Керування",
     "admin.panel": "ПАНЕЛЬ АДМІНІСТРАТОРА",
@@ -1073,6 +1164,9 @@ const translations = {
     "scada.publicUrlHelp": "Використовується для створення посилань на звіти.",
     "scada.routePath": "Шлях перевірки маршруту",
     "scada.resultPath": "Шлях надсилання результату",
+    "scada.unitHistoryPath": "Шлях історії виробу",
+    "scada.unitHistoryPathHelp":
+      "До посилання у звіті буде додано серійний номер у параметрі unit.",
     "scada.timeout": "Тайм-аут з’єднання",
     "scada.liveHelp": "Запити надсилатимуться на налаштований сервер SCADA.",
     "scada.devHelp": "Активна локальна симуляція: номери _OK / _NOK.",
@@ -1093,6 +1187,11 @@ const translations = {
     "report.serial": "Серійний номер",
     "report.family": "Сімейство продукту",
     "report.history": "Історія продукту",
+    "report.retestTree": "Дерево звітів і повторних перевірок",
+    "report.originalInspection": "Первинна інспекція",
+    "report.retestNumber": "Повторна перевірка {{number}}",
+    "report.currentReport": "Поточний відкритий звіт",
+    "report.openReport": "Відкрити звіт",
     "report.execution": "Виконання",
     "report.dateTime": "Дата й час",
     "report.station": "Станція",
@@ -1101,6 +1200,9 @@ const translations = {
     "report.externalSync": "Синхронізація із зовнішньою системою",
     "report.answers": "Відповіді",
     "report.noAnswer": "Немає відповіді",
+    "report.searchLabel": "Знайти звіт за UUID",
+    "report.searchPlaceholder": "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
+    "report.searchAction": "Відкрити звіт",
     "form.published": "ОПУБЛІКОВАНІ СТАНДАРТИ",
     "form.existing": "Наявні форми",
     "form.settings": "Налаштування форми",
@@ -1263,13 +1365,39 @@ export function useI18n() {
   return context;
 }
 
+type WebkitFullscreenDocument = Document & {
+  webkitExitFullscreen?: () => Promise<void> | void;
+  webkitFullscreenElement?: Element | null;
+};
+
+type WebkitFullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+function isAndroidOrIPad() {
+  const userAgent = navigator.userAgent;
+  const isIPadOS =
+    /iPad/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
+  return /Android/i.test(userAgent) || isIPadOS;
+}
+
 export function SettingsMenu() {
   const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => (document.documentElement.dataset.theme as Theme) || "light",
   );
+  const [fullscreen, setFullscreen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fullscreenDocument = document as WebkitFullscreenDocument;
+  const fullscreenRoot = document.documentElement as WebkitFullscreenElement;
+  const canToggleFullscreen =
+    isAndroidOrIPad() &&
+    Boolean(
+      document.documentElement.requestFullscreen ||
+      fullscreenRoot.webkitRequestFullscreen,
+    );
 
   const changeTheme = (nextTheme: Theme) => {
     if (nextTheme === theme) return;
@@ -1303,6 +1431,49 @@ export function SettingsMenu() {
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
+  useEffect(() => {
+    if (!canToggleFullscreen) return;
+
+    const updateFullscreenState = () => {
+      setFullscreen(
+        Boolean(
+          document.fullscreenElement ||
+          fullscreenDocument.webkitFullscreenElement,
+        ),
+      );
+    };
+    updateFullscreenState();
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenState);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        updateFullscreenState,
+      );
+    };
+  }, [canToggleFullscreen, fullscreenDocument]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (
+        document.fullscreenElement ||
+        fullscreenDocument.webkitFullscreenElement
+      ) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else await fullscreenDocument.webkitExitFullscreen?.();
+      } else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen({
+          navigationUI: "hide",
+        });
+      } else {
+        await fullscreenRoot.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // The browser may reject the request when fullscreen is restricted.
+    }
+  };
+
   const options: { code: Language; label: string }[] = [
     { code: "pl", label: t("language.polish") },
     { code: "en", label: t("language.english") },
@@ -1311,6 +1482,32 @@ export function SettingsMenu() {
 
   return (
     <div className="settings-menu" ref={menuRef}>
+      {canToggleFullscreen && (
+        <button
+          type="button"
+          className="settings-trigger fullscreen-trigger"
+          aria-label={
+            fullscreen
+              ? t("settings.exitFullscreen")
+              : t("settings.enterFullscreen")
+          }
+          title={
+            fullscreen
+              ? t("settings.exitFullscreen")
+              : t("settings.enterFullscreen")
+          }
+          aria-pressed={fullscreen}
+          onClick={() => void toggleFullscreen()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            {fullscreen ? (
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            ) : (
+              <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+            )}
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         className="settings-trigger"
@@ -1345,11 +1542,7 @@ export function SettingsMenu() {
           ))}
           <div className="settings-divider" />
           <strong>
-            {language === "pl"
-              ? "Motyw"
-              : language === "uk"
-                ? "Тема"
-                : "Theme"}
+            {language === "pl" ? "Motyw" : language === "uk" ? "Тема" : "Theme"}
           </strong>
           <button
             type="button"

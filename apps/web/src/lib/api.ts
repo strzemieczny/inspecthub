@@ -2,6 +2,14 @@ const API_URL =
   import.meta.env.VITE_API_URL ??
   `${window.location.protocol}//${window.location.hostname}:3000/api`;
 
+export const AUTH_UNAUTHORIZED_EVENT = "inspect-hub-auth-unauthorized";
+
+function notifyUnauthorized(path: string, status: number): void {
+  if (status === 401 && !path.startsWith("/auth/")) {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  }
+}
+
 export function qualityWebSocketUrl(): string {
   const url = new URL(API_URL, window.location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -87,6 +95,7 @@ export async function api<T>(
   });
 
   if (!response.ok) {
+    notifyUnauthorized(path, response.status);
     const body = (await response.json().catch(() => null)) as {
       message?: string | string[];
     } | null;
@@ -112,11 +121,13 @@ export async function downloadFile(path: string): Promise<void> {
     credentials: "include",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!response.ok)
+  if (!response.ok) {
+    notifyUnauthorized(path, response.status);
     throw new ApiError(
       `Błąd eksportu HTTP ${response.status}`,
       response.status,
     );
+  }
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const filename =
