@@ -66,6 +66,7 @@ Administrator zarządza nimi przez `/api/scada/settings`:
 - `baseUrl` — adres SCADA,
 - `routeCheckPath` — endpoint sprawdzenia produktu,
 - `submitResultPath` — endpoint odbioru wyniku,
+- `unitHistoryPath` — ścieżka historii sztuki (domyślnie `/std_public/unithistory`),
 - `publicWebUrl` — baza linku do raportu,
 - `timeoutMs` — timeout od 500 do 30 000 ms.
 

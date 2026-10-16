@@ -664,6 +664,7 @@ export class InspectionsService {
           : {}),
       },
       select: {
+        id: true,
         publicReportId: true,
         vinOrSerialNumber: true,
         stationId: true,
@@ -835,6 +836,7 @@ export class InspectionsService {
         });
       if (existingSubmission) return existingSubmission;
     }
+    const serialNumber = dto.vinOrSerialNumber.trim().toUpperCase();
     const form = await this.database.form.findUnique({
       where: { id: dto.formId },
       include: { processes: true },
@@ -886,7 +888,7 @@ export class InspectionsService {
         throw new BadRequestException('Brak ważnej zgody SCADA na inspekcję');
       }
       if (
-        routeCheck.serialNumber !== dto.vinOrSerialNumber.trim() ||
+        routeCheck.serialNumber !== serialNumber ||
         routeCheck.stationCode !== stationId ||
         routeCheck.processName !== managedStation.process!.name
       ) {
@@ -936,11 +938,10 @@ export class InspectionsService {
 
     const publicReportId = randomUUID();
     const resultValue = this.isPassed(status) ? 'PASS' : 'FAIL';
-    const reportUrl = `${scadaSettings.publicWebUrl.replace(/\/+$/, '')}/reports/${publicReportId}`;
     const result = await this.database.$transaction(async (database) => {
       const previousInspection = await database.inspectionResult.findFirst({
         where: {
-          vinOrSerialNumber: dto.vinOrSerialNumber.trim(),
+          vinOrSerialNumber: serialNumber,
           form: { code: form.code },
         },
         select: { id: true, status: true, originalInspectionId: true },
@@ -955,7 +956,7 @@ export class InspectionsService {
           publicReportId,
           clientSubmissionId: dto.clientSubmissionId,
           formId: form.id,
-          vinOrSerialNumber: dto.vinOrSerialNumber.trim(),
+          vinOrSerialNumber: serialNumber,
           stationId,
           operatorId,
           status,
@@ -978,7 +979,7 @@ export class InspectionsService {
               serialNumber: created.vinOrSerialNumber,
               processName: managedStation.process!.name,
               result: resultValue,
-              reportUrl,
+              reportUrl: publicReportId,
             },
           },
         });
@@ -1020,6 +1021,7 @@ export class InspectionsService {
     const result = await this.database.inspectionResult.findUnique({
       where: { publicReportId },
       select: {
+        id: true,
         publicReportId: true,
         vinOrSerialNumber: true,
         stationId: true,
@@ -1030,8 +1032,9 @@ export class InspectionsService {
         productFamily: true,
         scadaServerUrl: true,
         createdAt: true,
+        originalInspectionId: true,
         originalInspection: {
-          select: { publicReportId: true, createdAt: true },
+          select: { id: true, publicReportId: true, createdAt: true },
         },
         operator: { select: { name: true } },
         form: {
@@ -1046,13 +1049,29 @@ export class InspectionsService {
     });
     if (!result) throw new NotFoundException('Nie znaleziono raportu');
 
-    const station = await this.database.station.findUnique({
-      where: { code: result.stationId },
-      select: {
-        name: true,
-        process: { select: { name: true } },
-      },
-    });
+    const originalInspectionId = result.originalInspection?.id ?? result.id;
+    const [station, scadaSettings, relatedReports] = await Promise.all([
+      this.database.station.findUnique({
+        where: { code: result.stationId },
+        select: {
+          name: true,
+          process: { select: { name: true } },
+        },
+      }),
+      this.scadaConnector.getSettings(),
+      this.database.inspectionResult.findMany({
+        where: {
+          OR: [{ id: originalInspectionId }, { originalInspectionId }],
+        },
+        select: {
+          id: true,
+          publicReportId: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
     const questions = result.form.questions as unknown as InspectionQuestion[];
     const savedAnswers = result.answers as unknown as InspectionAnswer[];
     const answerMap = new Map(
@@ -1086,6 +1105,13 @@ export class InspectionsService {
         originalReportId: result.originalInspection?.publicReportId ?? null,
         originalCompletedAt:
           result.originalInspection?.createdAt.toISOString() ?? null,
+        reports: relatedReports.map((relatedReport) => ({
+          reportId: relatedReport.publicReportId,
+          completedAt: relatedReport.createdAt.toISOString(),
+          result: relatedReport.status,
+          isOriginal: relatedReport.id === originalInspectionId,
+          isCurrent: relatedReport.id === result.id,
+        })),
       },
       station: { code: result.stationId, name: station?.name ?? null },
       process: station?.process?.name ?? null,
@@ -1101,6 +1127,7 @@ export class InspectionsService {
       scadaUnitHistoryUrl: this.scadaUnitHistoryUrl(
         result.scadaServerUrl,
         result.vinOrSerialNumber,
+        scadaSettings.unitHistoryPath,
       ),
       answers,
       summary: {
@@ -1172,6 +1199,7 @@ export class InspectionsService {
   private scadaUnitHistoryUrl(
     serverUrl: string | null,
     serialNumber: string,
+    unitHistoryPath: string,
   ): string | null {
     if (!serverUrl?.trim()) return null;
     const normalizedServerUrl = /^https?:\/\//i.test(serverUrl)
@@ -1179,7 +1207,7 @@ export class InspectionsService {
       : `http://${serverUrl}`;
     try {
       const historyUrl = new URL(
-        'unithistory',
+        unitHistoryPath,
         `${normalizedServerUrl.replace(/\/+$/, '')}/`,
       );
       historyUrl.searchParams.set('unit', serialNumber);

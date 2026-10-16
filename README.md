@@ -257,8 +257,9 @@ Endpointy przyjmują filtry dashboardu: `from`, `to`, `processId`, `stationId`,
 
 Connector SCADA wykonuje synchroniczny route check po zeskanowaniu numeru
 seryjnego i asynchronicznie przekazuje wynik zakończonej inspekcji wraz z
-publicznym linkiem do raportu. Adres SCADA, ścieżki endpointów, timeout i
-publiczny adres frontendu konfiguruje administrator w panelu aplikacji.
+publicznym linkiem do raportu. Adres SCADA, ścieżki endpointów i historii
+sztuki, timeout oraz publiczny adres frontendu konfiguruje administrator w
+panelu aplikacji.
 
 W środowisku deweloperskim API udostępnia symulator SCADA:
 

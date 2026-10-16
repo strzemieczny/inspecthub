@@ -22,6 +22,7 @@ describe('ScadaConnectorService', () => {
       baseUrl: 'http://scada.local',
       routeCheckPath: '/route-check',
       submitResultPath: '/result',
+      unitHistoryPath: '/std_public/unithistory',
       publicWebUrl: 'http://localhost:5173',
       timeoutMs: 5000,
     });
@@ -31,6 +32,29 @@ describe('ScadaConnectorService', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('normalizes and saves the configured unit history path', async () => {
+    await service.updateSettings(
+      {
+        enabled: true,
+        baseUrl: 'http://scada.local/',
+        routeCheckPath: 'route-check',
+        submitResultPath: '/result',
+        unitHistoryPath: 'std_public/unithistory',
+        publicWebUrl: 'http://localhost:5173/',
+        timeoutMs: 5000,
+      },
+      'admin-1',
+    );
+
+    expect(database.scadaSettings.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          unitHistoryPath: '/std_public/unithistory',
+        }),
+      }),
+    );
+  });
 
   it('sends the agreed route-check contract and stores an allowed result', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue(
@@ -44,7 +68,7 @@ describe('ScadaConnectorService', () => {
       ),
     );
 
-    const result = await service.routeCheck('SN-1', 'st-10');
+    const result = await service.routeCheck(' sn-1 ', 'st-10');
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://scada.local/route-check',
@@ -59,6 +83,9 @@ describe('ScadaConnectorService', () => {
       product: { partNumber: 'PN-1', productFamily: 'EXAMPLE' },
       routeCheckId: 'route-1',
       integrationEnabled: true,
+    });
+    expect(database.routeCheck.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ serialNumber: 'SN-1' }),
     });
   });
 
@@ -80,6 +107,7 @@ describe('ScadaConnectorService', () => {
       baseUrl: '',
       routeCheckPath: '/route-check',
       submitResultPath: '/result',
+      unitHistoryPath: '/std_public/unithistory',
       publicWebUrl: 'http://localhost:5173',
       timeoutMs: 5000,
     });
@@ -99,6 +127,7 @@ describe('ScadaConnectorService', () => {
       baseUrl: '',
       routeCheckPath: '/route-check',
       submitResultPath: '/result',
+      unitHistoryPath: '/std_public/unithistory',
       publicWebUrl: 'http://localhost:5173',
       timeoutMs: 5000,
     });

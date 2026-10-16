@@ -170,6 +170,7 @@ model ScadaSettings {
   baseUrl          String   @default("")
   routeCheckPath   String   @default("/api/route-check")
   submitResultPath String   @default("/api/inspection-result")
+  unitHistoryPath  String   @default("/std_public/unithistory")
   publicWebUrl     String   @default("http://localhost:5173")
   timeoutMs        Int      @default(5000)
   updatedAt        DateTime @updatedAt

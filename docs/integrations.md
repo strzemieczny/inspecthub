@@ -36,6 +36,10 @@ Decyzja jest zapisywana jako `RouteCheck`. Zgoda jest związana z numerem
 seryjnym, kodem stanowiska i nazwą procesu oraz może zostać wykorzystana tylko
 przez jeden wynik inspekcji.
 
+Link do historii sztuki jest budowany z `serverUrl` oraz konfigurowalnej
+`unitHistoryPath` (domyślnie `/std_public/unithistory`) i otrzymuje numer seryjny
+w parametrze `unit`.
+
 ### Dostarczenie wyniku
 
 Po transakcyjnym zapisie inspekcji powstaje `ScadaDelivery` z payloadem:
@@ -45,7 +49,7 @@ Po transakcyjnym zapisie inspekcji powstaje `ScadaDelivery` z payloadem:
   "serialNumber": "VIN123",
   "processName": "Montaż",
   "result": "PASS",
-  "reportUrl": "https://inspect.example/reports/<publicReportId>"
+  "reportUrl": "<publicReportId>"
 }
 ```
 

@@ -47,6 +47,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
         baseUrl: true,
         routeCheckPath: true,
         submitResultPath: true,
+        unitHistoryPath: true,
         publicWebUrl: true,
         timeoutMs: true,
       },
@@ -67,6 +68,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
         baseUrl: true,
         routeCheckPath: true,
         submitResultPath: true,
+        unitHistoryPath: true,
         publicWebUrl: true,
         timeoutMs: true,
       },
@@ -77,7 +79,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
     serialNumberInput: string,
     stationCodeInput: string,
   ): Promise<RouteCheckResult> {
-    const serialNumber = serialNumberInput.trim();
+    const serialNumber = serialNumberInput.trim().toUpperCase();
     const stationCode = stationCodeInput.trim().toUpperCase();
     const station = await this.database.station.findUnique({
       where: { code: stationCode },
@@ -288,6 +290,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
       baseUrl: dto.baseUrl.trim().replace(/\/+$/, ''),
       routeCheckPath: path(dto.routeCheckPath),
       submitResultPath: path(dto.submitResultPath),
+      unitHistoryPath: path(dto.unitHistoryPath),
       publicWebUrl: dto.publicWebUrl.trim().replace(/\/+$/, ''),
       timeoutMs: dto.timeoutMs,
     };

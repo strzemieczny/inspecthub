@@ -55,6 +55,9 @@ export class UpdateScadaSettingsDto {
   @IsString()
   submitResultPath!: string;
 
+  @IsString()
+  unitHistoryPath!: string;
+
   @IsUrl({ require_tld: false, protocols: ['http', 'https'] })
   publicWebUrl!: string;
 

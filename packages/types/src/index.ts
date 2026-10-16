@@ -102,6 +102,7 @@ export interface ScadaSettings {
   baseUrl: string;
   routeCheckPath: string;
   submitResultPath: string;
+  unitHistoryPath: string;
   publicWebUrl: string;
   timeoutMs: number;
 }
@@ -154,6 +155,13 @@ export interface PublicInspectionReport {
     isRetest: boolean;
     originalReportId: string | null;
     originalCompletedAt: string | null;
+    reports: Array<{
+      reportId: string;
+      completedAt: string;
+      result: string;
+      isOriginal: boolean;
+      isCurrent: boolean;
+    }>;
   };
   station: { code: string; name: string | null };
   process: string | null;

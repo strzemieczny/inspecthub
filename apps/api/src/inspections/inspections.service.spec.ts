@@ -13,10 +13,11 @@ describe('InspectionsService public reports', () => {
   const findManyForms = jest.fn();
   const countStations = jest.fn();
   const createResult = jest.fn();
+  const createScadaDelivery = jest.fn();
   const findFirstResult = jest.fn().mockResolvedValue(null);
   const transactionClient = {
     inspectionResult: { create: createResult, findFirst: findFirstResult },
-    scadaDelivery: { create: jest.fn() },
+    scadaDelivery: { create: createScadaDelivery },
     auditEvent: { create: jest.fn() },
   };
   const runTransaction = (
@@ -41,6 +42,7 @@ describe('InspectionsService public reports', () => {
     getSettings: jest.fn().mockResolvedValue({
       enabled: false,
       publicWebUrl: 'http://localhost:5173',
+      unitHistoryPath: '/std_public/unithistory',
     }),
     processPending: jest.fn(),
   } as unknown as ScadaConnectorService;
@@ -66,6 +68,7 @@ describe('InspectionsService public reports', () => {
 
   it('returns a minimal public report based on the stored form revision', async () => {
     findUniqueReport.mockResolvedValue({
+      id: 'result-original',
       publicReportId,
       vinOrSerialNumber: 'SN-100',
       stationId: 'ST-01',
@@ -75,8 +78,10 @@ describe('InspectionsService public reports', () => {
         { questionId: 'q2', value: 11 },
       ],
       mesSynced: true,
-      scadaServerUrl: 'http://scada.local',
+      scadaServerUrl: 'http://scada.local/unit/SN-100',
       createdAt: new Date('2026-08-09T10:00:00Z'),
+      originalInspectionId: null,
+      originalInspection: null,
       operator: { name: 'Jan Kowalski' },
       form: {
         code: 'QC-01',
@@ -104,6 +109,14 @@ describe('InspectionsService public reports', () => {
       name: 'Linia 1',
       process: { name: 'Montaż' },
     });
+    findManyResults.mockResolvedValue([
+      {
+        id: 'result-original',
+        publicReportId,
+        status: 'PASSED',
+        createdAt: new Date('2026-08-09T10:00:00Z'),
+      },
+    ]);
 
     const report = await service.getPublicReport(publicReportId);
 
@@ -115,12 +128,110 @@ describe('InspectionsService public reports', () => {
       form: { code: 'QC-01', version: 3 },
       summary: { total: 2, passed: 2, failed: 0 },
       externalSyncStatus: 'SYNCED',
-      scadaUnitHistoryUrl: 'http://scada.local/unithistory?unit=SN-100',
+      retest: {
+        reports: [
+          {
+            reportId: publicReportId,
+            isOriginal: true,
+            isCurrent: true,
+          },
+        ],
+      },
+      scadaUnitHistoryUrl:
+        'http://scada.local/std_public/unithistory?unit=SN-100',
     });
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain('operatorId');
     expect(serialized).not.toContain('email');
     expect(serialized).not.toContain('role');
+  });
+
+  it('returns the original report and every related retest', async () => {
+    findUniqueReport.mockResolvedValue({
+      id: 'result-retest-2',
+      publicReportId: 'report-retest-2',
+      vinOrSerialNumber: 'SN-100',
+      stationId: 'ST-01',
+      status: 'PASSED',
+      answers: [],
+      mesSynced: true,
+      partNumber: null,
+      productFamily: null,
+      scadaServerUrl: null,
+      createdAt: new Date('2026-08-11T10:00:00Z'),
+      originalInspectionId: 'result-original',
+      originalInspection: {
+        id: 'result-original',
+        publicReportId: 'report-original',
+        createdAt: new Date('2026-08-09T10:00:00Z'),
+      },
+      operator: { name: 'Jan Kowalski' },
+      form: {
+        code: 'QC-01',
+        title: 'Kontrola końcowa',
+        version: 3,
+        questions: [],
+      },
+    });
+    findUniqueStation.mockResolvedValue({
+      name: 'Linia 1',
+      process: { name: 'Montaż' },
+    });
+    findManyResults.mockResolvedValue([
+      {
+        id: 'result-original',
+        publicReportId: 'report-original',
+        status: 'FAILED',
+        createdAt: new Date('2026-08-09T10:00:00Z'),
+      },
+      {
+        id: 'result-retest-1',
+        publicReportId: 'report-retest-1',
+        status: 'FAILED',
+        createdAt: new Date('2026-08-10T10:00:00Z'),
+      },
+      {
+        id: 'result-retest-2',
+        publicReportId: 'report-retest-2',
+        status: 'PASSED',
+        createdAt: new Date('2026-08-11T10:00:00Z'),
+      },
+    ]);
+
+    const report = await service.getPublicReport('report-retest-2');
+
+    expect(findManyResults).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { id: 'result-original' },
+          { originalInspectionId: 'result-original' },
+        ],
+      },
+      select: {
+        id: true,
+        publicReportId: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(report.retest.reports).toEqual([
+      expect.objectContaining({
+        reportId: 'report-original',
+        isOriginal: true,
+        isCurrent: false,
+      }),
+      expect.objectContaining({
+        reportId: 'report-retest-1',
+        isOriginal: false,
+        isCurrent: false,
+      }),
+      expect.objectContaining({
+        reportId: 'report-retest-2',
+        isOriginal: false,
+        isCurrent: true,
+      }),
+    ]);
   });
 
   it('throws 404 for an unknown publicReportId', async () => {
@@ -159,7 +270,7 @@ describe('InspectionsService public reports', () => {
 
     const dto = {
       formId: 'form-1',
-      vinOrSerialNumber: 'SN-100',
+      vinOrSerialNumber: ' sn-100 ',
       stationId: 'ST-01',
       status: 'PASSED',
       answers: [],
@@ -171,6 +282,9 @@ describe('InspectionsService public reports', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(generatedIds[0]).not.toBe(generatedIds[1]);
+    expect(createResult).toHaveBeenCalledWith({
+      data: expect.objectContaining({ vinOrSerialNumber: 'SN-100' }),
+    });
   });
 
   it('determines the final status from answers when every expected value is configured', async () => {
@@ -214,5 +328,59 @@ describe('InspectionsService public reports', () => {
       [{ data: { status: string } }],
     ];
     expect(createCall[0].data.status).toBe('FAILED');
+  });
+
+  it('sends only the report UUID as reportUrl to SCADA', async () => {
+    (database.form.findUnique as jest.Mock).mockResolvedValue({
+      id: 'form-1',
+      code: 'QC-01',
+      allowedStatuses: ['PASSED'],
+      questions: [],
+      processes: [{ id: 'process-1' }],
+    });
+    findUniqueStation.mockResolvedValue({
+      active: true,
+      processId: 'process-1',
+      process: { id: 'process-1', name: 'Montaż' },
+    });
+    (database.routeCheck.findUnique as jest.Mock).mockResolvedValue({
+      id: 'route-check-1',
+      allowed: true,
+      serialNumber: 'SN-100',
+      stationCode: 'ST-01',
+      processName: 'Montaż',
+    });
+    findUniqueReport.mockResolvedValueOnce(null);
+    (scadaConnector.getSettings as jest.Mock).mockResolvedValueOnce({
+      enabled: true,
+      publicWebUrl: 'https://inspect.example',
+    });
+    createResult.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ id: 'result-1', ...data }),
+    );
+
+    await service.create(
+      {
+        formId: 'form-1',
+        vinOrSerialNumber: 'SN-100',
+        stationId: 'ST-01',
+        status: 'PASSED',
+        answers: [],
+        routeCheckId: 'route-check-1',
+      },
+      'operator-1',
+    );
+
+    const publicReportId =
+      createResult.mock.calls.at(-1)?.[0].data.publicReportId;
+    expect(createScadaDelivery).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        payload: expect.objectContaining({ reportUrl: publicReportId }),
+      }),
+    });
+    expect(publicReportId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 });
