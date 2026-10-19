@@ -208,9 +208,12 @@ export class FormsService {
   private portableMediaUrl(url?: string): string | undefined {
     if (!url) return undefined;
     try {
-      const parsed = new URL(url);
-      if (parsed.pathname === '/api/media/object') {
-        return `${parsed.pathname}${parsed.search}`;
+      const parsed = new URL(url, 'http://inspect-hub.invalid');
+      if (
+        parsed.pathname === '/api/media/object' ||
+        parsed.pathname === '/inspect-hub/api/media/object'
+      ) {
+        return `/api/media/object${parsed.search}`;
       }
     } catch {
       // Już zapisany adres względny pozostaje bez zmian.

@@ -51,7 +51,6 @@ wartości. Bucket powinien być prywatny; obrazy są serwowane przez API.
 
 - `POSTGRES_IMAGE`,
 - `MINIO_IMAGE`,
-- `MINIO_MC_IMAGE`,
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
 - `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`.
 

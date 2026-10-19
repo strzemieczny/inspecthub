@@ -1,0 +1,47 @@
+name: Code checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @inspect-hub/database build
+      - run: pnpm check-types
+      - run: pnpm lint
+      - run: pnpm --filter api test -- --runInBand
+      - run: pnpm --filter inspect-hub-mobile test
+      - name: Build API and web
+        run: pnpm exec turbo run build --filter=api... --filter=web...
+        env:
+          VITE_BASE_PATH: /inspect-hub/
+          VITE_API_URL: /inspect-hub/api
+      - name: Check deployment configuration
+        run: |
+          bash -n deployment/ubuntu/deploy.sh
+          docker compose --env-file .env.production.example -f docker-compose.production.yaml config --quiet
+      - name: Test routing under a subpath
+        run: node --experimental-strip-types --test apps/web/src/lib/routing.test.ts
+      - name: Build production images
+        run: docker compose --env-file .env.production.example -f docker-compose.production.yaml build

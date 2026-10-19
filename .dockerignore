@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/google-services.json
+**/GoogleService-Info.plist
+apps/inspect-hub-mobile
+.idea
+.DS_Store

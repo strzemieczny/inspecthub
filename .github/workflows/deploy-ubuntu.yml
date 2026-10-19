@@ -1,0 +1,35 @@
+name: Deploy to Ubuntu
+
+on:
+  workflow_run:
+    workflows: ["Code checks"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inspect-hub-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: [self-hosted, linux, inspect-hub-production]
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Deploy tested commit
+        env:
+          IH_DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          IH_DEPLOY_DIR: ${{ vars.IH_DEPLOY_DIR || '/opt/inspect-hub' }}
+          IH_STACK_NAME: ${{ vars.IH_STACK_NAME || 'inspect-hub-production' }}
+        run: bash deployment/ubuntu/deploy.sh

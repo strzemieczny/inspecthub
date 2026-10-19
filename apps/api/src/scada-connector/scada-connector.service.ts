@@ -193,7 +193,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
     if (normalized.endsWith('_OK')) {
       return {
         allowed: true,
-        serverUrl: `http://localhost:3000/api/dev/scada/product-history/${encodeURIComponent(serialNumber)}`,
+        serverUrl: `${(process.env.PUBLIC_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '')}/dev/scada/product-history/${encodeURIComponent(serialNumber)}`,
         product: {
           partNumber: `DEV-${normalized.slice(0, -3) || 'PRODUCT'}`,
           productFamily: 'DEV',

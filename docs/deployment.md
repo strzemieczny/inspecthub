@@ -1,5 +1,8 @@
 # Wdrożenie produkcyjne
 
+Automatyczne wdrożenie po pushu do `main` na wspólnym serwerze BW Mind,
+z adresem `/inspect-hub/`, opisuje [instrukcja Ubuntu](../deployment/ubuntu/README.md).
+
 ## Warunki release’u
 
 - czysty commit przeznaczony do wdrożenia,
@@ -22,9 +25,9 @@ docker compose --env-file .env.production \
   -f docker-compose.production.yaml config --quiet
 ```
 
-Konfiguracja produkcyjna nie publikuje portów PostgreSQL ani MinIO i wymusza
-prywatny bucket. API i frontend mogą być wdrażane przez właściwą platformę;
-repozytorium nie narzuca konkretnego runtime dla tych dwóch procesów.
+Konfiguracja produkcyjna obejmuje API i statyczny frontend, nie publikuje
+portów na hoście i wymusza prywatny bucket. Usługi web i API łączą się
+z zewnętrzną siecią `bw-apps-edge`, używaną przez wspólny Nginx.
 
 ## Migracje
 

@@ -22,7 +22,7 @@ export class DevScadaController {
     if (serialNumber.endsWith('_OK')) {
       return {
         allowed: true as const,
-        serverUrl: `http://localhost:3000/api/dev/scada/product-history/${encodeURIComponent(dto.serialNumber.trim())}`,
+        serverUrl: `${(process.env.PUBLIC_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '')}/dev/scada/product-history/${encodeURIComponent(dto.serialNumber.trim())}`,
         product: {
           partNumber: `DEV-${serialNumber.slice(0, -3) || 'PRODUCT'}`,
           productFamily: 'DEV',

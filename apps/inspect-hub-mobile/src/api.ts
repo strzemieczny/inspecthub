@@ -57,11 +57,13 @@ export async function api<T>(
   }
 }
 export function mediaUrl(value: string): string {
-  if (value.startsWith("/api/media/object?"))
-    return `${API_URL}${value.slice(4)}`;
+  const mediaPath = value.match(
+    /^(?:\/inspect-hub)?\/api\/media\/object(\?.*)$/,
+  );
+  if (mediaPath) return `${API_URL}/media/object${mediaPath[1]}`;
   try {
     const url = new URL(value);
-    if (url.pathname === "/api/media/object")
+    if (url.pathname.endsWith("/api/media/object"))
       return `${API_URL}/media/object${url.search}`;
     if (url.hostname === "localhost" && url.port === "9000") {
       const object = decodeURIComponent(url.pathname)

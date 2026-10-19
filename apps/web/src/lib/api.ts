@@ -20,12 +20,15 @@ export function qualityWebSocketUrl(): string {
 
 function normalizeMediaUrls<T>(value: T): T {
   if (typeof value === "string") {
-    if (value.startsWith("/api/media/object?")) {
-      return `${API_URL}${value.slice("/api".length)}` as T;
+    const mediaPath = value.match(
+      /^(?:\/inspect-hub)?\/api\/media\/object(\?.*)$/,
+    );
+    if (mediaPath) {
+      return `${API_URL}/media/object${mediaPath[1]}` as T;
     }
     try {
       const url = new URL(value);
-      if (url.pathname === "/api/media/object") {
+      if (url.pathname.endsWith("/api/media/object")) {
         return `${API_URL}/media/object${url.search}` as T;
       }
       if (url.hostname === "localhost" && url.port === "9000") {

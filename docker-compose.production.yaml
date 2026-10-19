@@ -1,6 +1,66 @@
 name: inspect-hub-production
 
 services:
+  api:
+    image: inspect-hub-api:${IH_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile
+      target: api
+    restart: unless-stopped
+    env_file: ${IH_ENV_FILE:-.env.production}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      TRUST_PROXY: "true"
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL using internal hostname postgres}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      WEB_ORIGIN: ${WEB_ORIGIN:?Set WEB_ORIGIN without a path}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: inspection-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    networks:
+      default:
+      edge:
+        aliases: [inspect-hub-api]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  web:
+    image: inspect-hub-web:${IH_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile
+      target: web
+    restart: unless-stopped
+    networks:
+      edge:
+        aliases: [inspect-hub-web]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   postgres:
     image: ${POSTGRES_IMAGE:?Set POSTGRES_IMAGE to an immutable PostgreSQL image tag or digest}
     restart: unless-stopped
@@ -26,13 +86,14 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 10s
       timeout: 5s
       retries: 10
 
   createbuckets:
-    image: ${MINIO_MC_IMAGE:?Set MINIO_MC_IMAGE to an immutable MinIO Client image tag or digest}
+    # This server image includes mc; use one version for storage and initialization.
+    image: ${MINIO_IMAGE:?Set MINIO_IMAGE to an immutable MinIO image tag or digest}
     depends_on:
       minio:
         condition: service_healthy
@@ -50,3 +111,8 @@ services:
 volumes:
   postgres_data:
   minio_data:
+
+networks:
+  edge:
+    external: true
+    name: bw-apps-edge

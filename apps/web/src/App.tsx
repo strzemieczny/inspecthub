@@ -32,6 +32,7 @@ import {
   type SessionUser,
 } from "./lib/api";
 import "./App.css";
+import { appPath, appRoute, currentAppPath } from "./lib/routing";
 import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
 
 function readStoredUser(): SessionUser | null {
@@ -1026,8 +1027,7 @@ function QualityHeatmap({
 
 function Dashboard() {
   const { language, locale, t } = useI18n();
-  const route = (path: string) =>
-    `/${language === "uk" ? "ua" : language}${path}`;
+  const route = (path: string) => appRoute(language, path);
   const [data, setData] = useState<DashboardData>(emptyDashboard);
   const [connection, setConnection] = useState<"loading" | "live" | "error">(
     "loading",
@@ -1188,7 +1188,7 @@ function Dashboard() {
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}
@@ -2063,7 +2063,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
       <section className="auth-card">
         <img
           className="auth-brand-symbol"
-          src="/branding/inspect-hub-symbol-192-v2.png"
+          src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
           alt=""
           width={80}
           height={80}
@@ -4787,14 +4787,11 @@ function OperatorPanel({
       className={`station-shell${productIdentified && form ? " inspection-in-progress" : ""}`}
     >
       <header className="station-bar">
-        <a
-          className="brand"
-          href={`/${language === "uk" ? "ua" : language}/inspection`}
-        >
+        <a className="brand" href={appRoute(language, "/inspection")}>
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}
@@ -5473,7 +5470,10 @@ function ReportSearch() {
     if (!normalizedReportId) return;
     const languagePath = language === "uk" ? "ua" : language;
     window.location.assign(
-      `/${languagePath}/reports/${encodeURIComponent(normalizedReportId)}`,
+      appRoute(
+        languagePath,
+        `/reports/${encodeURIComponent(normalizedReportId)}`,
+      ),
     );
   }
 
@@ -5533,11 +5533,11 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   if (!report) {
     return (
       <main className="public-report-state">
-        <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
+        <a className="brand" href={appRoute(language, "/")}>
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}
@@ -5583,7 +5583,7 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
     (relatedReport) => !relatedReport.isOriginal,
   );
   const reportPath = (reportId: string) =>
-    `/${language === "uk" ? "ua" : language}/reports/${reportId}`;
+    appRoute(language, `/reports/${reportId}`);
   const reportTreeNode = (
     relatedReport: PublicInspectionReport["retest"]["reports"][number],
     label: string,
@@ -5639,11 +5639,11 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
   return (
     <main className="public-report-shell">
       <header className="report-nav print-hidden">
-        <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
+        <a className="brand" href={appRoute(language, "/")}>
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}
@@ -5876,8 +5876,7 @@ type QualityDashboardData = {
 
 function QualityDashboard() {
   const { language, locale } = useI18n();
-  const route = (path: string) =>
-    `/${language === "uk" ? "ua" : language}${path}`;
+  const route = (path: string) => appRoute(language, path);
   const [data, setData] = useState<QualityDashboardData | null>(null);
   const [connection, setConnection] = useState<
     "connecting" | "live" | "offline"
@@ -5932,7 +5931,7 @@ function QualityDashboard() {
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}
@@ -6061,9 +6060,8 @@ function App() {
   const { language, t } = useI18n();
   const [user, setUser] = useState<SessionUser | null>(readStoredUser);
 
-  const route = (path: string) =>
-    `/${language === "uk" ? "ua" : language}${path}`;
-  const originalPath = window.location.pathname;
+  const route = (path: string) => appRoute(language, path);
+  const originalPath = currentAppPath();
   const routeMatch = originalPath.match(/^\/(pl|en|ua)(\/.*)?$/);
   if (!routeMatch) {
     window.history.replaceState(
@@ -6095,11 +6093,7 @@ function App() {
     const handleUnauthorized = () => {
       localStorage.removeItem("inspect-hub-token");
       localStorage.removeItem("inspect-hub-user");
-      window.history.replaceState(
-        {},
-        "",
-        `/${language === "uk" ? "ua" : language}/login`,
-      );
+      window.history.replaceState({}, "", appRoute(language, "/login"));
       setUser(null);
     };
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
@@ -6170,7 +6164,7 @@ function App() {
           <span className="brand-icon">
             <img
               className="brand-symbol"
-              src="/branding/inspect-hub-symbol-192-v2.png"
+              src={appPath("/branding/inspect-hub-symbol-192-v2.png")}
               alt=""
               width={36}
               height={36}

@@ -1,4 +1,5 @@
-const CACHE_NAME = "inspect-hub-shell-v3";
+const BASE = new URL(self.registration.scope).pathname;
+const CACHE_NAME = `inspect-hub-shell-v4-${BASE}`;
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -9,7 +10,7 @@ const APP_SHELL = [
   "/app-icon-192.png?v=3",
   "/app-icon-512.png?v=3",
   "/app-icon-maskable-512.png?v=3",
-];
+].map((path) => `${BASE}${path.slice(1)}`);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,15 +23,17 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter(
-            (key) => key.startsWith("inspect-hub-") && key !== CACHE_NAME,
-          )
-          .map((key) => caches.delete(key)),
-      ).then(() => self.clients.claim()),
-    ),
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter(
+              (key) => key.startsWith("inspect-hub-") && key !== CACHE_NAME,
+            )
+            .map((key) => caches.delete(key)),
+        ).then(() => self.clients.claim()),
+      ),
   );
 });
 
@@ -39,7 +42,11 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+  if (
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith(`${BASE}api/`) ||
+    !url.pathname.startsWith(BASE)
+  ) {
     return;
   }
 
@@ -51,11 +58,11 @@ self.addEventListener("fetch", (event) => {
             const copy = response.clone();
             void caches
               .open(CACHE_NAME)
-              .then((cache) => cache.put("/index.html", copy));
+              .then((cache) => cache.put(`${BASE}index.html`, copy));
           }
           return response;
         })
-        .catch(() => caches.match("/index.html")),
+        .catch(() => caches.match(`${BASE}index.html`)),
     );
     return;
   }
@@ -67,7 +74,9 @@ self.addEventListener("fetch", (event) => {
         fetch(request).then((response) => {
           if (!response.ok) return response;
           const copy = response.clone();
-          void caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          void caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(request, copy));
           return response;
         }),
     ),

@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { appRoute, currentAppPath } from "./routing";
 
 export type Language = "pl" | "en" | "uk";
 type Theme = "light" | "dark";
@@ -1316,9 +1317,7 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue | null>(null);
 
 function initialLanguage(): Language {
-  const routeLanguage = window.location.pathname.match(
-    /^\/(pl|en|ua)(?:\/|$)/,
-  )?.[1];
+  const routeLanguage = currentAppPath().match(/^\/(pl|en|ua)(?:\/|$)/)?.[1];
   if (routeLanguage === "ua") return "uk";
   if (routeLanguage === "pl" || routeLanguage === "en") return routeLanguage;
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -1333,13 +1332,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(initialLanguage);
 
   const changeLanguage = (nextLanguage: Language) => {
-    const route =
-      window.location.pathname.replace(/^\/(pl|en|ua)(?=\/|$)/, "") || "/";
-    const routeLanguage = nextLanguage === "uk" ? "ua" : nextLanguage;
+    const route = currentAppPath().replace(/^\/(pl|en|ua)(?=\/|$)/, "") || "/";
     window.history.replaceState(
       {},
       "",
-      `/${routeLanguage}${route}${window.location.search}${window.location.hash}`,
+      `${appRoute(nextLanguage, route)}${window.location.search}${window.location.hash}`,
     );
     setLanguage(nextLanguage);
   };

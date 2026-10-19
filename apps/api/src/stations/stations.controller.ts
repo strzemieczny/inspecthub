@@ -99,7 +99,10 @@ export class StationsController {
     response.cookie('inspect_hub_station', token, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production',
+      secure:
+        process.env.STATION_COOKIE_SECURE === undefined
+          ? process.env.NODE_ENV === 'production'
+          : process.env.STATION_COOKIE_SECURE === 'true',
       maxAge: 365 * 24 * 60 * 60 * 1000,
       path: '/api',
     });
