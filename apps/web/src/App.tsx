@@ -6028,7 +6028,7 @@ function App() {
 
   return (
     <>
-      <nav>
+      <nav className="admin-topbar">
         <a className="brand" href={route("/admin")}>
           <span className="brand-icon">
             <img
@@ -6045,10 +6045,16 @@ function App() {
           <a className="station-link" href={route("/inspection")}>
             {t("nav.openStation")}
           </a>
-          <span className="user-chip">
-            {user.name} · {user.role}
-          </span>
-          <button className="ghost" onClick={logoutUser}>
+          <div className="admin-account" title={user.name}>
+            <span className="admin-account-avatar" aria-hidden="true">
+              {user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+            </span>
+            <span className="admin-account-copy">
+              <strong>{user.name}</strong>
+              <small>{user.role}</small>
+            </span>
+          </div>
+          <button className="ghost admin-logout" onClick={logoutUser}>
             {t("common.logout")}
           </button>
           <SettingsMenu />

@@ -6895,6 +6895,135 @@ label.check {
   object-fit: contain;
 }
 
+.admin-topbar {
+  --topbar-bg: #17352c;
+  --topbar-border: #345247;
+  --topbar-text: #edf5f0;
+  --topbar-muted: #aec6bb;
+  height: auto;
+  min-height: 68px;
+  gap: 1.5rem;
+  padding: 0.85rem 1.5rem;
+  color: var(--topbar-text);
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--topbar-border);
+}
+.admin-topbar .brand {
+  flex-shrink: 0;
+  color: var(--topbar-text);
+}
+.admin-topbar .brand > .brand-icon {
+  width: 34px;
+  height: 34px;
+}
+.admin-topbar .nav-actions {
+  min-width: 0;
+  gap: 0.65rem;
+}
+.admin-topbar .station-link,
+.admin-topbar .admin-logout,
+.admin-topbar .settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  margin: 0;
+  border: 1px solid var(--topbar-border);
+  border-radius: 8px;
+  color: var(--topbar-text);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-topbar .station-link {
+  background: #294c3e;
+  border-color: #466b59;
+}
+.admin-topbar .admin-logout {
+  padding: 0.55rem 0.8rem;
+}
+.admin-topbar :is(.station-link, .admin-logout, .settings-trigger):hover,
+.admin-topbar .settings-trigger[aria-expanded="true"] {
+  color: #fff;
+  background: #345d4c;
+  border-color: #638574;
+}
+.admin-topbar :is(a, button):focus-visible {
+  outline: 2px solid #9fd4b8;
+  outline-offset: 3px;
+}
+.admin-account {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  margin-left: 0.5rem;
+  padding-left: 1.15rem;
+  padding-right: 0.5rem;
+  border-left: 1px solid var(--topbar-border);
+}
+.admin-account-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #c6e6d4;
+  background: #2c5141;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.admin-account-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.admin-account-copy strong {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--topbar-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.admin-account-copy small {
+  color: var(--topbar-muted);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+}
+:root[data-theme="dark"] .admin-topbar {
+  --topbar-bg: var(--dark-header);
+  --topbar-border: var(--dark-border);
+  --topbar-text: var(--dark-text);
+  --topbar-muted: var(--dark-muted);
+}
+@media (max-width: 800px) {
+  .admin-topbar .admin-account-copy {
+    display: none;
+  }
+  .admin-account {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+}
+@media (max-width: 600px) {
+  .admin-topbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+  .admin-topbar .nav-actions {
+    width: 100%;
+    gap: 0.5rem;
+  }
+  .admin-topbar .station-link {
+    margin-right: auto;
+  }
+}
+
 /* Revision history uses its own tokens to keep comparison states consistent in both themes. */
 .form-revision-history {
   --revision-text: #243c34;
