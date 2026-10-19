@@ -52,7 +52,8 @@ backup=".git/deploy-backups/$(date -u +%Y%m%dT%H%M%SZ)-$sha.dump"
 compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup"
 compose run --rm --no-deps createbuckets
 compose run --rm --no-deps api pnpm --filter @inspect-hub/database db:migrate:deploy
-compose up -d --no-build --wait --wait-timeout 300 api web
+# Dependencies were checked above; do not wait for the completed createbuckets job.
+compose up -d --no-deps --no-build --wait --wait-timeout 300 api web
 compose exec -T web wget -q -O /dev/null http://127.0.0.1/pl/admin
 printf '%s\n' "$sha" > .git/inspect-hub-last-successful-deploy
 echo "[OK] Deployed $sha (Compose project $project)"
