@@ -8,8 +8,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { RequestWithUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -23,15 +25,19 @@ export class FormsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  create(@Body() dto: CreateFormDto) {
-    return this.forms.create(dto);
+  create(@Body() dto: CreateFormDto, @Req() request: RequestWithUser) {
+    return this.forms.create(dto, request.user.userId);
   }
 
   @Post(':id/duplicate')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  duplicate(@Param('id') id: string, @Body() dto: DuplicateFormDto) {
-    return this.forms.duplicate(id, dto);
+  duplicate(
+    @Param('id') id: string,
+    @Body() dto: DuplicateFormDto,
+    @Req() request: RequestWithUser,
+  ) {
+    return this.forms.duplicate(id, dto, request.user.userId);
   }
 
   @Get()
@@ -54,8 +60,12 @@ export class FormsController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateFormDto) {
-    return this.forms.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateFormDto,
+    @Req() request: RequestWithUser,
+  ) {
+    return this.forms.update(id, dto, request.user.userId);
   }
 
   @Patch(':id/archive')

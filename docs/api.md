@@ -41,7 +41,7 @@ Oznaczenia dostępu:
 | `DELETE /stations/:id`                 | admin          | usunięcie stanowiska                    |
 | `GET /forms`                           | publiczny      | najnowsze aktywne formularze            |
 | `GET /forms/:id`                       | publiczny      | jedna rewizja formularza                |
-| `GET /forms/:id/revisions`             | admin          | historia rewizji                        |
+| `GET /forms/:id/revisions`             | admin          | historia rewizji, autorzy i daty publikacji |
 | `POST /forms`                          | admin          | utworzenie formularza                   |
 | `POST /forms/:id/duplicate`            | admin          | kopia jako nowy kod                     |
 | `PATCH /forms/:id`                     | admin          | utworzenie nowej rewizji                |
@@ -143,3 +143,16 @@ jako formuły arkusza kalkulacyjnego.
 NestJS zwraca standardowe kody HTTP, m.in. `400`, `401`, `403`, `404`, `409`,
 `502`, `503`. Każda odpowiedź zawiera `x-correlation-id`. Klient może podać
 własny identyfikator zgodny z `[A-Za-z0-9._:-]{1,128}`.
+
+### Autorzy rewizji formularzy
+
+`GET /forms/:id/revisions` zwraca pełne wersje formularza, datę publikacji
+`createdAt` oraz `createdBy: { id, name } | null`. Nazwa autora jest zapisywana
+przy publikacji i pozostaje niezmienna po zmianie lub usunięciu konta.
+Tożsamość autora pochodzi z uwierzytelnionej sesji administratora. Publiczne
+endpointy formularzy nie zwracają `createdBy`.
+
+Migracja `20261019110000_add_form_revision_author` uzupełnia autorów starszych
+rewizji na podstawie udanych zdarzeń publikacji w audycie. Gdy brakuje danych,
+`createdBy` pozostaje `null`. W panelu edycji formularza każdą rewizję można
+rozwinąć, aby zobaczyć wartości przed i po zmianie względem poprzedniej wersji.

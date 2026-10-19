@@ -32,6 +32,7 @@ import {
   type SessionUser,
 } from "./lib/api";
 import "./App.css";
+import { FormRevisionHistory } from "./components/FormRevisionHistory";
 import { appPath, appRoute, currentAppPath } from "./lib/routing";
 import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
 
@@ -2704,6 +2705,7 @@ function AdminPanel() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [revisions, setRevisions] = useState<InspectionForm[]>([]);
+  const revisionRequest = useRef(0);
   const processes = useMemo(
     () =>
       [
@@ -2789,8 +2791,10 @@ function AdminPanel() {
   ]);
 
   async function editForm(form: InspectionForm) {
+    const request = ++revisionRequest.current;
     setSection("forms-edit");
     setEditingForm(form);
+    setRevisions([]);
     setTitle(form.title);
     setCode(form.code);
     setStatuses([...form.allowedStatuses]);
@@ -2802,11 +2806,16 @@ function AdminPanel() {
     setQuestions(structuredClone(form.questions));
     setNotice("");
     try {
-      setRevisions(await api<InspectionForm[]>(`/forms/${form.id}/revisions`));
-    } catch (reason) {
-      setNotice(
-        reason instanceof Error ? reason.message : t("notice.revisionsError"),
+      const history = await api<InspectionForm[]>(
+        `/forms/${form.id}/revisions`,
       );
+      if (request === revisionRequest.current) setRevisions(history);
+    } catch (reason) {
+      if (request === revisionRequest.current) {
+        setNotice(
+          reason instanceof Error ? reason.message : t("notice.revisionsError"),
+        );
+      }
     }
   }
 
@@ -3282,22 +3291,11 @@ function AdminPanel() {
                   )}
                 </div>
                 {editingForm && revisions.length > 0 && (
-                  <div className="revision-history">
-                    <strong>
-                      {t("form.history", { code: editingForm.code })}
-                    </strong>
-                    <div>
-                      {revisions.map((revision) => (
-                        <span key={revision.id}>
-                          <b>v{revision.version}</b>
-                          {new Intl.DateTimeFormat(locale, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          }).format(new Date(revision.createdAt))}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  <FormRevisionHistory
+                    revisions={revisions}
+                    code={editingForm.code}
+                    processes={processes}
+                  />
                 )}
               </section>
             )}

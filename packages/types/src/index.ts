@@ -58,6 +58,8 @@ export interface InspectionForm {
   partNumbers?: string[];
   /** Publication date of this immutable revision. */
   createdAt: string;
+  /** Author snapshot, available in the administrator revision history. */
+  createdBy?: { id: string; name: string } | null;
   /** Date when the form and all its revisions were archived. */
   archivedAt: string | null;
 }

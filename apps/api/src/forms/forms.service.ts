@@ -8,9 +8,10 @@ import { CreateFormDto, DuplicateFormDto, UpdateFormDto } from './dto/form.dto';
 export class FormsService {
   constructor(private readonly database: DatabaseService) {}
 
-  async create(dto: CreateFormDto): Promise<InspectionForm> {
+  async create(dto: CreateFormDto, actorId: string): Promise<InspectionForm> {
     const form = await this.database.form.create({
       data: {
+        ...(await this.authorSnapshot(actorId)),
         title: dto.title,
         code: dto.code.trim().toUpperCase(),
         version: 1,
@@ -54,7 +55,11 @@ export class FormsService {
       .map((form) => this.toContract(form));
   }
 
-  async duplicate(id: string, dto: DuplicateFormDto): Promise<InspectionForm> {
+  async duplicate(
+    id: string,
+    dto: DuplicateFormDto,
+    actorId: string,
+  ): Promise<InspectionForm> {
     const source = await this.database.form.findUnique({
       where: { id },
       include: { processes: true },
@@ -62,6 +67,7 @@ export class FormsService {
     if (!source) throw new NotFoundException('Nie znaleziono formularza');
     const copy = await this.database.form.create({
       data: {
+        ...(await this.authorSnapshot(actorId)),
         title: dto.title.trim(),
         code: dto.code.trim().toUpperCase(),
         version: 1,
@@ -88,7 +94,11 @@ export class FormsService {
     return this.toContract(form);
   }
 
-  async update(id: string, dto: UpdateFormDto): Promise<InspectionForm> {
+  async update(
+    id: string,
+    dto: UpdateFormDto,
+    actorId: string,
+  ): Promise<InspectionForm> {
     const source = await this.database.form.findUnique({ where: { id } });
     if (!source) throw new NotFoundException('Nie znaleziono formularza');
     if (source.archivedAt)
@@ -103,6 +113,7 @@ export class FormsService {
 
     const form = await this.database.form.create({
       data: {
+        ...(await this.authorSnapshot(actorId)),
         title: dto.title ?? latest.title,
         code: latest.code,
         version: latest.version + 1,
@@ -139,7 +150,13 @@ export class FormsService {
       orderBy: { version: 'desc' },
       include: { processes: true },
     });
-    return revisions.map((revision) => this.toContract(revision));
+    return revisions.map((revision) => ({
+      ...this.toContract(revision),
+      createdBy:
+        revision.createdById && revision.createdByName
+          ? { id: revision.createdById, name: revision.createdByName }
+          : null,
+    }));
   }
 
   async remove(id: string): Promise<void> {
@@ -154,6 +171,14 @@ export class FormsService {
       where: { code: form.code, archivedAt: null },
       data: { archivedAt: new Date() },
     });
+  }
+
+  private async authorSnapshot(actorId: string) {
+    const actor = await this.database.user.findUniqueOrThrow({
+      where: { id: actorId },
+      select: { id: true, name: true },
+    });
+    return { createdById: actor.id, createdByName: actor.name };
   }
 
   private normalizePartNumbers(values: string[]): string[] {
