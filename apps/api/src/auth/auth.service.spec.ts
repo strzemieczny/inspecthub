@@ -80,14 +80,17 @@ describe('AuthService setupStatus', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('reports registrationAvailable as true when user database is empty', async () => {
+  it('allows initial setup when no administrator exists', async () => {
     database.user.count.mockResolvedValue(0);
     await expect(service.setupStatus()).resolves.toEqual({
       registrationAvailable: true,
     });
+    expect(database.user.count).toHaveBeenCalledWith({
+      where: { role: Role.ADMIN },
+    });
   });
 
-  it('reports registrationAvailable as false when users exist', async () => {
+  it('hides initial setup when an administrator exists', async () => {
     database.user.count.mockResolvedValue(2);
     await expect(service.setupStatus()).resolves.toEqual({
       registrationAvailable: false,
@@ -140,6 +143,10 @@ describe('AuthService register', () => {
         role: Role.ADMIN,
       },
     });
+    expect(tx.user.count).toHaveBeenCalledWith({ where: { role: Role.ADMIN } });
+    expect(database.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    });
     expect(tx.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: 'admin@example.com',
@@ -150,7 +157,7 @@ describe('AuthService register', () => {
     });
   });
 
-  it('rejects registration when users already exist in the database', async () => {
+  it('rejects registration when an administrator already exists', async () => {
     const tx = {
       user: {
         count: jest.fn().mockResolvedValue(1),
@@ -168,7 +175,7 @@ describe('AuthService register', () => {
         password: 'password123',
       }),
     ).rejects.toThrow(
-      'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego konta',
+      'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego administratora',
     );
     expect(tx.user.create).not.toHaveBeenCalled();
   });

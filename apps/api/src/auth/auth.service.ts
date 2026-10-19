@@ -26,7 +26,10 @@ export class AuthService {
   ) {}
 
   async setupStatus() {
-    return { registrationAvailable: (await this.database.user.count()) === 0 };
+    return {
+      registrationAvailable:
+        (await this.database.user.count({ where: { role: Role.ADMIN } })) === 0,
+    };
   }
 
   async register(dto: RegisterDto) {
@@ -36,9 +39,11 @@ export class AuthService {
     try {
       user = await this.database.$transaction(
         async (transaction) => {
-          if ((await transaction.user.count()) > 0) {
+          if (
+            (await transaction.user.count({ where: { role: Role.ADMIN } })) > 0
+          ) {
             throw new ForbiddenException(
-              'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego konta',
+              'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego administratora',
             );
           }
           return transaction.user.create({

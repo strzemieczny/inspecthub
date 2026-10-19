@@ -137,10 +137,10 @@ Usługi lokalne:
    pnpm dev
    ```
 
-Po otwarciu `http://localhost:5173/login` utwórz pierwsze konto. Rejestracja
-startowa działa wyłącznie wtedy, gdy baza nie zawiera jeszcze użytkowników, a
-pierwsze konto automatycznie otrzymuje rolę administratora. Kolejne konta
-tworzy administrator w panelu zarządzania.
+Po otwarciu `http://localhost:5173/login` utwórz pierwsze konto administratora.
+Formularz konfiguracji jest dostępny, dopóki w bazie nie ma administratora;
+wcześniejsze logowanie operatora kartą nie blokuje konfiguracji.
+Kolejne konta tworzy administrator w panelu zarządzania.
 
 ### Uruchamianie aplikacji osobno
 

@@ -8,7 +8,7 @@
 - Administracja użytkownikami, formularzami, stanowiskami, ustawieniami SCADA i
   audytem jest chroniona rolami.
 - Formularz może dodatkowo wymagać zalogowanego operatora.
-- Rejestracja publiczna działa wyłącznie przed utworzeniem pierwszego konta;
+- Rejestracja publiczna działa wyłącznie przed utworzeniem pierwszego administratora;
   transakcja `Serializable` chroni przed wyścigiem dwóch rejestracji.
 
 ## Hasła i karty
