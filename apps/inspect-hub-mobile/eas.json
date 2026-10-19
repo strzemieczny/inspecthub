@@ -10,8 +10,18 @@
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://bw-mind-dev.borgwarner.net/inspect-hub/api",
+        "MOBILE_ALLOW_HTTP": "1"
+      }
     },
-    "production": { "android": { "buildType": "apk" } }
+    "production": {
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://bw-mind-dev.borgwarner.net/inspect-hub/api",
+        "MOBILE_ALLOW_HTTP": "1"
+      }
+    }
   }
 }

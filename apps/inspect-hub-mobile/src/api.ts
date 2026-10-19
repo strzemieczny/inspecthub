@@ -1,10 +1,10 @@
 import { File } from "expo-file-system";
 import type { Session } from "./inspection";
 
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+export const API_URL = (
+  process.env.EXPO_PUBLIC_API_URL ||
+  "http://bw-mind-dev.borgwarner.net/inspect-hub/api"
+).replace(/\/+$/, "");
 let token: string | null = null;
 export function setApiSession(session: Session | null) {
   token = session?.accessToken ?? null;

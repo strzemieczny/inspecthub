@@ -7,6 +7,7 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "build": "expo export --platform android --output-dir dist",
+    "build:apk": "eas build --platform android --profile production",
     "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test src/inspection.test.ts"
