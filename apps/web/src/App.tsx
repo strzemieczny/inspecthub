@@ -207,6 +207,17 @@ function writeInspectionQueue(queue: QueuedInspection[]) {
   localStorage.setItem(OFFLINE_INSPECTION_QUEUE_KEY, JSON.stringify(queue));
 }
 
+function normalizePartNumbers(values: string[]): string[] {
+  return [
+    ...new Set(
+      values
+        .flatMap((value) => value.split(/[\n,;]+/))
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 type NewFormDraft = {
   title: string;
   code: string;
@@ -214,6 +225,7 @@ type NewFormDraft = {
   nokStreakThreshold: number;
   requiresLogin: boolean;
   processIds: string[];
+  partNumbers?: string[];
   questions: InspectionQuestion[];
   updatedAt: string;
 };
@@ -248,12 +260,14 @@ function hasNewFormDraftContent(draft: Omit<NewFormDraft, "updatedAt">) {
     draft.title ||
     draft.code ||
     draft.processIds.length ||
+    draft.partNumbers?.length ||
     draft.nokStreakThreshold !== 3 ||
     draft.requiresLogin ||
     draft.questions.length > 1 ||
     draft.questions.some(
       (question) =>
         question.label ||
+        question.description ||
         question.type !== "CHECKBOX" ||
         !question.isRequired ||
         (question.severity ?? (question.isCritical ? "CRITICAL" : "NORMAL")) !==
@@ -1171,7 +1185,15 @@ function Dashboard() {
     <main className="dashboard-shell">
       <header className="dashboard-nav">
         <a className="brand dashboard-brand" href={route("/")}>
-          <span>IH</span>
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>
           <div>
             Inspect Hub<small>{t("common.qualityIntelligence")}</small>
           </div>
@@ -2039,7 +2061,13 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
         <SettingsMenu />
       </div>
       <section className="auth-card">
-        <div className="brand-mark">IH</div>
+        <img
+          className="auth-brand-symbol"
+          src="/branding/inspect-hub-symbol-192-v2.png"
+          alt=""
+          width={80}
+          height={80}
+        />
         <p className="eyebrow">{t("common.qualityOperations")}</p>
         <h1>Inspect Hub</h1>
         <p className="muted">{t("login.tagline")}</p>
@@ -2557,6 +2585,15 @@ function AdminPanel() {
   const [requiresLogin, setRequiresLogin] = useState(
     initialDraft?.requiresLogin ?? false,
   );
+  const [partNumbers, setPartNumbers] = useState<string[]>(
+    initialDraft?.partNumbers ?? [],
+  );
+  const [partNumberInput, setPartNumberInput] = useState("");
+
+  function addPartNumbers(value = partNumberInput) {
+    setPartNumbers((current) => normalizePartNumbers([...current, value]));
+    setPartNumberInput("");
+  }
   const [processIds, setProcessIds] = useState<string[]>(
     initialDraft?.processIds ?? [],
   );
@@ -2624,6 +2661,7 @@ function AdminPanel() {
       nokStreakThreshold,
       requiresLogin,
       processIds,
+      partNumbers: normalizePartNumbers([...partNumbers, partNumberInput]),
       questions,
     };
     if (!hasNewFormDraftContent(content)) {
@@ -2649,6 +2687,8 @@ function AdminPanel() {
     nokStreakThreshold,
     requiresLogin,
     processIds,
+    partNumbers,
+    partNumberInput,
     questions,
     section,
     statuses,
@@ -2665,6 +2705,8 @@ function AdminPanel() {
     setNokStreakThreshold(form.nokStreakThreshold);
     setRequiresLogin(form.requiresLogin);
     setProcessIds([...form.processIds]);
+    setPartNumbers(form.partNumbers ?? []);
+    setPartNumberInput("");
     setQuestions(structuredClone(form.questions));
     setNotice("");
     try {
@@ -2734,6 +2776,8 @@ function AdminPanel() {
     setNokStreakThreshold(draft?.nokStreakThreshold ?? 3);
     setRequiresLogin(draft?.requiresLogin ?? false);
     setProcessIds(draft?.processIds ?? []);
+    setPartNumbers(draft?.partNumbers ?? []);
+    setPartNumberInput("");
     setQuestions(draft?.questions.length ? draft.questions : [emptyQuestion()]);
     setDraftSavedAt(draft?.updatedAt ?? "");
     setRevisions([]);
@@ -2849,6 +2893,10 @@ function AdminPanel() {
             requiresLogin,
             questions: questions.map(removeEmptyOptions),
             processIds,
+            partNumbers: normalizePartNumbers([
+              ...partNumbers,
+              partNumberInput,
+            ]),
           }),
         },
       );
@@ -2862,6 +2910,8 @@ function AdminPanel() {
         setNokStreakThreshold(3);
         setRequiresLogin(false);
         setProcessIds([]);
+        setPartNumbers([]);
+        setPartNumberInput("");
         setQuestions([emptyQuestion()]);
         setDraftSavedAt("");
       }
@@ -3251,6 +3301,105 @@ function AdminPanel() {
                       <small>{t("form.requiresLoginHelp")}</small>
                     </span>
                   </label>
+                  <label htmlFor="form-part-number">Part Number (SCADA)</label>
+                  <div className="part-number-field">
+                    <div
+                      className="part-number-tags"
+                      aria-label="Przypisane numery PN"
+                    >
+                      {partNumbers.map((partNumber) => (
+                        <span className="part-number-tag" key={partNumber}>
+                          <span title={partNumber}>{partNumber}</span>
+                          <button
+                            type="button"
+                            aria-label={`Usuń PN ${partNumber}`}
+                            disabled={busy}
+                            onClick={() =>
+                              setPartNumbers((current) =>
+                                current.filter((value) => value !== partNumber),
+                              )
+                            }
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <path
+                                d="m4 4 8 8M12 4l-8 8"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="part-number-entry">
+                      <input
+                        id="form-part-number"
+                        value={partNumberInput}
+                        onChange={(event) =>
+                          setPartNumberInput(event.target.value)
+                        }
+                        onBlur={() => addPartNumbers()}
+                        onKeyDown={(event) => {
+                          if (
+                            !event.nativeEvent.isComposing &&
+                            ["Enter", ",", ";"].includes(event.key)
+                          ) {
+                            event.preventDefault();
+                            addPartNumbers();
+                          }
+                        }}
+                        onPaste={(event) => {
+                          const value = event.clipboardData.getData("text");
+                          if (/[\n,;]/.test(value)) {
+                            event.preventDefault();
+                            const input = event.currentTarget;
+                            const combined =
+                              partNumberInput.slice(
+                                0,
+                                input.selectionStart ?? partNumberInput.length,
+                              ) +
+                              value +
+                              partNumberInput.slice(
+                                input.selectionEnd ?? partNumberInput.length,
+                              );
+                            addPartNumbers(combined);
+                          }
+                        }}
+                        placeholder="Dodaj numer PN…"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        disabled={busy}
+                      />
+                      <button
+                        type="button"
+                        disabled={busy || !partNumberInput.trim()}
+                        onClick={() => addPartNumbers()}
+                      >
+                        <svg
+                          width="15"
+                          height="15"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M8 3v10M3 8h10"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        Dodaj
+                      </button>
+                    </div>
+                  </div>
                   <label>{t("form.assignedProcesses")}</label>
                   <div className="station-picker">
                     {processes.map((process) => (
@@ -3312,6 +3461,22 @@ function AdminPanel() {
                           }
                           placeholder={t("form.questionPlaceholder")}
                           required
+                        />
+                      </label>
+                      <label>
+                        {t("form.verificationDescription")}
+                        <textarea
+                          className="verification-description-input"
+                          value={question.description ?? ""}
+                          onChange={(event) =>
+                            updateQuestion(question.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          placeholder={t(
+                            "form.verificationDescriptionPlaceholder",
+                          )}
+                          rows={3}
                         />
                       </label>
                       <details className="question-translations">
@@ -3737,7 +3902,7 @@ function AdminPanel() {
                     )}
                   </div>
                   {questions[previewIndex].description && (
-                    <p className="muted">
+                    <p className="muted verification-description">
                       {questions[previewIndex].description}
                     </p>
                   )}
@@ -4202,12 +4367,7 @@ function OperatorPanel({
         setStationId(normalizedStationId);
         setStationName(currentStation?.name ?? "");
         setStationProcessId(currentStation?.process?.id ?? "");
-        const firstAvailable = data.find(
-          (item) =>
-            Boolean(currentStation?.process) &&
-            item.processIds.includes(currentStation!.process!.id),
-        );
-        setFormId(firstAvailable?.id ?? "");
+        setFormId("");
       })
       .catch((error: Error) => {
         try {
@@ -4219,11 +4379,7 @@ function OperatorPanel({
           setStationId(cached.station?.code ?? "");
           setStationName(cached.station?.name ?? "");
           setStationProcessId(cached.station?.process?.id ?? "");
-          setFormId(
-            cached.forms.find((item) =>
-              item.processIds.includes(cached.station?.process?.id ?? ""),
-            )?.id ?? "",
-          );
+          setFormId("");
           setNotice("Tryb offline — używane są ostatnio zapisane formularze.");
         } catch {
           setNotice(error.message);
@@ -4266,12 +4422,7 @@ function OperatorPanel({
       setStationProcessId(station.process?.id ?? "");
       setNewStationName("");
       setNewStationProcessName("");
-      const nextForms = forms.filter(
-        (item) =>
-          Boolean(station.process) &&
-          item.processIds.includes(station.process!.id),
-      );
-      setFormId(nextForms[0]?.id ?? "");
+      setFormId("");
       setNotice(t("notice.stationPaired", { name: station.name }));
       setOperatorNoticeKind("success");
     } catch (error) {
@@ -4431,12 +4582,6 @@ function OperatorPanel({
     const inspectionStart = event.timeStamp;
     const serialNumber = vin.trim().toUpperCase();
     if (!serialNumber) return;
-    if (form?.requiresLogin && !user) {
-      setNotice(t("inspection.loginRequired"));
-      setOperatorNoticeKind("error");
-      openOperatorLogin();
-      return;
-    }
     setBusy(true);
     setNotice("");
     try {
@@ -4449,6 +4594,24 @@ function OperatorPanel({
         setOperatorNoticeKind("error");
         return;
       }
+      const matchedForm = result.form;
+      if (!matchedForm)
+        throw new Error("Brak dopasowanego formularza dla produktu.");
+      if (matchedForm.requiresLogin && !user) {
+        setNotice(t("inspection.loginRequired"));
+        setOperatorNoticeKind("error");
+        openOperatorLogin();
+        return;
+      }
+      setForms((current) => [
+        ...current.filter((item) => item.id !== matchedForm.id),
+        matchedForm,
+      ]);
+      setFormId(matchedForm.id);
+      setAnswers({});
+      setStatus("");
+      setQuestionIndex(0);
+      setShowSummary(false);
       setVin(serialNumber);
       setRouteCheckId(result.routeCheckId);
       setProduct(result.integrationEnabled ? result.product : null);
@@ -4628,7 +4791,15 @@ function OperatorPanel({
           className="brand"
           href={`/${language === "uk" ? "ua" : language}/inspection`}
         >
-          <span>IH</span>
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>
           <div>
             Inspect Hub<small>{t("inspection.mode")}</small>
           </div>
@@ -4923,38 +5094,18 @@ function OperatorPanel({
                 <span>01</span>
                 <div>
                   <h2>{t("inspection.controlIdentification")}</h2>
-                  <p>{t("inspection.chooseAndScan")}</p>
                 </div>
               </div>
               <label>
                 {t("inspection.form")}
-                <select
-                  value={formId}
-                  onChange={(e) => {
-                    const nextForm = forms.find(
-                      (item) => item.id === e.target.value,
-                    );
-                    if (nextForm?.requiresLogin && !user) {
-                      setNotice(t("inspection.loginRequired"));
-                      setOperatorNoticeKind("error");
-                      openOperatorLogin();
-                      return;
-                    }
-                    setFormId(e.target.value);
-                    setAnswers({});
-                    setStatus("");
-                    setQuestionIndex(0);
-                    setShowSummary(false);
-                  }}
-                  required
-                >
-                  <option value="">{t("inspection.chooseStandard")}</option>
-                  {availableForms.map((item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.code} · {item.title} · v{item.version}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  readOnly
+                  value={
+                    form
+                      ? `${form.code} · ${form.title} · v${form.version}`
+                      : ""
+                  }
+                />
               </label>
               <dl className="inspection-context">
                 <div>
@@ -5028,7 +5179,9 @@ function OperatorPanel({
                         )}
                     </div>
                     {currentQuestion.description && (
-                      <p className="muted">{currentQuestion.description}</p>
+                      <p className="muted verification-description">
+                        {currentQuestion.description}
+                      </p>
                     )}
                     {currentQuestion.instructionImageUrl && (
                       <div className="instruction-visual">
@@ -5381,7 +5534,16 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
     return (
       <main className="public-report-state">
         <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
-          <span>IH</span> Inspect Hub
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>{" "}
+          Inspect Hub
         </a>
         <SettingsMenu />
         <section className="panel">
@@ -5478,7 +5640,16 @@ function PublicReport({ publicReportId }: { publicReportId: string }) {
     <main className="public-report-shell">
       <header className="report-nav print-hidden">
         <a className="brand" href={`/${language === "uk" ? "ua" : language}/`}>
-          <span>IH</span> Inspect Hub
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>{" "}
+          Inspect Hub
         </a>
         <div className="report-nav-actions">
           <button
@@ -5758,7 +5929,15 @@ function QualityDashboard() {
     <main className="quality-live-shell">
       <header className="quality-live-nav">
         <a className="brand dashboard-brand" href={route("/")}>
-          <span>IH</span>
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>
           <div>
             Inspect Hub<small>QUALITY LIVE</small>
           </div>
@@ -5988,7 +6167,16 @@ function App() {
     <>
       <nav>
         <a className="brand" href={route("/admin")}>
-          <span>IH</span> Inspect Hub
+          <span className="brand-icon">
+            <img
+              className="brand-symbol"
+              src="/branding/inspect-hub-symbol-192-v2.png"
+              alt=""
+              width={36}
+              height={36}
+            />
+          </span>{" "}
+          Inspect Hub
         </a>
         <div className="nav-actions">
           <a className="station-link" href={route("/inspection")}>

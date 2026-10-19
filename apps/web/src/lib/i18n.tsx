@@ -57,7 +57,10 @@ const translations = {
     "form.translations": "Tłumaczenia pytania",
     "form.translationsHelp": "Puste pola użyją polskiej wersji bazowej.",
     "form.translatedLabel": "Treść pytania",
-    "form.translatedDescription": "Opis (opcjonalnie)",
+    "form.verificationDescription": "Opis procesu weryfikacji (opcjonalnie)",
+    "form.verificationDescriptionPlaceholder":
+      "Opisz krok po kroku, jak sprawdzić ten element i ocenić wynik.",
+    "form.translatedDescription": "Opis procesu weryfikacji (opcjonalnie)",
     "form.translatedOptions": "Opcje (po przecinku)",
     "aria.stationCode": "Kod stanowiska {{code}}",
     "aria.stationName": "Nazwa stanowiska {{code}}",
@@ -485,7 +488,11 @@ const translations = {
     "form.translations": "Question translations",
     "form.translationsHelp": "Empty fields fall back to the Polish source.",
     "form.translatedLabel": "Question text",
-    "form.translatedDescription": "Description (optional)",
+    "form.verificationDescription":
+      "Verification process description (optional)",
+    "form.verificationDescriptionPlaceholder":
+      "Describe step by step how to check this item and assess the result.",
+    "form.translatedDescription": "Verification process description (optional)",
     "form.translatedOptions": "Options (comma-separated)",
     "aria.stationCode": "Code for station {{code}}",
     "aria.stationName": "Name for station {{code}}",
@@ -905,7 +912,10 @@ const translations = {
     "form.translationsHelp":
       "Для порожніх полів буде використано базову польську версію.",
     "form.translatedLabel": "Текст питання",
-    "form.translatedDescription": "Опис (необов’язково)",
+    "form.verificationDescription": "Опис процесу перевірки (необов’язково)",
+    "form.verificationDescriptionPlaceholder":
+      "Опишіть крок за кроком, як перевірити цей елемент і оцінити результат.",
+    "form.translatedDescription": "Опис процесу перевірки (необов’язково)",
     "form.translatedOptions": "Варіанти (через кому)",
     "aria.stationCode": "Код станції {{code}}",
     "aria.stationName": "Назва станції {{code}}",

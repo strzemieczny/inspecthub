@@ -2691,7 +2691,8 @@ label {
   font-weight: 700;
 }
 input,
-select {
+select,
+.verification-description-input {
   min-width: 0;
   width: 100%;
   padding: 0.78rem 0.85rem;
@@ -2702,10 +2703,137 @@ select {
   outline: none;
 }
 input:focus,
-select:focus {
+select:focus,
+.verification-description-input:focus {
   border-color: #1d8063;
   box-shadow: 0 0 0 3px rgba(29, 128, 99, 0.11);
 }
+.part-number-field {
+  --pn-surface: #fafcfb;
+  --pn-border: #d5e1da;
+  --pn-text: #244d3d;
+  --pn-tag: #e9f3ed;
+  --pn-tag-border: #cce1d4;
+  --pn-accent: #237454;
+  --pn-hover: #d5e9dd;
+  --pn-muted: #83918a;
+  margin-top: 0.55rem;
+  padding: 0.45rem;
+  border: 1px solid var(--pn-border);
+  border-radius: 12px;
+  background: var(--pn-surface);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.part-number-field:focus-within {
+  border-color: var(--pn-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pn-accent) 12%, transparent);
+}
+.part-number-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.2rem 0.15rem 0.55rem;
+}
+.part-number-tags:empty {
+  display: none;
+}
+.part-number-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0.2rem 0.25rem 0.2rem 0.65rem;
+  color: var(--pn-text);
+  background: var(--pn-tag);
+  border: 1px solid var(--pn-tag-border);
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+}
+.part-number-tag > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.part-number-tag button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--pn-accent);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.part-number-tag button:hover:not(:disabled) {
+  background: var(--pn-hover);
+}
+.part-number-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.part-number-field .part-number-entry input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.45rem;
+  color: var(--pn-text);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  box-shadow: none;
+  font-size: 0.8rem;
+}
+.part-number-entry input::placeholder {
+  color: var(--pn-muted);
+}
+.part-number-entry > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 0.3rem;
+  min-height: 34px;
+  padding: 0.45rem 0.7rem;
+  color: var(--pn-accent);
+  background: var(--pn-tag);
+  border: 1px solid var(--pn-tag-border);
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.part-number-entry > button:hover:not(:disabled) {
+  background: var(--pn-hover);
+}
+.part-number-field button:focus-visible {
+  outline: 2px solid var(--pn-accent);
+  outline-offset: 2px;
+}
+.part-number-field button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+:root[data-theme="dark"] .part-number-field {
+  --pn-surface: #141c20;
+  --pn-border: #34463e;
+  --pn-text: #c1e3d2;
+  --pn-tag: #20392d;
+  --pn-tag-border: #365b46;
+  --pn-accent: #8ed5ae;
+  --pn-hover: #2d4d3b;
+  --pn-muted: #869c90;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -2743,6 +2871,17 @@ select:focus {
 }
 .question-card {
   padding: 1.4rem 1.5rem;
+}
+.verification-description-input {
+  resize: vertical;
+  min-height: 90px;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.verification-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .question-head {
   display: flex;
@@ -6716,4 +6855,27 @@ label.check {
     color: #182021;
     background: #fff;
   }
+}
+
+/* Use the tightly framed transparent mark; render the wordmark as live text. */
+.brand > .brand-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+.brand-symbol {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.auth-brand-symbol {
+  display: block;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1.25rem;
+  object-fit: contain;
 }

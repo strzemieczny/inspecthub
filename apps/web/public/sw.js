@@ -1,11 +1,14 @@
-const CACHE_NAME = "inspect-hub-shell-v1";
+const CACHE_NAME = "inspect-hub-shell-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/app-icon-192.png",
-  "/app-icon-512.png",
-  "/app-icon-maskable-512.png",
+  "/favicon.png?v=3",
+  "/apple-touch-icon.png?v=3",
+  "/branding/inspect-hub-symbol-192-v2.png",
+  "/app-icon-192.png?v=3",
+  "/app-icon-512.png?v=3",
+  "/app-icon-maskable-512.png?v=3",
 ];
 
 self.addEventListener("install", (event) => {

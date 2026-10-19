@@ -1,0 +1,9 @@
+Generated with the built-in image_gen tool.
+
+Use case: logo-brand
+Asset type: final square app icon for Inspect Hub, an innovative electromobility and quality inspection technology product.
+Primary request: Design an outstanding, memorable premium app icon expressing electric mobility, innovation and ecology through ONE beautifully unified symbol. A bold sculptural geometric leaf / forward-moving energy loop, with a crisp lightning bolt cut out in its negative space; subtle suggestion of a precision inspection aperture through the outer shape. Resolve these ideas into one simple distinctive mark, never a collection of pictograms.
+Style: exceptionally refined contemporary technology identity, vector-clean silhouette with very restrained satin depth and subtle luminous edge, strong graphic design, confident and minimal.
+Palette: vivid electric lime transitioning into emerald green and a small mint highlight, on a rich near-black forest green field, consistent with an existing green product brand.
+Composition: square 1:1 image, full-bleed dark background, single large centered emblem occupying about 65% of the canvas, generous even safe margins, straight-on, no perspective. Background fills all corners; no outer rounded-square border, no device mockup.
+Constraints: no text, no letters, no watermark, no car illustration, no tiny circuitry, no scattered particles, no stock eco clipart, no busy ornamental details, no excessive glow. Very legible at 32px. Deliver one finished icon only.
