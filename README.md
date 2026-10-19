@@ -97,7 +97,7 @@ Usługi lokalne:
 
 ## Wymagania
 
-- Node.js 20.19 lub nowszy,
+- Node.js 22.13 lub nowszy,
 - pnpm 9,
 - Docker z obsługą Docker Compose.
 

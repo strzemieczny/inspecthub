@@ -12,18 +12,21 @@
     "test": "node --experimental-strip-types --test src/inspection.test.ts"
   },
   "dependencies": {
+    "@expo/dom-webview": "~57.0.1",
+    "@expo/vector-icons": "^15.1.1",
     "@inspect-hub/types": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "expo": "~55.0.31",
-    "expo-build-properties": "~55.0.18",
-    "expo-crypto": "~55.0.19",
-    "expo-dev-client": "~55.0.40",
-    "expo-image-picker": "~55.0.24",
-    "expo-secure-store": "~55.0.18",
-    "expo-system-ui": "~55.0.22",
-    "react": "19.2.0",
-    "react-native": "0.83.10",
-    "react-native-safe-area-context": "~5.6.2"
+    "expo": "~57.0.30",
+    "expo-build-properties": "~57.0.22",
+    "expo-crypto": "~57.0.4",
+    "expo-dev-client": "~57.0.20",
+    "expo-file-system": "~57.0.7",
+    "expo-image-picker": "~57.0.20",
+    "expo-secure-store": "~57.0.4",
+    "expo-system-ui": "~57.0.4",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,8 +34,8 @@
     "@types/react": "~19.2.2",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "react-dom": "19.2.0",
-    "typescript": "~5.9.2",
+    "react-dom": "19.2.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.65.0"
   },
   "type": "module"

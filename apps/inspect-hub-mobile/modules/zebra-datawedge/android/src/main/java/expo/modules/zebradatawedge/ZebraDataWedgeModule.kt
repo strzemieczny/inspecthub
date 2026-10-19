@@ -81,7 +81,7 @@ class ZebraDataWedgeModule : Module() {
       sendCommand("com.symbol.datawedge.api.SET_CONFIG", profile)
     }
     Function("trigger") {
-      val context = appContext.reactContext ?: return@Function
+      val context = appContext.reactContext ?: return@Function null
       context.sendBroadcast(Intent("com.symbol.datawedge.api.ACTION").apply {
         setPackage("com.symbol.datawedge")
         putExtra("com.symbol.datawedge.api.SOFT_SCAN_TRIGGER", "START_SCANNING")

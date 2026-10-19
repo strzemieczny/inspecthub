@@ -2,7 +2,7 @@
 
 ## Wymagania
 
-- Node.js co najmniej 20.19,
+- Node.js co najmniej 22.13,
 - pnpm 9,
 - Docker Compose,
 - PostgreSQL 16 i MinIO dla pełnego uruchomienia lokalnego.
@@ -56,8 +56,12 @@ niepoprawną odpowiedź oraz retry.
 
 ## Symulator SCADA
 
-Poza produkcją, gdy connector jest wyłączony:
+Tryb wybiera administrator suwakiem w `/admin` → Connector SCADA i zatwierdza
+przyciskiem „Zapisz ustawienia”. Wyłączony suwak oznacza „Symulacja DEV”,
+włączony — komunikację z serwerem SCADA. Wybór działa niezależnie od `NODE_ENV`,
+bez zmiany zmiennych środowiskowych i bez restartu API.
 
+W trybie symulacji:
 - numer zakończony `_OK` daje zgodę,
 - numer zakończony `_NOK` daje odmowę,
 - pozostałe numery są odrzucane.

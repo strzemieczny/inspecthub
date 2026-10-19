@@ -1,3 +1,4 @@
+import { File } from "expo-file-system";
 import type { Session } from "./inspection";
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(
@@ -74,17 +75,10 @@ export function mediaUrl(value: string): string {
   }
   return value;
 }
-export async function uploadPhoto(
-  uri: string,
-  mimeType: string,
-): Promise<string> {
+export async function uploadPhoto(uri: string): Promise<string> {
   const data = new FormData();
-  // React Native's FormData accepts a native file descriptor instead of a DOM Blob.
-  data.append("file", {
-    uri,
-    type: mimeType,
-    name: `inspection.${mimeType === "image/png" ? "png" : "jpg"}`,
-  } as unknown as Blob);
+  // Expo 57 fetch reads file bytes; React Native's { uri } parts are unsupported.
+  data.append("file", new File(uri));
   const result = await api<{ objectName: string }>("/media/upload", {
     method: "POST",
     body: data,

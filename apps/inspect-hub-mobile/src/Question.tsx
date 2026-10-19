@@ -36,7 +36,7 @@ export function Question({
     });
     if (result.canceled) return;
     const asset = result.assets[0];
-    onChange(await uploadPhoto(asset.uri, asset.mimeType ?? "image/jpeg"));
+    onChange(await uploadPhoto(asset.uri));
   }
   return (
     <View style={s.panel}>
@@ -50,9 +50,11 @@ export function Question({
         <Photo uri={q.instructionImageUrl} label="Instrukcja" />
       ) : null}
       <View style={s.row}>
-        {q.okImageUrl ? <Photo uri={q.okImageUrl} label="Wzorzec OK" /> : null}
+        {q.okImageUrl ? (
+          <Photo uri={q.okImageUrl} label="Wzorzec OK" result="OK" />
+        ) : null}
         {q.nokImageUrl ? (
-          <Photo uri={q.nokImageUrl} label="Wzorzec NOK" />
+          <Photo uri={q.nokImageUrl} label="Wzorzec NOK" result="NOK" />
         ) : null}
       </View>
       {q.type === "CHECKBOX" ? (

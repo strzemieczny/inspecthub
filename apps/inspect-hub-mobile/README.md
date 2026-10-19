@@ -1,6 +1,6 @@
 # Inspect Hub Mobile
 
-Aplikacja operatora na tablety Zebra z Androidem: React Native 0.83, Expo SDK 55,
+Aplikacja operatora na tablety Zebra z Androidem: React Native 0.86, Expo SDK 57,
 TypeScript i lokalny moduł Kotlin do DataWedge. Panel administratora i dashboard
 pozostają w `apps/web`. To pierwsza implementacja mobilnego przepływu, wymagająca
 odbioru na docelowym urządzeniu przed wdrożeniem na produkcję.
@@ -18,7 +18,7 @@ Ustaw `EXPO_PUBLIC_API_URL` na adres API osiągalny z tabletu, z końcówką `/a
 Nie wpisuj sekretów do zmiennych `EXPO_PUBLIC_*`: trafiają do aplikacji.
 `localhost` oznacza tablet; na emulatorze Androida adres hosta to zwykle `10.0.2.2`.
 
-Do budowania lokalnego potrzebne są JDK 17, Android SDK zgodny z Expo SDK 55,
+Do budowania lokalnego potrzebne są Node.js 22.13 lub nowszy, JDK 17, Android SDK zgodny z Expo SDK 57,
 ustawione `ANDROID_HOME`, `adb` oraz tablet z debugowaniem USB lub emulator.
 
 ```sh
@@ -37,18 +37,37 @@ builda aplikacji. Zmiana Kotlinu lub pluginów konfiguracji wymaga przebudowania
 Pliki w `android/` są generowane; źródłem konfiguracji jest `app.config.ts`,
 a źródłem integracji `modules/zebra-datawedge`.
 
+Po aktualizacji do SDK 57 przebuduj aplikację poleceniem `pnpm mobile:android`.
+Jeśli katalog `android/` powstał dla poprzedniego SDK, najpierw uruchom
+`pnpm --filter inspect-hub-mobile exec expo prebuild --platform android --no-install`.
+W SDK 57 `prebuild` domyślnie generuje katalogi natywne od nowa.
+
 Domyślnie aplikacja używa HTTPS. Wyłącznie w lokalnej sieci deweloperskiej można
 ustawić `MOBILE_ALLOW_HTTP=1` oraz adres API po HTTP, a następnie przebudować APK.
 Dla wydania ustaw tę flagę na `0` i używaj HTTPS z certyfikatem zaufanym przez Androida.
 
 ## Przepływ operatora
 
-1. Zaloguj się istniejącym kontem Inspect Hub (e-mail i hasło), jeśli formularz tego wymaga.
-2. Zeskanuj lub wpisz kod istniejącego stanowiska i połącz tablet. Nowe stanowiska
-   i przypisania procesów przygotowuje administrator w panelu webowym.
-3. Wybierz aktualny formularz przypisany do procesu stanowiska.
-4. Zeskanuj numer seryjny / VIN. Przed rozpoczęciem aplikacja sprawdza aktualne
+Aplikacja działa w trybie pełnoekranowym, z ukrytymi paskami systemowymi
+i jasnością okna ustawioną na 100%. Dotyczy to również okna logowania.
+Tryb jest przywracany po powrocie z aparatu lub tła; nie zmienia systemowej
+jasności innych aplikacji. Android pozwala chwilowo odsłonić paski gestem.
+Implementacja znajduje się w `modules/operator-display` — po dodaniu modułu
+trzeba przebudować i zainstalować APK (`pnpm mobile:android`).
+
+1. Jeśli formularz wymaga logowania, otwórz „Zaloguj operatora” i odczytaj
+   identyfikator czytnikiem lub wpisz jego numer. Aplikacja sprawdza operatora
+   w kontroli dostępu przez `/auth/card-login`, tak jak aplikacja webowa.
+   Przy wymaganym sparowaniu lub ponownej weryfikacji podaj 4-cyfrowy kod
+   z odwrotu karty (sprawdzany przez `/auth/pair-card`, bez zapisu kodu na urządzeniu).
+2. Zeskanuj lub wpisz kod stanowiska i połącz tablet. Dla nowego stanowiska
+   uzupełnij również pola nazwy i procesu inspekcji przed połączeniem.
+   Dla istniejącego stanowiska wystarczy kod.
+3. Zeskanuj numer seryjny / VIN. Przed rozpoczęciem aplikacja sprawdza aktualne
    stanowisko i uzyskuje zgodę przez `/scada/route-check`.
+4. Formularz dobierany jest do PN produktu i procesu stanowiska. Przy wielu
+   dopasowaniach wybierz formularz z listy nazw, kodów i wersji. Jedno dopasowanie
+   uruchamia się automatycznie. Możesz anulować wybór i zeskanować inną sztukę.
 5. Odpowiedz na pytania: OK/NOK, tekst, wybór, pomiar, zdjęcie. Dostępne są
    instrukcje i obrazy wzorcowe. Wynik automatyczny odpowiada regułom backendu;
    przy formularzach wymagających oceny ręcznej operator wybiera dozwolony status.
