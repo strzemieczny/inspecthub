@@ -4,8 +4,17 @@ const API_URL =
 
 export const AUTH_UNAUTHORIZED_EVENT = "inspect-hub-auth-unauthorized";
 
-function notifyUnauthorized(path: string, status: number): void {
-  if (status === 401 && !path.startsWith("/auth/")) {
+function notifyUnauthorized(
+  path: string,
+  status: number,
+  token: string | null,
+): void {
+  if (
+    status === 401 &&
+    !path.startsWith("/auth/") &&
+    token &&
+    token === localStorage.getItem("inspect-hub-token")
+  ) {
     window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
   }
 }
@@ -98,7 +107,7 @@ export async function api<T>(
   });
 
   if (!response.ok) {
-    notifyUnauthorized(path, response.status);
+    notifyUnauthorized(path, response.status, token);
     const body = (await response.json().catch(() => null)) as {
       message?: string | string[];
     } | null;
@@ -125,7 +134,7 @@ export async function downloadFile(path: string): Promise<void> {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!response.ok) {
-    notifyUnauthorized(path, response.status);
+    notifyUnauthorized(path, response.status, token);
     throw new ApiError(
       `Błąd eksportu HTTP ${response.status}`,
       response.status,

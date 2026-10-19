@@ -6,6 +6,7 @@ import { DatabaseService } from '../database/database.service';
 import type { AuthenticatedUser } from './auth.types';
 
 interface JwtPayload {
+  provider?: string;
   sub: string;
   email: string;
 }
@@ -26,9 +27,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     const user = await this.database.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, externalProvider: true },
     });
-    if (!user) throw new UnauthorizedException();
+    if (
+      !user ||
+      !['LDAP', 'APACS'].includes(user.externalProvider ?? '') ||
+      payload.provider !== user.externalProvider
+    )
+      throw new UnauthorizedException();
     return { userId: user.id, email: user.email, role: user.role };
   }
 }

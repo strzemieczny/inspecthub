@@ -1,17 +1,15 @@
 import {
   ConflictException,
-  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Role } from '@inspect-hub/database';
-import * as bcrypt from 'bcrypt';
 import { createHmac } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
+import { LdapService } from './ldap.service';
 import { AccessControlService } from './access-control.service';
 import { CardLoginDto } from './dto/card-login.dto';
 import { PairCardDto } from './dto/pair-card.dto';
@@ -23,65 +21,53 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly accessControl: AccessControlService,
     private readonly config: ConfigService,
+    private readonly ldap: LdapService,
   ) {}
 
-  async setupStatus() {
-    return {
-      registrationAvailable:
-        (await this.database.user.count({ where: { role: Role.ADMIN } })) === 0,
+  async login(dto: LoginDto) {
+    const identity = await this.ldap.authenticate(dto.username, dto.password);
+    const data = {
+      ...identity,
+      externalProvider: 'LDAP',
+      passwordHash: null,
     };
-  }
-
-  async register(dto: RegisterDto) {
-    const email = dto.email.toLowerCase();
-    const passwordHash = await bcrypt.hash(dto.password, 12);
-    let user: { id: string; email: string; name: string; role: Role };
     try {
-      user = await this.database.$transaction(
-        async (transaction) => {
-          if (
-            (await transaction.user.count({ where: { role: Role.ADMIN } })) > 0
-          ) {
-            throw new ForbiddenException(
-              'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego administratora',
+      const user = await this.database.$transaction(async (database) => {
+        const existing = await database.user.findUnique({
+          where: {
+            externalProvider_externalId: {
+              externalProvider: 'LDAP',
+              externalId: identity.externalId,
+            },
+          },
+        });
+        if (existing)
+          return database.user.update({ where: { id: existing.id }, data });
+        // Adopt an old local record to preserve its inspection/audit history.
+        const legacy = await database.user.findUnique({
+          where: { email: identity.email },
+        });
+        if (legacy) {
+          if (legacy.externalProvider)
+            throw new ConflictException(
+              'Adres konta jest przypisany do innej tożsamości',
             );
-          }
-          return transaction.user.create({
-            data: { email, name: dto.name, passwordHash, role: Role.ADMIN },
-            select: { id: true, email: true, name: true, role: true },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+          return database.user.update({ where: { id: legacy.id }, data });
+        }
+        return database.user.create({ data });
+      });
+      return this.issueToken(user, 'LDAP');
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Konto z tym adresem już istnieje');
-      }
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2034'
-      ) {
-        throw new ForbiddenException('Konto startowe zostało już utworzone');
+        throw new ConflictException(
+          'Konflikt tożsamości konta LDAP. Spróbuj ponownie lub skontaktuj się z administratorem',
+        );
       }
       throw error;
     }
-    return this.issueToken(user);
-  }
-
-  async login(dto: LoginDto) {
-    const user = await this.database.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-    });
-    if (
-      !user?.passwordHash ||
-      !(await bcrypt.compare(dto.password, user.passwordHash))
-    ) {
-      throw new UnauthorizedException('Nieprawidłowy email lub hasło');
-    }
-    return this.issueToken(user);
   }
 
   async cardLogin(dto: CardLoginDto) {
@@ -167,18 +153,22 @@ export class AuthService {
       update: { email, name, role: Role.OPERATOR },
       select: { id: true, email: true, name: true, role: true },
     });
-    return this.issueToken(user);
+    return this.issueToken(user, 'APACS');
   }
 
-  private async issueToken(user: {
-    id: string;
-    email: string;
-    name: string;
-    role: Role;
-  }) {
+  private async issueToken(
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: Role;
+    },
+    provider: 'LDAP' | 'APACS',
+  ) {
     return {
       accessToken: await this.jwt.signAsync({
         sub: user.id,
+        provider,
         email: user.email,
       }),
       user: {

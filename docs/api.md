@@ -22,44 +22,40 @@ Oznaczenia dostępu:
 
 ## Endpointy
 
-| Metoda i ścieżka                       | Dostęp         | Opis                                    |
-| -------------------------------------- | -------------- | --------------------------------------- |
-| `GET /`                                | publiczny      | health/identyfikacja API                |
-| `POST /auth/register`                  | publiczny      | utworzenie pierwszego konta admina      |
-| `POST /auth/login`                     | publiczny      | logowanie email/hasło                   |
-| `POST /auth/card-login`                | publiczny      | logowanie identyfikatorem karty         |
-| `POST /auth/pair-card`                 | publiczny      | powiązanie identyfikatora z kodem APACS |
-| `GET /users`                           | admin          | lista użytkowników                      |
-| `POST /users`                          | admin          | utworzenie użytkownika                  |
-| `PATCH /users/:id`                     | admin          | aktualizacja użytkownika                |
-| `DELETE /users/:id`                    | admin          | usunięcie użytkownika                   |
-| `GET /stations`                        | operator+      | lista stanowisk                         |
-| `GET /stations/current`                | publiczny      | rozpoznanie bieżącego urządzenia        |
-| `POST /stations/identify`              | publiczny      | identyfikacja/rejestracja stanowiska    |
-| `POST /stations`                       | admin          | utworzenie stanowiska                   |
-| `PATCH /stations/:id`                  | admin          | aktualizacja stanowiska                 |
-| `DELETE /stations/:id`                 | admin          | usunięcie stanowiska                    |
-| `GET /forms`                           | publiczny      | najnowsze aktywne formularze            |
-| `GET /forms/:id`                       | publiczny      | jedna rewizja formularza                |
+| Metoda i ścieżka                       | Dostęp         | Opis                                        |
+| -------------------------------------- | -------------- | ------------------------------------------- |
+| `GET /`                                | publiczny      | health/identyfikacja API                    |
+| `POST /auth/login`                     | publiczny      | logowanie AD: username/hasło                |
+| `POST /auth/card-login`                | publiczny      | logowanie identyfikatorem karty             |
+| `POST /auth/pair-card`                 | publiczny      | powiązanie identyfikatora z kodem APACS     |
+| `GET /users`                           | admin          | lista użytkowników                          |
+| `GET /stations`                        | operator+      | lista stanowisk                             |
+| `GET /stations/current`                | publiczny      | rozpoznanie bieżącego urządzenia            |
+| `POST /stations/identify`              | publiczny      | identyfikacja/rejestracja stanowiska        |
+| `POST /stations`                       | admin          | utworzenie stanowiska                       |
+| `PATCH /stations/:id`                  | admin          | aktualizacja stanowiska                     |
+| `DELETE /stations/:id`                 | admin          | usunięcie stanowiska                        |
+| `GET /forms`                           | publiczny      | najnowsze aktywne formularze                |
+| `GET /forms/:id`                       | publiczny      | jedna rewizja formularza                    |
 | `GET /forms/:id/revisions`             | admin          | historia rewizji, autorzy i daty publikacji |
-| `POST /forms`                          | admin          | utworzenie formularza                   |
-| `POST /forms/:id/duplicate`            | admin          | kopia jako nowy kod                     |
-| `PATCH /forms/:id`                     | admin          | utworzenie nowej rewizji                |
-| `PATCH /forms/:id/archive`             | admin          | archiwizacja wszystkich rewizji kodu    |
-| `DELETE /forms/:id`                    | admin          | fizyczne usunięcie rewizji              |
-| `POST /inspections`                    | opcjonalny JWT | zapis inspekcji                         |
-| `GET /inspections/public-dashboard`    | publiczny      | dashboard analityczny                   |
-| `GET /inspections/analytics/v1`        | publiczny      | wersjonowany alias dashboardu           |
-| `GET /inspections/analytics/v1/export` | publiczny      | CSV, XLSX lub PDF                       |
-| `GET /inspections/quality-dashboard`   | publiczny      | alerty z ostatnich 24 godzin            |
-| `GET /public/reports/:publicReportId`  | publiczny      | pełny raport inspekcji                  |
-| `POST /media/upload`                   | publiczny      | upload obrazu do 20 MiB                 |
-| `GET /media/object?name=...`           | publiczny      | strumień obrazu                         |
-| `POST /scada/route-check`              | publiczny      | walidacja produktu przed kontrolą       |
-| `GET /scada/settings`                  | admin          | konfiguracja SCADA                      |
-| `PATCH /scada/settings`                | admin          | aktualizacja konfiguracji SCADA         |
-| `POST /events`                         | zalogowany     | zapis zdarzenia klienta                 |
-| `GET /events`                          | admin          | odczyt audytu                           |
+| `POST /forms`                          | admin          | utworzenie formularza                       |
+| `POST /forms/:id/duplicate`            | admin          | kopia jako nowy kod                         |
+| `PATCH /forms/:id`                     | admin          | utworzenie nowej rewizji                    |
+| `PATCH /forms/:id/archive`             | admin          | archiwizacja wszystkich rewizji kodu        |
+| `DELETE /forms/:id`                    | admin          | fizyczne usunięcie rewizji                  |
+| `POST /inspections`                    | opcjonalny JWT | zapis inspekcji                             |
+| `GET /inspections/public-dashboard`    | publiczny      | dashboard analityczny                       |
+| `GET /inspections/analytics/v1`        | publiczny      | wersjonowany alias dashboardu               |
+| `GET /inspections/analytics/v1/export` | publiczny      | CSV, XLSX lub PDF                           |
+| `GET /inspections/quality-dashboard`   | publiczny      | alerty z ostatnich 24 godzin                |
+| `GET /public/reports/:publicReportId`  | publiczny      | pełny raport inspekcji                      |
+| `POST /media/upload`                   | publiczny      | upload obrazu do 20 MiB                     |
+| `GET /media/object?name=...`           | publiczny      | strumień obrazu                             |
+| `POST /scada/route-check`              | publiczny      | walidacja produktu przed kontrolą           |
+| `GET /scada/settings`                  | admin          | konfiguracja SCADA                          |
+| `PATCH /scada/settings`                | admin          | aktualizacja konfiguracji SCADA             |
+| `POST /events`                         | zalogowany     | zapis zdarzenia klienta                     |
+| `GET /events`                          | admin          | odczyt audytu                               |
 
 Endpointy `/dev/scada/*` istnieją tylko poza `NODE_ENV=production`.
 
@@ -72,12 +68,15 @@ POST /api/auth/login
 Content-Type: application/json
 
 {
-  "email": "operator@example.com",
+  "username": "operator@example.com",
   "password": "strong-password"
 }
 ```
 
-Odpowiedź zawiera `accessToken` i obiekt `user`.
+Odpowiedź zawiera `accessToken` i obiekt `user`. `username` przyjmuje krótki login,
+`DOMENA\login` lub pełny UPN. Lokalne konta i rejestracja są wyłączone.
+`GET /users` zwraca również `externalProvider` (`LDAP`, `APACS` lub `null` dla
+starych kont). Dane kont i role są synchronizowane podczas logowania.
 
 ### Route check
 

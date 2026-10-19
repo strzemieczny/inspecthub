@@ -4,7 +4,7 @@
 
 | Encja               | Znaczenie                                                           |
 | ------------------- | ------------------------------------------------------------------- |
-| `User`              | konto lokalne lub operator APACS, rola `ADMIN`/`OPERATOR`           |
+| `User`              | konto AD lub operator APACS, rola `ADMIN`/`OPERATOR`           |
 | `Process`           | proces produkcyjny grupujący stanowiska i formularze                |
 | `Station`           | stanowisko identyfikowane kodem, IP i hashowanym tokenem urządzenia |
 | `Form`              | niezmienna rewizja standardu kontroli                               |

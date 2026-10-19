@@ -1,0 +1,13 @@
+diff --git a/lib/errors/index.js b/lib/errors/index.js
+index 203a98b77e278abc2abc537c54115368dbdce6ef..8aee0f019bc02513891a9ca57b4d5ef8d0a35058 100644
+--- a/lib/errors/index.js
++++ b/lib/errors/index.js
+@@ -96,7 +96,7 @@ module.exports.getError = function (res) {
+ 
+   const errObj = ERRORS[res.status]
+   const E = module.exports[errObj.err]
+-  return new E(res.errorMessage || errObj.message,
++  return new E(res.diagnosticMessage || res.errorMessage || errObj.message,
+     res.matchedDN || null,
+     module.exports.getError)
+ }

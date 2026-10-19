@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type FormEvent,
   type ImgHTMLAttributes,
@@ -31,27 +32,11 @@ import {
   type Session,
   type SessionUser,
 } from "./lib/api";
+import { clearSession, readStoredUser, saveSession, subscribeToSession } from "./lib/session";
 import "./App.css";
 import { FormRevisionHistory } from "./components/FormRevisionHistory";
 import { appPath, appRoute, currentAppPath } from "./lib/routing";
 import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
-
-function readStoredUser(): SessionUser | null {
-  const token = localStorage.getItem("inspect-hub-token");
-  const rawUser = localStorage.getItem("inspect-hub-user");
-  if (!token || !rawUser) {
-    localStorage.removeItem("inspect-hub-token");
-    localStorage.removeItem("inspect-hub-user");
-    return null;
-  }
-  try {
-    return JSON.parse(rawUser) as SessionUser;
-  } catch {
-    localStorage.removeItem("inspect-hub-token");
-    localStorage.removeItem("inspect-hub-user");
-    return null;
-  }
-}
 
 function createClientId(): string {
   const cryptoApi = globalThis.crypto;
@@ -2005,28 +1990,10 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
   const [identifier, setIdentifier] = useState("");
   const [cardCode, setCardCode] = useState("");
   const [pairingRequired, setPairingRequired] = useState(false);
-  const [registrationAvailable, setRegistrationAvailable] =
-    useState<boolean | null>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void api<{ registrationAvailable: boolean }>("/auth/setup-status")
-      .then((status) => {
-        if (active) setRegistrationAvailable(status.registrationAvailable);
-      })
-      .catch(() => {
-        // Existing users can still sign in if the setup status is unavailable.
-        if (active) setRegistrationAvailable(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   async function submitCard(event: FormEvent) {
     event.preventDefault();
@@ -2057,26 +2024,6 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
     }
   }
 
-  async function submitRegister(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const session = await api<Session>("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ name, email, password }),
-      });
-      onLogin(session);
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 403) {
-        setRegistrationAvailable(false);
-      }
-      setError(reason instanceof Error ? reason.message : t("login.error"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function submitLogin(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -2084,7 +2031,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
     try {
       const session = await api<Session>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
       });
       onLogin(session);
     } catch (reason) {
@@ -2115,131 +2062,86 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
             {error}
           </p>
         )}
-        {registrationAvailable === null ? (
-          <p className="muted auth-loading">{t("common.loading")}</p>
-        ) : registrationAvailable ? (
-          <form className="setup-admin-form" onSubmit={submitRegister}>
-            <h2>{t("login.setupTitle")}</h2>
-            <p className="muted">{t("login.setupHint")}</p>
-            <label>
-              {t("login.setupName")}
+        <>
+          <form className="card-login-form" onSubmit={submitCard}>
+            <div className="card-reader-icon" aria-hidden="true">
+              ▣
+            </div>
+            <h2>{t("login.cardTitle")}</h2>
+            <p className="muted">{t("login.cardHint")}</p>
+            <label className="card-identifier-label">
+              {t("login.cardIdentifier")}
               <input
-                autoComplete="name"
-                minLength={2}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
+                ref={cardInput}
+                inputMode="text"
+                autoComplete="off"
+                pattern="[A-Za-z0-9]+"
+                maxLength={30}
+                value={identifier}
+                onChange={(event) =>
+                  setIdentifier(
+                    event.target.value
+                      .replace(/[^A-Za-z0-9]/g, "")
+                      .toUpperCase(),
+                  )
+                }
                 autoFocus
-              />
-            </label>
-            <label>
-              Email
-              <input
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
+                readOnly={pairingRequired}
               />
             </label>
-            <label>
-              {t("login.password")}
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              {busy ? t("login.busy") : t("login.setupSubmit")}
-            </button>
-          </form>
-        ) : (
-          <>
-            <form className="card-login-form" onSubmit={submitCard}>
-              <div className="card-reader-icon" aria-hidden="true">
-                ▣
-              </div>
-              <h2>{t("login.cardTitle")}</h2>
-              <p className="muted">{t("login.cardHint")}</p>
+            {pairingRequired && (
               <label className="card-identifier-label">
-                {t("login.cardIdentifier")}
+                {t("login.cardCode")}
                 <input
-                  ref={cardInput}
-                  inputMode="text"
+                  inputMode="numeric"
                   autoComplete="off"
-                  pattern="[A-Za-z0-9]+"
-                  maxLength={30}
-                  value={identifier}
+                  pattern="[0-9]{4}"
+                  maxLength={4}
+                  value={cardCode}
                   onChange={(event) =>
-                    setIdentifier(
-                      event.target.value
-                        .replace(/[^A-Za-z0-9]/g, "")
-                        .toUpperCase(),
-                    )
+                    setCardCode(event.target.value.replace(/\D/g, ""))
                   }
                   autoFocus
                   required
-                  readOnly={pairingRequired}
+                />
+                <small>{t("login.cardCodeHint")}</small>
+              </label>
+            )}
+            <button className="primary" disabled={busy}>
+              {busy ? t("login.cardBusy") : t("login.cardButton")}
+            </button>
+          </form>
+          <details className="password-login">
+            <summary>{t("login.adminLogin")}</summary>
+            <form onSubmit={submitLogin}>
+              <label>
+                {t("login.username")}
+                <input
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
                 />
               </label>
-              {pairingRequired && (
-                <label className="card-identifier-label">
-                  {t("login.cardCode")}
-                  <input
-                    inputMode="numeric"
-                    autoComplete="off"
-                    pattern="[0-9]{4}"
-                    maxLength={4}
-                    value={cardCode}
-                    onChange={(event) =>
-                      setCardCode(event.target.value.replace(/\D/g, ""))
-                    }
-                    autoFocus
-                    required
-                  />
-                  <small>{t("login.cardCodeHint")}</small>
-                </label>
-              )}
+              <label>
+                {t("login.password")}
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </label>
               <button className="primary" disabled={busy}>
-                {busy ? t("login.cardBusy") : t("login.cardButton")}
+                {busy ? t("login.busy") : t("common.login")}
               </button>
             </form>
-            <details className="password-login">
-              <summary>{t("login.adminLogin")}</summary>
-              <form onSubmit={submitLogin}>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  {t("login.password")}
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </label>
-                <button className="primary" disabled={busy}>
-                  {busy ? t("login.busy") : t("common.login")}
-                </button>
-              </form>
-            </details>
-            <p className="auth-note">{t("login.note")}</p>
-          </>
-        )}
+          </details>
+          <p className="auth-note">{t("login.note")}</p>
+        </>
       </section>
     </main>
   );
@@ -2482,85 +2384,20 @@ function StationsManager({
 }
 
 interface ManagedUser extends SessionUser {
+  externalProvider: string | null;
   createdAt: string;
 }
 
 function UsersManager() {
   const { locale, t } = useI18n();
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState<SessionUser["role"]>("OPERATOR");
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-
-  async function loadUsers() {
-    setUsers(await api<ManagedUser[]>("/users"));
-  }
 
   useEffect(() => {
     void api<ManagedUser[]>("/users")
-      .then((data) => setUsers(data))
+      .then(setUsers)
       .catch((reason: Error) => setNotice(reason.message));
   }, []);
-
-  async function createUser(event: FormEvent) {
-    event.preventDefault();
-    setBusyId("new");
-    try {
-      await api("/users", {
-        method: "POST",
-        body: JSON.stringify({ name, email, password, role }),
-      });
-      setName("");
-      setEmail("");
-      setPassword("");
-      setRole("OPERATOR");
-      await loadUsers();
-      setNotice(t("notice.userCreated"));
-    } catch (reason) {
-      setNotice(
-        reason instanceof Error ? reason.message : t("notice.saveError"),
-      );
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function changeRole(user: ManagedUser, nextRole: SessionUser["role"]) {
-    setBusyId(user.id);
-    try {
-      await api(`/users/${user.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: nextRole }),
-      });
-      await loadUsers();
-      setNotice(t("notice.userRole"));
-    } catch (reason) {
-      setNotice(
-        reason instanceof Error ? reason.message : t("notice.saveError"),
-      );
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function removeUser(user: ManagedUser) {
-    if (!window.confirm(t("confirm.removeUser", { email: user.email }))) return;
-    setBusyId(user.id);
-    try {
-      await api(`/users/${user.id}`, { method: "DELETE" });
-      await loadUsers();
-      setNotice(t("notice.userRemoved"));
-    } catch (reason) {
-      setNotice(
-        reason instanceof Error ? reason.message : t("notice.saveError"),
-      );
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   return (
     <section className="panel users-manager">
@@ -2573,51 +2410,7 @@ function UsersManager() {
           {t("users.count", { count: users.length })}
         </span>
       </div>
-      <form className="user-create" onSubmit={createUser}>
-        <label>
-          {t("users.fullName")}
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-            minLength={2}
-          />
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          {t("users.password")}
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            minLength={8}
-          />
-        </label>
-        <label>
-          {t("users.role")}
-          <select
-            value={role}
-            onChange={(event) =>
-              setRole(event.target.value as SessionUser["role"])
-            }
-          >
-            <option value="OPERATOR">{t("users.operator")}</option>
-            <option value="ADMIN">{t("users.admin")}</option>
-          </select>
-        </label>
-        <button className="primary" disabled={busyId === "new"}>
-          {busyId === "new" ? t("users.creating") : t("users.add")}
-        </button>
-      </form>
+      <p className="muted">{t("users.directoryHint")}</p>
       <div className="user-list">
         {users.map((user) => (
           <article className="user-row" key={user.id}>
@@ -2631,25 +2424,16 @@ function UsersManager() {
             <small>
               {new Intl.DateTimeFormat(locale).format(new Date(user.createdAt))}
             </small>
-            <select
-              aria-label={t("aria.userRole", { name: user.name })}
-              value={user.role}
-              disabled={busyId === user.id}
-              onChange={(event) =>
-                void changeRole(user, event.target.value as SessionUser["role"])
-              }
-            >
-              <option value="OPERATOR">{t("users.operator")}</option>
-              <option value="ADMIN">{t("users.admin")}</option>
-            </select>
-            <button
-              className="icon-button danger"
-              type="button"
-              disabled={busyId === user.id}
-              onClick={() => void removeUser(user)}
-            >
-              {t("common.delete")}
-            </button>
+            <span>
+              {user.externalProvider === "LDAP"
+                ? "AD"
+                : user.externalProvider === "APACS"
+                  ? "APACS"
+                  : t("users.legacy")}
+            </span>
+            <span>
+              {t(user.role === "ADMIN" ? "users.admin" : "users.operator")}
+            </span>
           </article>
         ))}
       </div>
@@ -6148,7 +5932,7 @@ function QualityDashboard() {
 
 function App() {
   const { language, t } = useI18n();
-  const [user, setUser] = useState<SessionUser | null>(readStoredUser);
+  const user = useSyncExternalStore(subscribeToSession, readStoredUser);
 
   const route = (path: string) => appRoute(language, path);
   const originalPath = currentAppPath();
@@ -6181,10 +5965,8 @@ function App() {
 
   useEffect(() => {
     const handleUnauthorized = () => {
-      localStorage.removeItem("inspect-hub-token");
-      localStorage.removeItem("inspect-hub-user");
+      clearSession();
       window.history.replaceState({}, "", appRoute(language, "/login"));
-      setUser(null);
     };
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
     return () =>
@@ -6202,6 +5984,7 @@ function App() {
   if (path === "/inspection") {
     return (
       <OperatorPanel
+        key={user?.id ?? "anonymous"}
         user={user}
         onLogin={loginUser}
         onLogout={user ? logoutUser : undefined}
@@ -6216,27 +5999,23 @@ function App() {
   }
 
   function loginUser(session: Session) {
-    localStorage.setItem("inspect-hub-token", session.accessToken);
-    localStorage.setItem("inspect-hub-user", JSON.stringify(session.user));
+    saveSession(session);
     window.history.replaceState(
       {},
       "",
       route(session.user.role === "OPERATOR" ? "/inspection" : "/admin"),
     );
-    setUser(session.user);
   }
 
   function logoutUser() {
-    localStorage.removeItem("inspect-hub-token");
-    localStorage.removeItem("inspect-hub-user");
+    clearSession();
     window.history.replaceState({}, "", route("/login"));
-    setUser(null);
   }
 
   if (user.role === "OPERATOR" && path !== "/inspection") {
     window.history.replaceState({}, "", route("/inspection"));
     return (
-      <OperatorPanel user={user} onLogin={loginUser} onLogout={logoutUser} />
+      <OperatorPanel key={user.id} user={user} onLogin={loginUser} onLogout={logoutUser} />
     );
   } else if (path === "/login") {
     window.history.replaceState({}, "", route("/admin"));
@@ -6275,7 +6054,7 @@ function App() {
           <SettingsMenu />
         </div>
       </nav>
-      <AdminPanel />
+      <AdminPanel key={user.id} />
     </>
   );
 }

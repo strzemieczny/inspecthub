@@ -82,7 +82,8 @@ Skrypt blokuje równoległe wdrożenia, sprawdza czystość klonu i buduje obraz
 oznaczone SHA. Następnie uruchamia bazę i MinIO, zapisuje dump PostgreSQL
 w `.git/deploy-backups/`, inicjalizuje prywatny bucket, wykonuje
 `prisma migrate deploy` i aktualizuje API oraz web. Kończy po healthcheckach
-i sprawdzeniu odpowiedzi SPA. Pierwsze konto administratora utwórz w aplikacji.
+i sprawdzeniu odpowiedzi SPA. Przed logowaniem ustaw `LDAP_*` w pliku środowiska API. Administrator loguje
+się kontem AD należącym do `LDAP_ADMIN_GROUP`; konto powstaje automatycznie.
 APACS i SCADA skonfiguruj osobno; adres API aplikacji mobilnej powinien kończyć
 się na `/inspect-hub/api`.
 

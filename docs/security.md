@@ -8,12 +8,24 @@
 - Administracja użytkownikami, formularzami, stanowiskami, ustawieniami SCADA i
   audytem jest chroniona rolami.
 - Formularz może dodatkowo wymagać zalogowanego operatora.
-- Rejestracja publiczna działa wyłącznie przed utworzeniem pierwszego administratora;
-  transakcja `Serializable` chroni przed wyścigiem dwóch rejestracji.
+- Logowanie hasłem korzysta wyłącznie z Active Directory. Rejestracja i lokalna
+  edycja kont, haseł oraz ról nie są dostępne.
+- Role pochodzą z `LDAP_ADMIN_GROUP` i `LDAP_REQUIRED_GROUP`; brak członkostwa
+  oznacza odmowę dostępu. Role są odświeżane przy logowaniu, JWT wygasa po 8 h.
+- Stare JWT kont lokalnych są odrzucane. Dane historyczne kont pozostają w bazie.
+- Logowanie, wylogowanie i wylogowanie po 401 synchronizują sesję między kartami
+  tej samej przeglądarki i originu przez `BroadcastChannel` oraz zdarzenia
+  `storage`. Wiadomości kanału nie zawierają tokena ani danych użytkownika;
+  odbiorca odczytuje aktualną sesję ze wspólnego magazynu.
+- Spóźnione 401 żądania ze starszym tokenem nie wylogowuje nowszej sesji.
 
 ## Hasła i karty
 
-- Hasła są hashowane przez bcrypt z kosztem 12.
+- Hasło domenowe służy wyłącznie do bind w LDAP i nie jest zapisywane.
+- Konto serwisowe LDAP wyszukuje aktywnych użytkowników; następnie osobne
+  połączenie weryfikuje hasło użytkownika. Filtry LDAP są escapowane.
+- Używaj LDAPS i zaufanego CA (dla firmowego CA: `NODE_EXTRA_CA_CERTS`).
+  Integracja weryfikuje certyfikaty TLS; nie wyłączaj tej weryfikacji.
 - Surowy UID karty nie jest zapisywany. Mapowanie wykorzystuje HMAC-SHA-256 z
   `JWT_SECRET`.
 - Zapytania APACS są parametryzowane i korzystają z konta tylko do odczytu.

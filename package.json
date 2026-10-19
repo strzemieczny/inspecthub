@@ -26,6 +26,9 @@
       "brace-expansion@<1.1.18": "1.1.18",
       "brace-expansion@>=2.0.0 <2.1.4": "2.1.4",
       "uuid@<11.1.1": "11.1.1"
+    },
+    "patchedDependencies": {
+      "ldapjs@3.0.7": "patches/ldapjs@3.0.7.patch"
     }
   }
 }

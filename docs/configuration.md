@@ -85,3 +85,48 @@ docker compose --env-file .env.production \
 
 Nie zapisuj sekretów w repozytorium, obrazie kontenera, logach ani parametrach
 URL. Preferuj menedżer sekretów platformy wdrożeniowej.
+
+
+## Active Directory (LDAP)
+
+Logowanie domenowe używa tego samego przepływu co BW-Mind: bind konta
+serwisowego, wyszukanie użytkownika i osobny bind jego DN z podanym hasłem.
+Konfiguracja jest niezależna od BW-Mind; ustaw w `.env` (lokalnie) lub
+`.env.production` (Docker):
+
+| Zmienna | Znaczenie |
+| --- | --- |
+| `LDAP_URL` | Adres kontrolera, zalecane `ldaps://host:636` |
+| `LDAP_BIND_DN` | DN lub UPN konta serwisowego z prawem odczytu katalogu |
+| `LDAP_BIND_PASSWORD` | Hasło konta serwisowego |
+| `LDAP_SEARCH_BASE` | Baza wyszukiwania, np. `DC=example,DC=local` |
+| `LDAP_ADMIN_GROUP` | Grupa przyznająca rolę `ADMIN` |
+| `LDAP_REQUIRED_GROUP` | Grupa przyznająca rolę `OPERATOR` |
+| `LDAP_TIMEOUT_MS` | Timeout operacji, domyślnie 5000 ms |
+| `LDAP_CONNECT_TIMEOUT_MS` | Timeout połączenia, domyślnie 5000 ms |
+| `LDAP_REQUEST_TIMEOUT_MS` | Limit całego logowania, domyślnie 10000 ms |
+
+Wszystkie wartości oprócz timeoutów są wymagane. Timeouty muszą być całkowite
+w zakresie 100–120000 ms. Grupy można podawać jako CN lub pełny DN; pełny DN
+musi pasować do całego `memberOf`, nazwy porównywane są bez rozróżniania
+wielkości liter. Sprawdzane jest bezpośrednie członkostwo `memberOf`, tak jak
+w BW-Mind. Grupa administratorów ma pierwszeństwo i nie wymaga grupy operatorów.
+Brak dostępu do LDAP nie uruchamia lokalnego logowania awaryjnego.
+
+Obsługiwane loginy: `login`, `DOMENA\login` i UPN `login@domena`.
+Wyszukiwanie odrzuca wyłączone konta AD. Logowanie bez hasła jest odrzucane.
+Przy pierwszym logowaniu tworzony jest profil `LDAP`; kolejne logowania
+aktualizują nazwę, email i rolę. Tożsamość to kanoniczny `sAMAccountName`
+w skonfigurowanym katalogu — jego zmiana wymaga zaplanowania migracji profilu.
+Stary lokalny profil z tym samym adresem email zostaje powiązany z AD, zachowuje
+ID i historię, a lokalny hash hasła jest usuwany. Pozostałe stare konta pozostają
+w historii, ale nie mogą się logować. Nie ma potrzeby migracji schematu bazy.
+
+Role w aktywnych sesjach obowiązują do kolejnego logowania (JWT: 8 godzin).
+Zmiana sposobu uwierzytelniania unieważnia wcześniej wydane sesje; użytkownicy
+muszą ponownie zalogować się kontem domenowym lub kartą.
+Karty APACS działają niezależnie od LDAP. Panel użytkowników jest tylko do odczytu.
+
+Dla firmowego CA dodaj certyfikat PEM do kontenera API przez wolumen tylko do
+odczytu i ustaw `NODE_EXTRA_CA_CERTS` na ścieżkę w kontenerze. Nie wyłączaj
+walidacji TLS. Produkcyjny Compose przekazuje `LDAP_*` z `env_file` do API.

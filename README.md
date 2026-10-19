@@ -62,7 +62,7 @@ Szczegółowa checklista przedwdrożeniowa znajduje się w
 - formularze wersjonowane i przypisywane do procesów produkcyjnych,
 - obsługa pytań logicznych, tekstowych, wyboru, zakresów liczbowych i zdjęć,
 - identyfikacja stanowiska na podstawie kodu oraz zapamiętanie urządzenia,
-- zarządzanie stanowiskami, użytkownikami i rolami z panelu administratora,
+- zarządzanie stanowiskami i podgląd użytkowników synchronizowanych z AD/APACS,
 - uwierzytelnianie JWT i autoryzacja oparta na rolach `ADMIN` / `OPERATOR`,
 - route check i przekazywanie wyników do systemu SCADA,
 - ustrukturyzowane logi techniczne i trwały dziennik zdarzeń
@@ -137,10 +137,11 @@ Usługi lokalne:
    pnpm dev
    ```
 
-Po otwarciu `http://localhost:5173/login` utwórz pierwsze konto administratora.
-Formularz konfiguracji jest dostępny, dopóki w bazie nie ma administratora;
-wcześniejsze logowanie operatora kartą nie blokuje konfiguracji.
-Kolejne konta tworzy administrator w panelu zarządzania.
+Przed logowaniem skonfiguruj zmienne `LDAP_*` w `.env` zgodnie z
+[konfiguracją AD](docs/configuration.md#active-directory-ldap).
+Na `http://localhost:5173/login` zaloguj się kontem domenowym należącym do
+`LDAP_ADMIN_GROUP`. Konto i rola zostaną zsynchronizowane automatycznie.
+Konta, hasła i uprawnienia są zarządzane w AD; lokalna rejestracja jest wyłączona.
 
 ### Uruchamianie aplikacji osobno
 

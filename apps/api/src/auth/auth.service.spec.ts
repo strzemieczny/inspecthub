@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@inspect-hub/database';
 import { AccessControlService } from './access-control.service';
+import { LdapService } from './ldap.service';
 import { AuthService } from './auth.service';
 
 describe('AuthService card login', () => {
@@ -18,6 +19,7 @@ describe('AuthService card login', () => {
     {
       getOrThrow: jest.fn().mockReturnValue('test-secret'),
     } as unknown as ConfigService,
+    {} as LdapService,
   );
 
   beforeEach(() => jest.clearAllMocks());
@@ -67,116 +69,93 @@ describe('AuthService card login', () => {
   });
 });
 
-describe('AuthService setupStatus', () => {
-  const database = {
-    user: { count: jest.fn() },
+describe('AuthService LDAP sessions', () => {
+  const identity = {
+    externalId: 'alice',
+    email: 'alice@example.com',
+    name: 'Alice',
+    role: Role.OPERATOR,
   };
-  const service = new AuthService(
-    database as never,
-    {} as unknown as JwtService,
-    {} as unknown as AccessControlService,
-    {} as unknown as ConfigService,
-  );
-
-  beforeEach(() => jest.clearAllMocks());
-
-  it('allows initial setup when no administrator exists', async () => {
-    database.user.count.mockResolvedValue(0);
-    await expect(service.setupStatus()).resolves.toEqual({
-      registrationAvailable: true,
-    });
-    expect(database.user.count).toHaveBeenCalledWith({
-      where: { role: Role.ADMIN },
-    });
-  });
-
-  it('hides initial setup when an administrator exists', async () => {
-    database.user.count.mockResolvedValue(2);
-    await expect(service.setupStatus()).resolves.toEqual({
-      registrationAvailable: false,
-    });
-  });
-});
-
-describe('AuthService register', () => {
+  const user = { ...identity, id: 'user-1' };
   const database = {
     $transaction: jest.fn(),
+    user: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
   };
-  const jwt = { signAsync: jest.fn().mockResolvedValue('admin-jwt-token') };
+  const ldap = { authenticate: jest.fn() };
+  const jwt = { signAsync: jest.fn().mockResolvedValue('token') };
   const service = new AuthService(
     database as never,
     jwt as unknown as JwtService,
-    {} as unknown as AccessControlService,
-    {} as unknown as ConfigService,
+    {} as AccessControlService,
+    {} as ConfigService,
+    ldap as unknown as LdapService,
   );
 
-  beforeEach(() => jest.clearAllMocks());
-
-  it('creates the first administrator and issues a session', async () => {
-    const tx = {
-      user: {
-        count: jest.fn().mockResolvedValue(0),
-        create: jest.fn().mockResolvedValue({
-          id: 'admin-1',
-          email: 'admin@example.com',
-          name: 'Jan Administrator',
-          role: Role.ADMIN,
-        }),
-      },
-    };
-    database.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) =>
-      cb(tx),
+  beforeEach(() => {
+    jest.clearAllMocks();
+    ldap.authenticate.mockResolvedValue(identity);
+    database.$transaction.mockImplementation(
+      (callback: (tx: typeof database) => unknown) => callback(database),
     );
+    database.user.create.mockResolvedValue(user);
+    database.user.update.mockResolvedValue(user);
+  });
 
-    const result = await service.register({
-      name: 'Jan Administrator',
-      email: 'Admin@Example.COM',
-      password: 'password123',
+  it('creates an AD identity without a local password', async () => {
+    database.user.findUnique.mockResolvedValue(null);
+    await expect(
+      service.login({ username: 'DOMAIN\\alice', password: 'secret' }),
+    ).resolves.toMatchObject({
+      accessToken: 'token',
+      user: { id: 'user-1', role: Role.OPERATOR },
     });
-
-    expect(result).toEqual({
-      accessToken: 'admin-jwt-token',
-      user: {
-        id: 'admin-1',
-        email: 'admin@example.com',
-        name: 'Jan Administrator',
-        role: Role.ADMIN,
-      },
-    });
-    expect(tx.user.count).toHaveBeenCalledWith({ where: { role: Role.ADMIN } });
-    expect(database.$transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: 'Serializable',
-    });
-    expect(tx.user.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        email: 'admin@example.com',
-        name: 'Jan Administrator',
-        role: Role.ADMIN,
-      }),
-      select: { id: true, email: true, name: true, role: true },
+    expect(ldap.authenticate).toHaveBeenCalledWith('DOMAIN\\alice', 'secret');
+    expect(database.user.create).toHaveBeenCalledWith({
+      data: { ...identity, externalProvider: 'LDAP', passwordHash: null },
     });
   });
 
-  it('rejects registration when an administrator already exists', async () => {
-    const tx = {
-      user: {
-        count: jest.fn().mockResolvedValue(1),
-        create: jest.fn(),
-      },
-    };
-    database.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) =>
-      cb(tx),
-    );
+  it('replaces a legacy password and role while preserving history', async () => {
+    database.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'legacy',
+        externalProvider: null,
+        role: Role.ADMIN,
+      });
+    await service.login({ username: 'alice', password: 'secret' });
+    expect(database.user.update).toHaveBeenCalledWith({
+      where: { id: 'legacy' },
+      data: { ...identity, externalProvider: 'LDAP', passwordHash: null },
+    });
+  });
 
+  it('refreshes an existing LDAP profile and role', async () => {
+    database.user.findUnique.mockResolvedValueOnce({ id: 'ldap-user' });
+    await service.login({ username: 'alice', password: 'secret' });
+    expect(database.user.update).toHaveBeenCalledWith({
+      where: { id: 'ldap-user' },
+      data: expect.objectContaining({ role: Role.OPERATOR }),
+    });
+  });
+
+  it('does not link another external provider by email', async () => {
+    database.user.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'apacs', externalProvider: 'APACS' });
     await expect(
-      service.register({
-        name: 'Admin',
-        email: 'admin@example.com',
-        password: 'password123',
-      }),
-    ).rejects.toThrow(
-      'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego administratora',
-    );
-    expect(tx.user.create).not.toHaveBeenCalled();
+      service.login({ username: 'alice', password: 'secret' }),
+    ).rejects.toThrow('Adres konta jest przypisany do innej tożsamości');
+    expect(database.user.update).not.toHaveBeenCalled();
+    expect(jwt.signAsync).not.toHaveBeenCalled();
+  });
+
+  it('never falls back to a local password after AD rejection', async () => {
+    ldap.authenticate.mockRejectedValue(new UnauthorizedException());
+    await expect(
+      service.login({ username: 'alice', password: 'secret' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(database.$transaction).not.toHaveBeenCalled();
+    expect(jwt.signAsync).not.toHaveBeenCalled();
   });
 });
