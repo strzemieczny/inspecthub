@@ -20,7 +20,7 @@ export class ScadaConnectorController {
 
   @Post('route-check')
   routeCheck(@Body() dto: RouteCheckDto) {
-    return this.scada.routeCheck(dto.serialNumber, dto.stationCode);
+    return this.scada.routeCheck(dto.serialNumber, dto.stationCode, dto.formId);
   }
 
   @Get('settings')

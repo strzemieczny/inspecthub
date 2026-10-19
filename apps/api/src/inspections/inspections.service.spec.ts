@@ -51,7 +51,17 @@ describe('InspectionsService public reports', () => {
   } as unknown as EventsService;
   const service = new InspectionsService(database, scadaConnector, events);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findUniqueReport.mockResolvedValue(null);
+    (database.routeCheck.findUnique as jest.Mock).mockResolvedValue({
+      id: 'route-check-1',
+      formId: 'form-1',
+      allowed: true,
+      serialNumber: 'SN-100',
+      stationCode: 'ST-01',
+    });
+  });
 
   it('counts active stations from station configuration', async () => {
     findManyResults.mockResolvedValue([]);
@@ -271,6 +281,7 @@ describe('InspectionsService public reports', () => {
     const dto = {
       formId: 'form-1',
       vinOrSerialNumber: ' sn-100 ',
+      routeCheckId: 'route-check-1',
       stationId: 'ST-01',
       status: 'PASSED',
       answers: [],
@@ -320,6 +331,7 @@ describe('InspectionsService public reports', () => {
         stationId: 'ST-01',
         status: 'PASSED',
         answers: [{ questionId: 'q1', value: false }],
+        routeCheckId: 'route-check-1',
       },
       'operator-1',
     );
@@ -329,6 +341,49 @@ describe('InspectionsService public reports', () => {
     ];
     expect(createCall[0].data.status).toBe('FAILED');
   });
+
+  it.each([true, false])(
+    'rejects a form different from the route check with live SCADA=%s',
+    async (enabled) => {
+      (database.form.findUnique as jest.Mock).mockResolvedValue({
+        id: 'form-1',
+        code: 'QC-01',
+        allowedStatuses: ['PASSED'],
+        questions: [],
+        processes: [{ id: 'process-1' }],
+      });
+      findUniqueStation.mockResolvedValue({
+        active: true,
+        processId: 'process-1',
+        process: { id: 'process-1', name: 'Montaż' },
+      });
+      (database.routeCheck.findUnique as jest.Mock).mockResolvedValue({
+        id: 'route-check-1',
+        formId: 'other-form',
+        allowed: true,
+        serialNumber: 'SN-100',
+        stationCode: 'ST-01',
+        processName: 'Montaż',
+      });
+      (scadaConnector.getSettings as jest.Mock).mockResolvedValueOnce({
+        enabled,
+      });
+      await expect(
+        service.create(
+          {
+            formId: 'form-1',
+            vinOrSerialNumber: 'SN-100',
+            stationId: 'ST-01',
+            status: 'PASSED',
+            answers: [],
+            routeCheckId: 'route-check-1',
+          },
+          'operator-1',
+        ),
+      ).rejects.toThrow('Formularz nie odpowiada dopasowaniu');
+      expect(createResult).not.toHaveBeenCalled();
+    },
+  );
 
   it('sends only the report UUID as reportUrl to SCADA', async () => {
     (database.form.findUnique as jest.Mock).mockResolvedValue({
@@ -345,6 +400,7 @@ describe('InspectionsService public reports', () => {
     });
     (database.routeCheck.findUnique as jest.Mock).mockResolvedValue({
       id: 'route-check-1',
+      formId: 'form-1',
       allowed: true,
       serialNumber: 'SN-100',
       stationCode: 'ST-01',

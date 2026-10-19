@@ -94,6 +94,7 @@ model Form {
   nokStreakThreshold Int                @default(3)
   requiresLogin      Boolean            @default(false)
   allowedStatuses    Json
+  partNumbers        String[]           @default([])
   questions          Json
   archivedAt         DateTime?
   processes          Process[]          @relation("FormProcesses")
@@ -183,6 +184,7 @@ model RouteCheck {
   stationCode      String
   processName      String
   allowed          Boolean
+  formId           String?
   partNumber       String?
   productFamily    String?
   serverUrl        String?

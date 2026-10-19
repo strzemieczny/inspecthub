@@ -36,6 +36,24 @@ Decyzja jest zapisywana jako `RouteCheck`. Zgoda jest związana z numerem
 seryjnym, kodem stanowiska i nazwą procesu oraz może zostać wykorzystana tylko
 przez jeden wynik inspekcji.
 
+Formularz jest wybierany przez API na podstawie procesu przypisanego do stanowiska
+oraz `product.partNumber` z odpowiedzi SCADA. Administrator przypisuje formularzowi
+procesy i listę numerów części (`partNumbers`). Numery części są zapisywane i
+porównywane po usunięciu otaczających spacji i zamianie liter na wielkie.
+Uwzględniana jest wyłącznie najnowsza aktywna rewizja każdego kodu formularza.
+Brak dopasowania blokuje rozpoczęcie inspekcji. Przy jednym dopasowaniu odpowiedź
+`/scada/route-check` zawiera `form`, a zgoda zapisuje jego identyfikator.
+Przy wielu dopasowaniach API zwraca `forms` oraz `routeCheckId: null`.
+Aplikacja mobilna pokazuje operatorowi listę nazw, kodów i wersji formularzy.
+Po wyborze ponawia `/scada/route-check` z tym samym numerem seryjnym i stanowiskiem
+oraz `formId`. API ponownie sprawdza zgodę SCADA i dopasowanie wybranego formularza
+do PN i procesu, a następnie zapisuje zgodę dla tej wersji formularza. Zapis wyniku
+wymaga tej samej wersji. Anulowanie wyboru pozwala zeskanować kolejną sztukę.
+
+Po wdrożeniu migracji `20261019100000_add_form_part_numbers` istniejące formularze
+mają pustą listę numerów części. Należy uzupełnić przypisania przed rozpoczęciem
+inspekcji (również dla symulacji, np. `DEV-SERIAL` dla `SERIAL_OK`).
+
 Link do historii sztuki jest budowany z `serverUrl` oraz konfigurowalnej
 `unitHistoryPath` (domyślnie `/std_public/unithistory`) i otrzymuje numer seryjny
 w parametrze `unit`.

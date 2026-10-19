@@ -2,6 +2,7 @@ import {
   IsBoolean,
   IsInt,
   IsIn,
+  IsOptional,
   IsString,
   IsUrl,
   Max,
@@ -15,6 +16,10 @@ export class RouteCheckDto {
 
   @IsString()
   stationCode!: string;
+
+  @IsOptional()
+  @IsString()
+  formId?: string;
 }
 
 export class DevScadaRouteCheckDto {

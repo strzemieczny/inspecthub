@@ -879,28 +879,27 @@ export class InspectionsService {
           where: { id: dto.routeCheckId },
         })
       : null;
-    const scadaRequired =
-      scadaSettings.enabled ||
-      (process.env.NODE_ENV !== 'production' &&
-        process.env.NODE_ENV !== 'test');
-    if (scadaRequired) {
-      if (!routeCheck?.allowed) {
-        throw new BadRequestException('Brak ważnej zgody SCADA na inspekcję');
-      }
-      if (
-        routeCheck.serialNumber !== serialNumber ||
-        routeCheck.stationCode !== stationId ||
-        routeCheck.processName !== managedStation.process!.name
-      ) {
-        throw new BadRequestException('Zgoda SCADA nie dotyczy tej inspekcji');
-      }
-      const existing = await this.database.inspectionResult.findUnique({
-        where: { routeCheckId: routeCheck.id },
-        select: { id: true },
-      });
-      if (existing)
-        throw new BadRequestException('Zgoda SCADA została już wykorzystana');
+    if (!routeCheck?.allowed) {
+      throw new BadRequestException('Brak ważnej zgody SCADA na inspekcję');
     }
+    if (
+      routeCheck.serialNumber !== serialNumber ||
+      routeCheck.stationCode !== stationId ||
+      routeCheck.processName !== managedStation.process!.name
+    ) {
+      throw new BadRequestException('Zgoda SCADA nie dotyczy tej inspekcji');
+    }
+    if (routeCheck.formId !== form.id) {
+      throw new BadRequestException(
+        'Formularz nie odpowiada dopasowaniu procesu i Part Number ze SCADA. Zeskanuj produkt ponownie.',
+      );
+    }
+    const existing = await this.database.inspectionResult.findUnique({
+      where: { routeCheckId: routeCheck.id },
+      select: { id: true },
+    });
+    if (existing)
+      throw new BadRequestException('Zgoda SCADA została już wykorzystana');
 
     const questions = form.questions as unknown as InspectionQuestion[];
     const answerMap = new Map(

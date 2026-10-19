@@ -14,6 +14,7 @@ export class FormsService {
         title: dto.title,
         code: dto.code.trim().toUpperCase(),
         version: 1,
+        partNumbers: this.normalizePartNumbers(dto.partNumbers ?? []),
         nokStreakThreshold: dto.nokStreakThreshold,
         requiresLogin: dto.requiresLogin,
         allowedStatuses: dto.allowedStatuses,
@@ -64,6 +65,8 @@ export class FormsService {
         title: dto.title.trim(),
         code: dto.code.trim().toUpperCase(),
         version: 1,
+        partNumbers: source.partNumbers,
+        requiresLogin: source.requiresLogin,
         nokStreakThreshold: source.nokStreakThreshold,
         allowedStatuses: source.allowedStatuses as Prisma.InputJsonValue,
         questions: source.questions as Prisma.InputJsonValue,
@@ -103,6 +106,9 @@ export class FormsService {
         title: dto.title ?? latest.title,
         code: latest.code,
         version: latest.version + 1,
+        partNumbers: this.normalizePartNumbers(
+          dto.partNumbers ?? latest.partNumbers,
+        ),
         nokStreakThreshold: dto.nokStreakThreshold ?? latest.nokStreakThreshold,
         requiresLogin: dto.requiresLogin ?? latest.requiresLogin,
         allowedStatuses:
@@ -150,6 +156,14 @@ export class FormsService {
     });
   }
 
+  private normalizePartNumbers(values: string[]): string[] {
+    return [
+      ...new Set(
+        values.map((value) => value.trim().toUpperCase()).filter(Boolean),
+      ),
+    ];
+  }
+
   private toContract(form: {
     id: string;
     title: string;
@@ -160,6 +174,7 @@ export class FormsService {
     allowedStatuses: Prisma.JsonValue;
     questions: Prisma.JsonValue;
     processes: { id: string }[];
+    partNumbers: string[];
     createdAt: Date;
     archivedAt: Date | null;
   }): InspectionForm {
@@ -172,6 +187,7 @@ export class FormsService {
       requiresLogin: form.requiresLogin,
       allowedStatuses: form.allowedStatuses as string[],
       questions: form.questions as unknown as InspectionQuestion[],
+      partNumbers: form.partNumbers,
       processIds: form.processes.map((process) => process.id),
       createdAt: form.createdAt.toISOString(),
       archivedAt: form.archivedAt?.toISOString() ?? null,

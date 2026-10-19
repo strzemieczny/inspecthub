@@ -181,6 +181,11 @@ export class CreateFormDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   processIds!: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  partNumbers?: string[];
 }
 
 export class UpdateFormDto {
@@ -215,6 +220,11 @@ export class UpdateFormDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   processIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  partNumbers?: string[];
 }
 
 export class DuplicateFormDto {

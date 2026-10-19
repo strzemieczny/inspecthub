@@ -9,12 +9,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type {
+  InspectionForm,
   RouteCheckResult,
   ScadaInspectionResultRequest,
   ScadaRouteCheckResponse,
   ScadaSettings,
 } from '@inspect-hub/types';
 import { DatabaseService } from '../database/database.service';
+import { FormsService } from '../forms/forms.service';
 import type { UpdateScadaSettingsDto } from './dto/scada.dto';
 
 const SETTINGS_ID = 'default';
@@ -25,7 +27,10 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private processing = false;
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly forms: FormsService,
+  ) {}
 
   onModuleInit(): void {
     this.timer = setInterval(() => void this.processPending(), 5000);
@@ -78,6 +83,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
   async routeCheck(
     serialNumberInput: string,
     stationCodeInput: string,
+    selectedFormId?: string,
   ): Promise<RouteCheckResult> {
     const serialNumber = serialNumberInput.trim().toUpperCase();
     const stationCode = stationCodeInput.trim().toUpperCase();
@@ -92,16 +98,13 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
 
     const settings = await this.getSettings();
     if (!settings.enabled) {
-      if (this.isDevelopmentSimulation()) {
-        return this.storeRouteCheck(
-          this.simulateRouteCheck(serialNumber),
-          serialNumber,
-          stationCode,
-          station.process.name,
-        );
-      }
-      throw new ServiceUnavailableException(
-        'Connector SCADA jest wyłączony. Włącz go w ustawieniach administratora.',
+      return this.storeRouteCheck(
+        this.simulateRouteCheck(serialNumber),
+        serialNumber,
+        stationCode,
+        station.process.name,
+        station.process.id,
+        selectedFormId,
       );
     }
     if (!settings.baseUrl)
@@ -120,6 +123,8 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
       serialNumber,
       stationCode,
       station.process.name,
+      station.process.id,
+      selectedFormId,
     );
   }
 
@@ -128,19 +133,58 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
     serialNumber: string,
     stationCode: string,
     processName: string,
+    processId: string,
+    selectedFormId?: string,
   ): Promise<RouteCheckResult> {
+    let form: InspectionForm | undefined;
+    if (response.allowed) {
+      const partNumber = response.product.partNumber.trim().toUpperCase();
+      const forms = await this.forms.findAll();
+      const matches = forms.filter(
+        (candidate) =>
+          candidate.processIds.includes(processId) &&
+          candidate.partNumbers?.includes(partNumber),
+      );
+      if (!matches.length) {
+        throw new BadRequestException(
+          `Brak formularza dla procesu ${processName} i Part Number ${partNumber}. Skontaktuj się z administratorem.`,
+        );
+      }
+      if (selectedFormId) {
+        form = matches.find((candidate) => candidate.id === selectedFormId);
+        if (!form)
+          throw new BadRequestException(
+            'Wybrany formularz nie pasuje do procesu i Part Number produktu.',
+          );
+      } else if (matches.length > 1) {
+        return {
+          ...response,
+          routeCheckId: null,
+          integrationEnabled: true,
+          forms: matches,
+        };
+      } else {
+        form = matches[0];
+      }
+    }
     const record = await this.database.routeCheck.create({
       data: {
         serialNumber,
         stationCode,
         processName,
         allowed: response.allowed,
+        formId: form?.id,
         partNumber: response.allowed ? response.product.partNumber : null,
         productFamily: response.allowed ? response.product.productFamily : null,
         serverUrl: response.allowed ? response.serverUrl : null,
       },
     });
-    return { ...response, routeCheckId: record.id, integrationEnabled: true };
+    return {
+      ...response,
+      routeCheckId: record.id,
+      integrationEnabled: true,
+      ...(form ? { form } : {}),
+    };
   }
 
   private simulateRouteCheck(serialNumber: string): ScadaRouteCheckResponse {
@@ -157,13 +201,7 @@ export class ScadaConnectorService implements OnModuleInit, OnModuleDestroy {
       };
     }
     throw new BadRequestException(
-      'W trybie deweloperskim numer seryjny musi kończyć się na _OK albo _NOK',
-    );
-  }
-
-  private isDevelopmentSimulation(): boolean {
-    return (
-      process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test'
+      'W trybie symulacji SCADA numer seryjny musi kończyć się na _OK albo _NOK',
     );
   }
 

@@ -58,11 +58,18 @@ wartości. Bucket powinien być prywatny; obrazy są serwowane przez API.
 Wartości `*_IMAGE` powinny wskazywać niezmienny tag wydania lub digest, nigdy
 `latest`.
 
+## Symulacja SCADA
+
+Tryb wybiera suwak w `/admin` → Connector SCADA. Po zapisaniu ustawień
+`enabled=true` oznacza rzeczywisty serwer SCADA, a `enabled=false` — lokalną
+symulację z numerami `_OK` / `_NOK`. Ustawienie obowiązuje także aplikację
+mobilną, niezależnie od `NODE_ENV` i trybu jej kompilacji. Nie wymaga restartu API.
+
 ## Ustawienia SCADA w bazie
 
 Administrator zarządza nimi przez `/api/scada/settings`:
 
-- `enabled` — aktywacja integracji,
+- `enabled` — wybór serwera SCADA (`true`) lub symulacji (`false`),
 - `baseUrl` — adres SCADA,
 - `routeCheckPath` — endpoint sprawdzenia produktu,
 - `submitResultPath` — endpoint odbioru wyniku,

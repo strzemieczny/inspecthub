@@ -54,6 +54,8 @@ export interface InspectionForm {
   questions: InspectionQuestion[];
   /** Processes in which this form can be used. */
   processIds: string[];
+  /** SCADA part numbers supported by this form in its assigned processes. */
+  partNumbers?: string[];
   /** Publication date of this immutable revision. */
   createdAt: string;
   /** Date when the form and all its revisions were archived. */
@@ -123,6 +125,9 @@ export type ScadaRouteCheckResponse =
 export type RouteCheckResult = ScadaRouteCheckResponse & {
   routeCheckId: string | null;
   integrationEnabled: boolean;
+  form?: InspectionForm;
+  /** Matching forms to choose from when there is no unique match yet. */
+  forms?: InspectionForm[];
 };
 
 export interface ScadaInspectionResultRequest {
