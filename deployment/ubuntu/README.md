@@ -82,7 +82,11 @@ Skrypt blokuje równoległe wdrożenia, sprawdza czystość klonu i buduje obraz
 oznaczone SHA. Następnie uruchamia bazę i MinIO, zapisuje dump PostgreSQL
 w `.git/deploy-backups/`, inicjalizuje prywatny bucket, wykonuje
 `prisma migrate deploy` i aktualizuje API oraz web. Kończy po healthcheckach
-i sprawdzeniu odpowiedzi SPA. Przed logowaniem ustaw `LDAP_*` w pliku środowiska API. Administrator loguje
+i sprawdzeniu odpowiedzi SPA. Logi oznaczają etapy przez `[STEP]`, a przy błędzie
+podają etap, linię skryptu i kod wyjścia. Obraz przypisuje kopiowane źródła
+użytkownikowi `node`, aby migracje miały do nich dostęp także po checkout
+z restrykcyjnym `umask 077`; CI sprawdza budowę i walidację Prisma w tych warunkach.
+Przed logowaniem ustaw `LDAP_*` w pliku środowiska API. Administrator loguje
 się kontem AD należącym do `LDAP_ADMIN_GROUP`; konto powstaje automatycznie.
 APACS i SCADA skonfiguruj osobno; adres API aplikacji mobilnej powinien kończyć
 się na `/inspect-hub/api`.

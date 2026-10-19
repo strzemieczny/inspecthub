@@ -33,27 +33,38 @@ compose() {
     -f docker-compose.production.yaml "$@"
 }
 on_error() {
-  local status=$?
+  local status="$1" line="$2"
   trap - ERR
   echo "[ERROR] Deploy $sha failed; previous checkout: $previous" >&2
+  echo "[ERROR] Stage: $stage; line: $line; exit code: $status" >&2
   echo '[ERROR] No automatic database rollback. Inspect container status and server logs.' >&2
   compose ps --all || true
   exit "$status"
 }
-trap on_error ERR
+stage='Validate Compose configuration'
+trap 'on_error "$?" "$LINENO"' ERR
+step() { stage="$1"; echo "[STEP] $stage"; }
 compose config --quiet
 # BW Mind's gateway connects to this external network as well.
+step 'Prepare proxy network'
 docker network inspect bw-apps-edge >/dev/null 2>&1 || docker network create bw-apps-edge >/dev/null
+step 'Build application images'
 compose build --pull
+step 'Wait for PostgreSQL and MinIO'
 compose up -d --wait --wait-timeout 180 postgres minio
 # Stop on failed backup before changing the schema. Backups stay outside Git history.
+step 'Back up PostgreSQL'
 mkdir -p .git/deploy-backups
 backup=".git/deploy-backups/$(date -u +%Y%m%dT%H%M%SZ)-$sha.dump"
 compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup"
+step 'Initialize private storage bucket'
 compose run --rm --no-deps createbuckets
+step 'Apply database migrations'
 compose run --rm --no-deps api pnpm --filter @inspect-hub/database db:migrate:deploy
 # Dependencies were checked above; do not wait for the completed createbuckets job.
+step 'Start API and web and wait for health checks'
 compose up -d --no-deps --no-build --wait --wait-timeout 300 api web
+step 'Check web admin route'
 compose exec -T web wget -q -O /dev/null http://127.0.0.1/pl/admin
 printf '%s\n' "$sha" > .git/inspect-hub-last-successful-deploy
 echo "[OK] Deployed $sha (Compose project $project)"

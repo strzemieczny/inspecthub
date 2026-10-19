@@ -3,7 +3,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
     && rm -rf /var/lib/apt/lists/* \
     && npm install --global pnpm@9.0.0
 WORKDIR /app
-COPY . .
+# Deploy checks out files with umask 077. Keep them readable by the runtime user.
+COPY --chown=node:node . .
 RUN pnpm install --frozen-lockfile --filter api... --filter web...
 RUN pnpm --filter @inspect-hub/database build
 RUN pnpm --filter api build
