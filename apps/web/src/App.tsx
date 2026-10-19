@@ -2004,10 +2004,28 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
   const [identifier, setIdentifier] = useState("");
   const [cardCode, setCardCode] = useState("");
   const [pairingRequired, setPairingRequired] = useState(false);
+  const [registrationAvailable, setRegistrationAvailable] =
+    useState<boolean | null>(null);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void api<{ registrationAvailable: boolean }>("/auth/setup-status")
+      .then((status) => {
+        if (active) setRegistrationAvailable(status.registrationAvailable);
+      })
+      .catch(() => {
+        // Existing users can still sign in if the setup status is unavailable.
+        if (active) setRegistrationAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submitCard(event: FormEvent) {
     event.preventDefault();
@@ -2038,7 +2056,27 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
     }
   }
 
-  async function submit(event: FormEvent) {
+  async function submitRegister(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const session = await api<Session>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password }),
+      });
+      onLogin(session);
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 403) {
+        setRegistrationAvailable(false);
+      }
+      setError(reason instanceof Error ? reason.message : t("login.error"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitLogin(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
@@ -2071,61 +2109,33 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
         <p className="eyebrow">{t("common.qualityOperations")}</p>
         <h1>Inspect Hub</h1>
         <p className="muted">{t("login.tagline")}</p>
-        <form className="card-login-form" onSubmit={submitCard}>
-          <div className="card-reader-icon" aria-hidden="true">
-            ▣
-          </div>
-          <h2>{t("login.cardTitle")}</h2>
-          <p className="muted">{t("login.cardHint")}</p>
-          <label className="card-identifier-label">
-            {t("login.cardIdentifier")}
-            <input
-              ref={cardInput}
-              inputMode="text"
-              autoComplete="off"
-              pattern="[A-Za-z0-9]+"
-              maxLength={30}
-              value={identifier}
-              onChange={(event) =>
-                setIdentifier(
-                  event.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
-                )
-              }
-              autoFocus
-              required
-              readOnly={pairingRequired}
-            />
-          </label>
-          {pairingRequired && (
-            <label className="card-identifier-label">
-              {t("login.cardCode")}
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        {registrationAvailable === null ? (
+          <p className="muted auth-loading">{t("common.loading")}</p>
+        ) : registrationAvailable ? (
+          <form className="setup-admin-form" onSubmit={submitRegister}>
+            <h2>{t("login.setupTitle")}</h2>
+            <p className="muted">{t("login.setupHint")}</p>
+            <label>
+              {t("login.setupName")}
               <input
-                inputMode="numeric"
-                autoComplete="off"
-                pattern="[0-9]{4}"
-                maxLength={4}
-                value={cardCode}
-                onChange={(event) =>
-                  setCardCode(event.target.value.replace(/\D/g, ""))
-                }
-                autoFocus
+                autoComplete="name"
+                minLength={2}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
                 required
+                autoFocus
               />
-              <small>{t("login.cardCodeHint")}</small>
             </label>
-          )}
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={busy}>
-            {busy ? t("login.cardBusy") : t("login.cardButton")}
-          </button>
-        </form>
-        <details className="password-login">
-          <summary>{t("login.adminLogin")}</summary>
-          <form onSubmit={submit}>
             <label>
               Email
               <input
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -2135,6 +2145,7 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
               {t("login.password")}
               <input
                 type="password"
+                autoComplete="new-password"
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -2142,11 +2153,92 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
               />
             </label>
             <button className="primary" disabled={busy}>
-              {busy ? t("login.busy") : t("common.login")}
+              {busy ? t("login.busy") : t("login.setupSubmit")}
             </button>
           </form>
-        </details>
-        <p className="auth-note">{t("login.note")}</p>
+        ) : (
+          <>
+            <form className="card-login-form" onSubmit={submitCard}>
+              <div className="card-reader-icon" aria-hidden="true">
+                ▣
+              </div>
+              <h2>{t("login.cardTitle")}</h2>
+              <p className="muted">{t("login.cardHint")}</p>
+              <label className="card-identifier-label">
+                {t("login.cardIdentifier")}
+                <input
+                  ref={cardInput}
+                  inputMode="text"
+                  autoComplete="off"
+                  pattern="[A-Za-z0-9]+"
+                  maxLength={30}
+                  value={identifier}
+                  onChange={(event) =>
+                    setIdentifier(
+                      event.target.value
+                        .replace(/[^A-Za-z0-9]/g, "")
+                        .toUpperCase(),
+                    )
+                  }
+                  autoFocus
+                  required
+                  readOnly={pairingRequired}
+                />
+              </label>
+              {pairingRequired && (
+                <label className="card-identifier-label">
+                  {t("login.cardCode")}
+                  <input
+                    inputMode="numeric"
+                    autoComplete="off"
+                    pattern="[0-9]{4}"
+                    maxLength={4}
+                    value={cardCode}
+                    onChange={(event) =>
+                      setCardCode(event.target.value.replace(/\D/g, ""))
+                    }
+                    autoFocus
+                    required
+                  />
+                  <small>{t("login.cardCodeHint")}</small>
+                </label>
+              )}
+              <button className="primary" disabled={busy}>
+                {busy ? t("login.cardBusy") : t("login.cardButton")}
+              </button>
+            </form>
+            <details className="password-login">
+              <summary>{t("login.adminLogin")}</summary>
+              <form onSubmit={submitLogin}>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  {t("login.password")}
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </label>
+                <button className="primary" disabled={busy}>
+                  {busy ? t("login.busy") : t("common.login")}
+                </button>
+              </form>
+            </details>
+            <p className="auth-note">{t("login.note")}</p>
+          </>
+        )}
       </section>
     </main>
   );

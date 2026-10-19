@@ -25,6 +25,10 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  async setupStatus() {
+    return { registrationAvailable: (await this.database.user.count()) === 0 };
+  }
+
   async register(dto: RegisterDto) {
     const email = dto.email.toLowerCase();
     const passwordHash = await bcrypt.hash(dto.password, 12);

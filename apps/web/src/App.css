@@ -3251,6 +3251,21 @@ label.check {
   font-size: 0.73rem;
   text-align: center;
 }
+.setup-admin-form h2 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1.15rem;
+  text-align: center;
+}
+.setup-admin-form .muted {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-align: center;
+}
+.auth-loading {
+  margin: 2rem 0;
+  text-align: center;
+}
 .operator-workspace {
   max-width: 1260px;
 }

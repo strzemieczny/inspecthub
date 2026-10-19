@@ -66,3 +66,110 @@ describe('AuthService card login', () => {
     );
   });
 });
+
+describe('AuthService setupStatus', () => {
+  const database = {
+    user: { count: jest.fn() },
+  };
+  const service = new AuthService(
+    database as never,
+    {} as unknown as JwtService,
+    {} as unknown as AccessControlService,
+    {} as unknown as ConfigService,
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reports registrationAvailable as true when user database is empty', async () => {
+    database.user.count.mockResolvedValue(0);
+    await expect(service.setupStatus()).resolves.toEqual({
+      registrationAvailable: true,
+    });
+  });
+
+  it('reports registrationAvailable as false when users exist', async () => {
+    database.user.count.mockResolvedValue(2);
+    await expect(service.setupStatus()).resolves.toEqual({
+      registrationAvailable: false,
+    });
+  });
+});
+
+describe('AuthService register', () => {
+  const database = {
+    $transaction: jest.fn(),
+  };
+  const jwt = { signAsync: jest.fn().mockResolvedValue('admin-jwt-token') };
+  const service = new AuthService(
+    database as never,
+    jwt as unknown as JwtService,
+    {} as unknown as AccessControlService,
+    {} as unknown as ConfigService,
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('creates the first administrator and issues a session', async () => {
+    const tx = {
+      user: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@example.com',
+          name: 'Jan Administrator',
+          role: Role.ADMIN,
+        }),
+      },
+    };
+    database.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) =>
+      cb(tx),
+    );
+
+    const result = await service.register({
+      name: 'Jan Administrator',
+      email: 'Admin@Example.COM',
+      password: 'password123',
+    });
+
+    expect(result).toEqual({
+      accessToken: 'admin-jwt-token',
+      user: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        name: 'Jan Administrator',
+        role: Role.ADMIN,
+      },
+    });
+    expect(tx.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        email: 'admin@example.com',
+        name: 'Jan Administrator',
+        role: Role.ADMIN,
+      }),
+      select: { id: true, email: true, name: true, role: true },
+    });
+  });
+
+  it('rejects registration when users already exist in the database', async () => {
+    const tx = {
+      user: {
+        count: jest.fn().mockResolvedValue(1),
+        create: jest.fn(),
+      },
+    };
+    database.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) =>
+      cb(tx),
+    );
+
+    await expect(
+      service.register({
+        name: 'Admin',
+        email: 'admin@example.com',
+        password: 'password123',
+      }),
+    ).rejects.toThrow(
+      'Rejestracja startowa jest dostępna tylko przed utworzeniem pierwszego konta',
+    );
+    expect(tx.user.create).not.toHaveBeenCalled();
+  });
+});
