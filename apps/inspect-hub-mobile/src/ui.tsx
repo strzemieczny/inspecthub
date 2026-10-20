@@ -141,6 +141,8 @@ export function Photo({
   onPress,
   selected = false,
   disabled = false,
+  fit = false,
+  height = 240,
 }: {
   uri: string;
   label: string;
@@ -148,9 +150,12 @@ export function Photo({
   onPress?: () => void;
   selected?: boolean;
   disabled?: boolean;
+  fit?: boolean;
+  height?: number;
 }) {
   const frameStyles = [
     s.photo,
+    fit && s.photoFit,
     result && s.photoFrame,
     result === "OK" && s.photoOk,
     result === "NOK" && s.photoNok,
@@ -187,7 +192,12 @@ export function Photo({
       <Image
         accessibilityLabel={label}
         source={{ uri: mediaUrl(uri) }}
-        style={[s.image, result && s.photoFrameImage]}
+        style={[
+          s.image,
+          { height },
+          result && s.photoFrameImage,
+          fit && s.photoFitImage,
+        ]}
         resizeMode="contain"
       />
     </>
@@ -299,7 +309,27 @@ export const s = StyleSheet.create({
     alignSelf: "center",
     flexGrow: 1,
   },
+  inspectionBody: { flex: 1 },
   inspectionScroll: { flex: 1 },
+  noticeOverlay: {
+    position: "absolute",
+    top: 12,
+    width: "100%",
+    maxWidth: 1016,
+    paddingHorizontal: 16,
+    alignSelf: "center",
+    gap: 10,
+    zIndex: 1,
+  },
+  photoQuestionContent: { flex: 1, minHeight: 0, padding: 16, gap: 10 },
+  photoQuestionPanel: { flex: 1, minHeight: 0, padding: 16, gap: 10 },
+  photoQuestionTitle: { fontSize: 26, lineHeight: 32 },
+  photoQuestionReferences: {
+    flex: 1,
+    minHeight: 0,
+    flexWrap: "nowrap",
+    alignItems: "stretch",
+  },
   inspectionActions: {
     flexShrink: 0,
     flexDirection: "row",
@@ -387,13 +417,26 @@ export const s = StyleSheet.create({
     borderRadius: 8,
   },
   error: { backgroundColor: "#fbecef", borderColor: colors.red },
+  progressGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    minHeight: 24,
+  },
+  progressLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.muted,
+    flexShrink: 1,
+  },
   progress: {
-    height: 7,
-    backgroundColor: colors.line,
-    borderRadius: 4,
+    flex: 1,
+    height: 6,
+    backgroundColor: "#dce5df",
+    borderRadius: 3,
     overflow: "hidden",
   },
-  progressFill: { height: 7, backgroundColor: colors.green },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: colors.green },
   serial: {
     fontSize: 28,
     fontWeight: "700",
@@ -401,10 +444,11 @@ export const s = StyleSheet.create({
     fontFamily: "monospace",
   },
   photo: { gap: 10, flexGrow: 1, minWidth: 220 },
+  photoFit: { flex: 1, flexBasis: 0, minHeight: 0, minWidth: 0 },
+  photoFitImage: { height: undefined, flex: 1, minHeight: 0 },
   image: {
     height: 240,
     width: "100%",
-    backgroundColor: colors.background,
     borderRadius: 8,
   },
   photoFrame: {

@@ -74,9 +74,12 @@ trzeba przebudować i zainstalować APK (`pnpm mobile:android`).
 6. Sprawdź podsumowanie i zapisz. Komunikat potwierdza zapis w Inspect Hub;
    potwierdzenie SCADA jest osobnym procesem backendu.
 
-Pytania ze zdjęciem otwierają podgląd aparatu bezpośrednio w aplikacji.
-Po zrobieniu zdjęcia wybierz „Powtórz” albo „Użyj zdjęcia”. Dopiero zaakceptowane
-zdjęcie jest wysyłane. Przy błędzie wysyłki podgląd pozostaje dostępny do ponowienia;
+W pytaniu ze zdjęciem podgląd aparatu pojawia się automatycznie w polu odpowiedzi,
+bez otwierania osobnego okna. Jeśli odpowiedź jest już zapisana, wyświetlane jest
+zdjęcie oraz przycisk „Zrób nowe zdjęcie”.
+Przycisk „Zrób zdjęcie” od razu robi zdjęcie, wysyła je i zapisuje jako odpowiedź,
+bez dodatkowego potwierdzenia. Przy błędzie wysyłki podgląd pozostaje dostępny
+z przyciskiem „Ponów zapis zdjęcia”;
 „Anuluj” zachowuje poprzednią odpowiedź. Aparat zatrzymuje się w tle oraz po
 opuszczeniu pytania. Zdjęcia tymczasowe są usuwane po powtórzeniu, anulowaniu
 lub zakończeniu pracy z aparatem. Nie jest wymagany dostęp do mikrofonu ani galerii.

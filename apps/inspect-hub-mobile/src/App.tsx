@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Keyboard,
   Modal,
@@ -37,6 +38,8 @@ import { storage } from "./storage";
 import { INACTIVITY_TIMEOUT_MS } from "./inactivity";
 import { useInactivityLogout } from "./useInactivityLogout";
 import { Question } from "./Question";
+import { useInspectionProgress } from "./useInspectionProgress";
+import { FloatingNotice } from "./FloatingNotice";
 import { NumericKeypad } from "./NumericKeypad";
 import { Button, colors, Field, IconButton, Photo, s } from "./ui";
 
@@ -52,7 +55,7 @@ function OperatorApp() {
     operatorDisplay?.activate();
     return () => operatorDisplay?.deactivate();
   }, []);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const wideHeader = width >= 600;
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<
@@ -72,6 +75,7 @@ function OperatorApp() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [noticeRevision, setNoticeRevision] = useState(0);
   const [error, setError] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -113,6 +117,7 @@ function OperatorApp() {
 
   function message(value: string, isError = false) {
     setNotice(value);
+    setNoticeRevision((revision) => revision + 1);
     setError(isError);
   }
   function openOperatorLogin() {
@@ -162,7 +167,7 @@ function OperatorApp() {
     if (running.current) return;
     running.current = true;
     setBusy(true);
-    message("");
+    if (error) message("");
     try {
       await task();
     } catch (cause) {
@@ -270,6 +275,13 @@ function OperatorApp() {
   }, []);
 
   const currentQuestion = draft?.form.questions[draft.index];
+  const inspectionProgress = useInspectionProgress(
+    draft?.id ?? null,
+    draft?.summary ? draft.form.questions.length : (draft?.index ?? 0),
+    draft?.form.questions.length ?? 0,
+  );
+  const photoQuestion =
+    !draft?.summary && currentQuestion?.type === "PHOTO_UPLOAD";
   const locked = !!draft?.submission;
   const automatic = draft ? automaticStatus(draft.form, draft.answers) : null;
   const finalStatus = draft ? (automatic ?? draft.status) : "";
@@ -484,7 +496,7 @@ function OperatorApp() {
       message("Odpowiedz na wymagane pytanie przed przejściem dalej.", true);
       return;
     }
-    message("");
+    if (error) message("");
     editDraft((current) =>
       current.index === current.form.questions.length - 1
         ? { ...current, summary: true }
@@ -639,358 +651,399 @@ function OperatorApp() {
           ) : null}
         </View>
       </View>
-      {!ready ? (
-        <ActivityIndicator
-          size="large"
-          color={colors.green}
-          style={{ flex: 1 }}
-        />
-      ) : (
-        <ScrollView
-          style={s.inspectionScroll}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={s.content}
-        >
-          {!operatorDisplay ? (
-            <View accessibilityRole="alert" style={[s.notice, s.error]}>
-              <Text style={s.body}>
-                Ta wersja aplikacji nie obsługuje pełnego ekranu. Zainstaluj
-                aktualną wersję APK.
-              </Text>
-            </View>
-          ) : null}
-          {notice ? (
-            <View
-              accessibilityLiveRegion="polite"
-              style={[s.notice, error && s.error]}
-            >
-              <Text style={s.body}>{notice}</Text>
-            </View>
-          ) : null}
-          {busy ? (
-            <ActivityIndicator
-              accessibilityLabel="Trwa operacja"
-              color={colors.green}
-            />
-          ) : null}
-          {!draft || !station ? (
-            <>
-              <View>
-                <Text style={s.title}>
-                  {stationSettingsOpen
-                    ? "Ustawienia stanowiska"
-                    : station
-                      ? "Nowa inspekcja"
-                      : "Przygotuj stanowisko"}
-                </Text>
-                <Text style={s.subtitle}>
-                  {station && !stationSettingsOpen
-                    ? "Zeskanuj lub wpisz kod sztuki."
-                    : "Zeskanuj lub wpisz kod stanowiska."}
-                </Text>
-              </View>
-              {!station || stationSettingsOpen ? (
-                <View style={s.panel}>
-                  <Field
-                    label="Kod stanowiska"
-                    value={stationCode}
-                    autoCapitalize="characters"
-                    editable={!busy}
-                    onChangeText={(value) => {
-                      if (recordActivity()) setStationCode(value);
-                    }}
-                    onSubmitEditing={() => void run(() => pair(stationCode))}
-                  />
-                  <Text style={s.muted}>
-                    Nazwę i proces uzupełnij tylko dla nowego stanowiska.
+      <View style={s.inspectionBody}>
+        {!ready ? (
+          <ActivityIndicator
+            size="large"
+            color={colors.green}
+            style={{ flex: 1 }}
+          />
+        ) : (
+          <ScrollView
+            key={photoQuestion ? "photo-question" : "inspection"}
+            style={s.inspectionScroll}
+            scrollEnabled={!photoQuestion}
+            bounces={!photoQuestion}
+            overScrollMode={photoQuestion ? "never" : "auto"}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[
+              s.content,
+              photoQuestion && s.photoQuestionContent,
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator
+                accessibilityLabel="Trwa operacja"
+                color={colors.green}
+              />
+            ) : null}
+            {!draft || !station ? (
+              <>
+                <View>
+                  <Text style={s.title}>
+                    {stationSettingsOpen
+                      ? "Ustawienia stanowiska"
+                      : station
+                        ? "Nowa inspekcja"
+                        : "Przygotuj stanowisko"}
                   </Text>
-                  <Field
-                    label="Nazwa nowego stanowiska"
-                    value={stationName}
-                    editable={!busy}
-                    onChangeText={(value) => {
-                      if (recordActivity()) setStationName(value);
-                    }}
-                  />
-                  <Field
-                    label="Proces inspekcji nowego stanowiska"
-                    value={stationProcessName}
-                    autoCorrect={false}
-                    editable={!busy}
-                    onChangeText={(value) => {
-                      if (recordActivity()) setStationProcessName(value);
-                    }}
-                    onSubmitEditing={() => void run(() => pair(stationCode))}
-                  />
-                  <View style={s.row}>
-                    <Button
-                      secondary
-                      disabled={busy || !stationCode.trim()}
-                      onPress={() => void run(() => pair(stationCode))}
-                    >
-                      {station
-                        ? "Odśwież / zmień stanowisko"
-                        : "Połącz stanowisko"}
-                    </Button>
-                    <Button
-                      secondary
-                      disabled={busy || !dataWedge}
-                      onPress={() => {
-                        dataWedge?.configure();
-                        message("Konfigurowanie skanera…");
-                      }}
-                    >
-                      Skonfiguruj skaner
-                    </Button>
-                  </View>
-                  {draft ? (
-                    <>
-                      <Text style={s.body}>
-                        Zapisany szkic: stanowisko {draft.stationCode}.
-                      </Text>
-                      <Button secondary disabled={busy} onPress={discard}>
-                        Odrzuć szkic
-                      </Button>
-                    </>
-                  ) : null}
-                  {!dataWedge ? (
-                    <Text style={s.muted}>
-                      Skaner niedostępny. Wpisz kod ręcznie.
-                    </Text>
-                  ) : null}
+                  <Text style={s.subtitle}>
+                    {station && !stationSettingsOpen
+                      ? "Zeskanuj lub wpisz kod sztuki."
+                      : "Zeskanuj lub wpisz kod stanowiska."}
+                  </Text>
                 </View>
-              ) : null}
-              {station && !stationSettingsOpen && formChoice ? (
-                <View style={s.panel}>
-                  <Text style={s.title}>Wybierz formularz</Text>
-                  <Text style={s.body}>Sztuka: {formChoice.serial}</Text>
-                  {formChoice.forms.map((form) => (
+                {!station || stationSettingsOpen ? (
+                  <View style={s.panel}>
+                    <Field
+                      label="Kod stanowiska"
+                      value={stationCode}
+                      autoCapitalize="characters"
+                      editable={!busy}
+                      onChangeText={(value) => {
+                        if (recordActivity()) setStationCode(value);
+                      }}
+                      onSubmitEditing={() => void run(() => pair(stationCode))}
+                    />
+                    <Text style={s.muted}>
+                      Nazwę i proces uzupełnij tylko dla nowego stanowiska.
+                    </Text>
+                    <Field
+                      label="Nazwa nowego stanowiska"
+                      value={stationName}
+                      editable={!busy}
+                      onChangeText={(value) => {
+                        if (recordActivity()) setStationName(value);
+                      }}
+                    />
+                    <Field
+                      label="Proces inspekcji nowego stanowiska"
+                      value={stationProcessName}
+                      autoCorrect={false}
+                      editable={!busy}
+                      onChangeText={(value) => {
+                        if (recordActivity()) setStationProcessName(value);
+                      }}
+                      onSubmitEditing={() => void run(() => pair(stationCode))}
+                    />
+                    <View style={s.row}>
+                      <Button
+                        secondary
+                        disabled={busy || !stationCode.trim()}
+                        onPress={() => void run(() => pair(stationCode))}
+                      >
+                        {station
+                          ? "Odśwież / zmień stanowisko"
+                          : "Połącz stanowisko"}
+                      </Button>
+                      <Button
+                        secondary
+                        disabled={busy || !dataWedge}
+                        onPress={() => {
+                          dataWedge?.configure();
+                          message("Konfigurowanie skanera…");
+                        }}
+                      >
+                        Skonfiguruj skaner
+                      </Button>
+                    </View>
+                    {draft ? (
+                      <>
+                        <Text style={s.body}>
+                          Zapisany szkic: stanowisko {draft.stationCode}.
+                        </Text>
+                        <Button secondary disabled={busy} onPress={discard}>
+                          Odrzuć szkic
+                        </Button>
+                      </>
+                    ) : null}
+                    {!dataWedge ? (
+                      <Text style={s.muted}>
+                        Skaner niedostępny. Wpisz kod ręcznie.
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                {station && !stationSettingsOpen && formChoice ? (
+                  <View style={s.panel}>
+                    <Text style={s.title}>Wybierz formularz</Text>
+                    <Text style={s.body}>Sztuka: {formChoice.serial}</Text>
+                    {formChoice.forms.map((form) => (
+                      <Button
+                        key={form.id}
+                        secondary
+                        disabled={busy}
+                        onPress={() =>
+                          void run(() =>
+                            handleStartInspection(formChoice.serial, form.id),
+                          )
+                        }
+                      >
+                        {form.title} · {form.code} · v{form.version}
+                      </Button>
+                    ))}
                     <Button
-                      key={form.id}
                       secondary
                       disabled={busy}
-                      onPress={() =>
-                        void run(() =>
-                          handleStartInspection(formChoice.serial, form.id),
-                        )
-                      }
+                      onPress={() => {
+                        setFormChoice(null);
+                        setSerial("");
+                      }}
                     >
-                      {form.title} · {form.code} · v{form.version}
+                      Anuluj wybór
                     </Button>
-                  ))}
-                  <Button
-                    secondary
-                    disabled={busy}
-                    onPress={() => {
-                      setFormChoice(null);
-                      setSerial("");
-                    }}
-                  >
-                    Anuluj wybór
-                  </Button>
-                </View>
-              ) : null}
-              {station && !stationSettingsOpen && !formChoice ? (
-                <View style={s.panel}>
-                  <Field
-                    label="Numer seryjny / VIN"
-                    inputRef={serialInput}
-                    value={serial}
-                    showSoftInputOnFocus={false}
-                    submitBehavior="submit"
-                    returnKeyType="go"
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    editable={!busy}
-                    onChangeText={(value) => {
-                      if (!recordActivity()) return;
-                      const normalized = value.replace(/[\r\n]+/g, "");
-                      setSerial(normalized);
-                      if (/[\r\n]/.test(value)) {
-                        void run(() => handleStartInspection(normalized));
+                  </View>
+                ) : null}
+                {station && !stationSettingsOpen && !formChoice ? (
+                  <View style={s.panel}>
+                    <Field
+                      label="Numer seryjny / VIN"
+                      inputRef={serialInput}
+                      value={serial}
+                      showSoftInputOnFocus={false}
+                      submitBehavior="submit"
+                      returnKeyType="go"
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      editable={!busy}
+                      onChangeText={(value) => {
+                        if (!recordActivity()) return;
+                        const normalized = value.replace(/[\r\n]+/g, "");
+                        setSerial(normalized);
+                        if (/[\r\n]/.test(value)) {
+                          void run(() => handleStartInspection(normalized));
+                        }
+                      }}
+                      onSubmitEditing={({ nativeEvent }) =>
+                        void run(() => handleStartInspection(nativeEvent.text))
                       }
-                    }}
-                    onSubmitEditing={({ nativeEvent }) =>
-                      void run(() => handleStartInspection(nativeEvent.text))
-                    }
-                  />
-                </View>
-              ) : null}
-              {lastScan ? (
-                <Text selectable style={s.muted}>
-                  Ostatni skan: {lastScan}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <View style={s.row}>
-                <View style={s.column}>
-                  <Text style={s.muted}>
-                    {draft.form.title} · v{draft.form.version} ·{" "}
-                    {draft.stationCode}
+                    />
+                  </View>
+                ) : null}
+                {lastScan ? (
+                  <Text selectable style={s.muted}>
+                    Ostatni skan: {lastScan}
                   </Text>
-                  <Text selectable style={s.serial}>
-                    {draft.serial}
-                  </Text>
-                </View>
-              </View>
-              {ownerMismatch ? (
-                <View style={[s.notice, s.error]}>
-                  <Text style={s.body}>
-                    Zaloguj się na konto operatora, który rozpoczął inspekcję.
-                  </Text>
-                  <Button onPress={openOperatorLogin}>Zaloguj operatora</Button>
-                </View>
-              ) : null}
-              <Text style={s.body}>
-                {draft.summary
-                  ? "Podsumowanie inspekcji"
-                  : `Pytanie ${draft.index + 1} z ${draft.form.questions.length}`}
-              </Text>
-              <View style={s.progress}>
-                <View
-                  style={[
-                    s.progressFill,
-                    {
-                      width: `${draft.summary ? 100 : (draft.index / Math.max(1, draft.form.questions.length)) * 100}%`,
-                    },
-                  ]}
-                />
-              </View>
-              {!draft.summary && currentQuestion ? (
-                <Question
-                  key={currentQuestion.id}
-                  question={currentQuestion}
-                  value={draft.answers[currentQuestion.id]}
-                  disabled={busy || locked || ownerMismatch}
-                  onChange={answer}
-                  onUpload={(task) => run(task)}
-                />
-              ) : (
-                <View style={[s.panel, s.summaryPanel]}>
-                  {draft.form.questions.map((q) => {
-                    const value = draft.answers[q.id];
-                    const passed = !hasValue(value)
-                      ? null
-                      : q.expectedValue !== undefined
-                        ? value === q.expectedValue
-                        : q.type === "NUMBER_RANGE" && q.range
-                          ? typeof value === "number" &&
-                            value >= q.range.min &&
-                            value <= q.range.max
-                          : q.type === "CHECKBOX" && typeof value === "boolean"
-                            ? value
-                            : null;
-                    return (
-                      <View key={q.id} style={s.answerRow}>
-                        <View style={s.answerContent}>
-                          <Text style={[s.label, s.answerLabel]}>
-                            {q.label}
-                          </Text>
-                          {typeof value === "boolean" &&
-                          passed === value ? null : q.type === "PHOTO_UPLOAD" &&
-                            typeof value === "string" &&
-                            value ? (
-                            <Photo uri={value} label="Zdjęcie z inspekcji" />
-                          ) : (
-                            <Text
-                              style={[
-                                s.body,
-                                passed === true && s.resultPassText,
-                                passed === false && s.resultFailText,
-                              ]}
-                            >
-                              {typeof value === "boolean"
-                                ? value
-                                  ? "OK"
-                                  : "NOK"
-                                : String(value ?? "Brak odpowiedzi")}
-                            </Text>
-                          )}
-                        </View>
-                        {passed !== null ? (
-                          <View
-                            style={[
-                              s.resultBadge,
-                              passed ? s.resultPass : s.resultFail,
-                            ]}
-                          >
-                            <Feather
-                              name={passed ? "check" : "x"}
-                              size={16}
-                              color={passed ? colors.green : colors.red}
-                              accessible={false}
-                            />
-                            <Text
-                              style={[
-                                s.resultText,
-                                passed ? s.resultPassText : s.resultFailText,
-                              ]}
-                            >
-                              {passed ? "OK" : "NOK"}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                  <View style={s.summaryFooter}>
-                    {finalStatus ? (
-                      <View
-                        style={[
-                          s.summaryResult,
-                          isPassed(finalStatus) ? s.resultPass : s.resultFail,
-                        ]}
-                      >
-                        <Text style={s.muted}>Wynik inspekcji</Text>
-                        <Text
-                          style={[
-                            s.label,
-                            isPassed(finalStatus)
-                              ? s.resultPassText
-                              : s.resultFailText,
-                          ]}
-                        >
-                          {finalStatus}
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={s.label}>
-                        {automatic !== null
-                          ? "Nie można ustalić wyniku. Skontaktuj się z administratorem."
-                          : "Wybierz wynik inspekcji"}
-                      </Text>
-                    )}
-                    {automatic === null ? (
-                      <View style={s.row}>
-                        {draft.form.allowedStatuses.map((status) => (
-                          <Button
-                            key={status}
-                            secondary
-                            selected={draft.status === status}
-                            disabled={busy || locked || ownerMismatch}
-                            onPress={() =>
-                              editDraft((current) => ({ ...current, status }))
-                            }
-                          >
-                            {status}
-                          </Button>
-                        ))}
-                      </View>
-                    ) : null}
-                    {locked ? (
-                      <Text style={s.body}>
-                        Brak potwierdzenia zapisu. Ponów zapis inspekcji.
-                      </Text>
-                    ) : null}
+                ) : null}
+              </>
+            ) : (
+              <>
+                <View style={s.row}>
+                  <View style={s.column}>
+                    <Text style={s.muted}>
+                      {draft.form.title} · v{draft.form.version} ·{" "}
+                      {draft.stationCode}
+                    </Text>
+                    <Text selectable style={s.serial}>
+                      {draft.serial}
+                    </Text>
                   </View>
                 </View>
-              )}
-            </>
-          )}
-        </ScrollView>
-      )}
+                {ownerMismatch ? (
+                  <View style={[s.notice, s.error]}>
+                    <Text style={s.body}>
+                      Zaloguj się na konto operatora, który rozpoczął inspekcję.
+                    </Text>
+                    <Button onPress={openOperatorLogin}>
+                      Zaloguj operatora
+                    </Button>
+                  </View>
+                ) : null}
+                <View
+                  style={s.progressGroup}
+                  accessible
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Postęp inspekcji"
+                  accessibilityValue={{
+                    min: 0,
+                    max: Math.max(1, draft.form.questions.length),
+                    now: draft.summary
+                      ? draft.form.questions.length
+                      : draft.index,
+                    text: draft.summary
+                      ? "Podsumowanie inspekcji"
+                      : `Pytanie ${draft.index + 1} z ${draft.form.questions.length}`,
+                  }}
+                >
+                  <Text style={s.progressLabel} numberOfLines={1}>
+                    {draft.summary
+                      ? "Podsumowanie inspekcji"
+                      : `Pytanie ${draft.index + 1} z ${draft.form.questions.length}`}
+                  </Text>
+                  {draft.form.questions.length > 0 ? (
+                    <View style={s.progress}>
+                      <Animated.View
+                        style={[
+                          s.progressFill,
+                          {
+                            width: "100%",
+                            transformOrigin: "left center",
+                            transform: [{ scaleX: inspectionProgress }],
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+                {!draft.summary && currentQuestion ? (
+                  <Question
+                    key={currentQuestion.id}
+                    question={currentQuestion}
+                    value={draft.answers[currentQuestion.id]}
+                    disabled={busy || locked || ownerMismatch || loginOpen}
+                    onChange={answer}
+                    onUpload={(task) => run(task)}
+                  />
+                ) : (
+                  <View style={[s.panel, s.summaryPanel]}>
+                    {draft.form.questions.map((q) => {
+                      const value = draft.answers[q.id];
+                      const passed = !hasValue(value)
+                        ? null
+                        : q.expectedValue !== undefined
+                          ? value === q.expectedValue
+                          : q.type === "NUMBER_RANGE" && q.range
+                            ? typeof value === "number" &&
+                              value >= q.range.min &&
+                              value <= q.range.max
+                            : q.type === "CHECKBOX" &&
+                                typeof value === "boolean"
+                              ? value
+                              : null;
+                      return (
+                        <View key={q.id} style={s.answerRow}>
+                          <View style={s.answerContent}>
+                            <Text style={[s.label, s.answerLabel]}>
+                              {q.label}
+                            </Text>
+                            {typeof value === "boolean" &&
+                            passed === value ? null : q.type ===
+                                "PHOTO_UPLOAD" &&
+                              typeof value === "string" &&
+                              value ? (
+                              <Photo
+                                uri={value}
+                                label="Zdjęcie z inspekcji"
+                                height={Math.min(
+                                  640,
+                                  Math.max(360, height * 0.55),
+                                )}
+                              />
+                            ) : (
+                              <Text
+                                style={[
+                                  s.body,
+                                  passed === true && s.resultPassText,
+                                  passed === false && s.resultFailText,
+                                ]}
+                              >
+                                {typeof value === "boolean"
+                                  ? value
+                                    ? "OK"
+                                    : "NOK"
+                                  : String(value ?? "Brak odpowiedzi")}
+                              </Text>
+                            )}
+                          </View>
+                          {passed !== null ? (
+                            <View
+                              style={[
+                                s.resultBadge,
+                                passed ? s.resultPass : s.resultFail,
+                              ]}
+                            >
+                              <Feather
+                                name={passed ? "check" : "x"}
+                                size={16}
+                                color={passed ? colors.green : colors.red}
+                                accessible={false}
+                              />
+                              <Text
+                                style={[
+                                  s.resultText,
+                                  passed ? s.resultPassText : s.resultFailText,
+                                ]}
+                              >
+                                {passed ? "OK" : "NOK"}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                    <View style={s.summaryFooter}>
+                      {finalStatus ? (
+                        <View
+                          style={[
+                            s.summaryResult,
+                            isPassed(finalStatus) ? s.resultPass : s.resultFail,
+                          ]}
+                        >
+                          <Text style={s.muted}>Wynik inspekcji</Text>
+                          <Text
+                            style={[
+                              s.label,
+                              isPassed(finalStatus)
+                                ? s.resultPassText
+                                : s.resultFailText,
+                            ]}
+                          >
+                            {finalStatus}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={s.label}>
+                          {automatic !== null
+                            ? "Nie można ustalić wyniku. Skontaktuj się z administratorem."
+                            : "Wybierz wynik inspekcji"}
+                        </Text>
+                      )}
+                      {automatic === null ? (
+                        <View style={s.row}>
+                          {draft.form.allowedStatuses.map((status) => (
+                            <Button
+                              key={status}
+                              secondary
+                              selected={draft.status === status}
+                              disabled={busy || locked || ownerMismatch}
+                              onPress={() =>
+                                editDraft((current) => ({ ...current, status }))
+                              }
+                            >
+                              {status}
+                            </Button>
+                          ))}
+                        </View>
+                      ) : null}
+                      {locked ? (
+                        <Text style={s.body}>
+                          Brak potwierdzenia zapisu. Ponów zapis inspekcji.
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+          </ScrollView>
+        )}
+        {ready ? (
+          <View pointerEvents="box-none" style={s.noticeOverlay}>
+            {!operatorDisplay ? (
+              <FloatingNotice
+                error
+                message="Ta wersja aplikacji nie obsługuje pełnego ekranu. Zainstaluj aktualną wersję APK."
+              />
+            ) : null}
+            <FloatingNotice
+              message={notice}
+              error={error}
+              revision={noticeRevision}
+              onDismiss={() => message("")}
+            />
+          </View>
+        ) : null}
+      </View>
       {ready && station && (draft || (!stationSettingsOpen && !formChoice)) ? (
         <View style={s.inspectionActions}>
           {draft ? (
@@ -1003,12 +1056,12 @@ function OperatorApp() {
                   <Button
                     secondary
                     disabled={busy || draft.index === 0}
-                    onPress={() =>
+                    onPress={() => {
                       editDraft((current) => ({
                         ...current,
                         index: Math.max(0, current.index - 1),
-                      }))
-                    }
+                      }));
+                    }}
                   >
                     Wstecz
                   </Button>
@@ -1023,9 +1076,9 @@ function OperatorApp() {
                   <Button
                     secondary
                     disabled={busy || locked || !draft.form.questions.length}
-                    onPress={() =>
-                      editDraft((current) => ({ ...current, summary: false }))
-                    }
+                    onPress={() => {
+                      editDraft((current) => ({ ...current, summary: false }));
+                    }}
                   >
                     Wróć do pytań
                   </Button>

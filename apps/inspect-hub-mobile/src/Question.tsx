@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { Camera } from "expo-camera";
 import type {
   InspectionAnswerValue,
   InspectionQuestion,
@@ -25,32 +24,38 @@ export function Question({
   const [measurement, setMeasurement] = useState(
     typeof value === "number" ? String(value) : "",
   );
-  const [cameraOpen, setCameraOpen] = useState(false);
-  async function openCamera() {
-    const permission = await Camera.requestCameraPermissionsAsync();
-    if (!permission.granted)
-      throw new Error(
-        "Zezwól aplikacji na dostęp do aparatu w ustawieniach Androida.",
-      );
-    setCameraOpen(true);
-  }
+  const photoQuestion = q.type === "PHOTO_UPLOAD";
   return (
-    <View style={s.panel}>
+    <View style={[s.panel, photoQuestion && s.photoQuestionPanel]}>
       <Text style={s.muted}>
         {q.isRequired ? "Odpowiedź wymagana" : "Odpowiedź opcjonalna"}
         {q.severity === "CRITICAL" || q.isCritical ? " · Cecha krytyczna" : ""}
       </Text>
-      <Text style={s.title}>{q.label}</Text>
+      <Text style={[s.title, photoQuestion && s.photoQuestionTitle]}>
+        {q.label}
+      </Text>
       {q.description ? <Text style={s.subtitle}>{q.description}</Text> : null}
       {q.instructionImageUrl ? (
-        <Photo uri={q.instructionImageUrl} label="Instrukcja" />
+        <Photo
+          uri={q.instructionImageUrl}
+          label="Instrukcja"
+          fit={photoQuestion}
+        />
       ) : null}
-      <View style={s.row}>
+      <View
+        style={[
+          s.row,
+          photoQuestion &&
+            (q.okImageUrl || q.nokImageUrl) &&
+            s.photoQuestionReferences,
+        ]}
+      >
         {q.okImageUrl ? (
           <Photo
             uri={q.okImageUrl}
             label="Wzorzec OK"
             result="OK"
+            fit={photoQuestion}
             onPress={q.type === "CHECKBOX" ? () => onChange(true) : undefined}
             selected={q.type === "CHECKBOX" && value === true}
             disabled={disabled}
@@ -61,6 +66,7 @@ export function Question({
             uri={q.nokImageUrl}
             label="Wzorzec NOK"
             result="NOK"
+            fit={photoQuestion}
             onPress={q.type === "CHECKBOX" ? () => onChange(false) : undefined}
             selected={q.type === "CHECKBOX" && value === false}
             disabled={disabled}
@@ -140,33 +146,19 @@ export function Question({
         </>
       ) : null}
       {q.type === "PHOTO_UPLOAD" ? (
-        <>
-          {cameraOpen ? (
-            <PhotoCapture
-              disabled={disabled}
-              onCancel={() => setCameraOpen(false)}
-              onAccept={(uri) =>
-                onUpload(async () => {
-                  onChange(await uploadPhoto(uri));
-                  setCameraOpen(false);
-                })
-              }
-            />
-          ) : (
-            <>
-              {typeof value === "string" && value ? (
-                <Photo uri={value} label="Zdjęcie z inspekcji" />
-              ) : null}
-              <Button
-                secondary
-                disabled={disabled}
-                onPress={() => void onUpload(openCamera)}
-              >
-                {value ? "Zrób nowe zdjęcie" : "Zrób zdjęcie"}
-              </Button>
-            </>
-          )}
-        </>
+        <PhotoCapture
+          key={typeof value === "string" ? value : "empty"}
+          savedUri={typeof value === "string" && value ? value : undefined}
+          disabled={disabled}
+          onAccept={async (uri) => {
+            let accepted = false;
+            await onUpload(async () => {
+              onChange(await uploadPhoto(uri));
+              accepted = true;
+            });
+            if (!accepted) throw new Error("Nie udało się wysłać zdjęcia.");
+          }}
+        />
       ) : null}
       {!q.isRequired && value !== undefined && value !== null ? (
         <Button

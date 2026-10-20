@@ -8,31 +8,37 @@ import {
 import {
   ActivityIndicator,
   AppState,
-  BackHandler,
   Image,
+  Linking,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { CameraView } from "expo-camera";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { File } from "expo-file-system";
+import Feather from "@expo/vector-icons/Feather";
+import { mediaUrl } from "./api";
 import { Button, colors, s } from "./ui";
 
 export function PhotoCapture({
   disabled,
-  onCancel,
+  savedUri,
   onAccept,
 }: {
   disabled: boolean;
-  onCancel: () => void;
+  savedUri?: string;
   onAccept: (uri: string) => Promise<void>;
 }) {
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const requested = useRef(false);
   const camera = useRef<CameraView>(null);
   const mounted = useRef(true);
   const capturing = useRef(false);
   const sending = useRef(false);
   const temporaryPhoto = useRef<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(savedUri ?? null);
+  const [accepted, setAccepted] = useState(!!savedUri);
   const [foreground, setForeground] = useState(
     AppState.currentState === "active",
   );
@@ -40,10 +46,29 @@ export function PhotoCapture({
   const [taking, setTaking] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [cameraVersion, setCameraVersion] = useState(0);
   const attachCamera = useCallback((instance: CameraView | null) => {
     camera.current = instance;
     if (!instance) setReady(false);
   }, []);
+
+  // Ask once on entering an unanswered photo question, then show the live preview.
+  useEffect(() => {
+    if (
+      disabled ||
+      preview ||
+      !permission ||
+      permission.granted ||
+      !permission.canAskAgain ||
+      requested.current
+    )
+      return;
+    requested.current = true;
+    void requestPermission().catch(() => {
+      if (mounted.current)
+        setError("Nie udało się uzyskać dostępu do aparatu.");
+    });
+  }, [disabled, preview, permission, requestPermission]);
 
   function deletePhoto() {
     const uri = temporaryPhoto.current;
@@ -57,24 +82,33 @@ export function PhotoCapture({
     }
   }
 
-  const back = useEffectEvent(() => {
-    if (!capturing.current && !sending.current) onCancel();
-    return true;
+  const refreshPermission = useEffectEvent(() => {
+    void getPermission().catch(() => {
+      if (mounted.current)
+        setError("Nie udało się sprawdzić dostępu do aparatu.");
+    });
   });
   useEffect(() => {
     mounted.current = true;
     const appState = AppState.addEventListener("change", (state) => {
       setReady(false);
       setForeground(state === "active");
+      if (state === "active") refreshPermission();
     });
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", back);
     return () => {
       mounted.current = false;
       appState.remove();
-      backHandler.remove();
       deletePhoto();
     };
   }, []);
+
+  function retake() {
+    deletePhoto();
+    setError("");
+    setReady(false);
+    setAccepted(false);
+    setPreview(null);
+  }
 
   async function takePhoto() {
     if (!camera.current || !ready || disabled || capturing.current) return;
@@ -90,6 +124,7 @@ export function PhotoCapture({
       }
       setReady(false);
       setPreview(photo.uri);
+      await savePhoto(photo.uri);
     } catch {
       if (mounted.current)
         setError("Nie udało się zrobić zdjęcia. Spróbuj ponownie.");
@@ -99,12 +134,14 @@ export function PhotoCapture({
     }
   }
 
-  async function acceptPhoto() {
-    if (!preview || disabled || sending.current) return;
+  async function savePhoto(uri: string | null = preview) {
+    if (!uri || disabled || sending.current) return;
     sending.current = true;
     setUploading(true);
+    setError("");
     try {
-      await onAccept(preview);
+      await onAccept(uri);
+      if (mounted.current) setAccepted(true);
     } catch {
       if (mounted.current)
         setError("Nie udało się wysłać zdjęcia. Spróbuj ponownie.");
@@ -114,34 +151,60 @@ export function PhotoCapture({
     }
   }
 
+  async function allowCamera() {
+    setError("");
+    try {
+      if (permission?.canAskAgain) await requestPermission();
+      else await Linking.openSettings();
+    } catch {
+      if (mounted.current)
+        setError("Nie udało się uzyskać dostępu do aparatu.");
+    }
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.viewport}>
         {preview ? (
           <Image
-            source={{ uri: preview }}
-            accessibilityLabel="Podgląd zdjęcia"
+            source={{ uri: mediaUrl(preview) }}
+            accessibilityLabel="Zdjęcie z inspekcji"
             style={styles.camera}
-            resizeMode="contain"
+            resizeMode="cover"
           />
-        ) : foreground && !disabled ? (
+        ) : foreground && !disabled && permission?.granted ? (
           <CameraView
+            key={cameraVersion}
             ref={attachCamera}
             style={styles.camera}
             facing="back"
             mode="picture"
             mute
-            ratio="4:3"
+            animateShutter={false}
             onCameraReady={() => setReady(true)}
             onMountError={() => {
               setReady(false);
-              setError(
-                "Nie można uruchomić aparatu. Zamknij go i spróbuj ponownie.",
-              );
+              setError("Nie można uruchomić aparatu. Spróbuj ponownie.");
             }}
           />
+        ) : !disabled && permission && !permission.granted ? (
+          <View style={styles.permission}>
+            <Text style={styles.permissionText}>
+              Zezwól na dostęp do aparatu, aby zrobić zdjęcie.
+            </Text>
+            <Button secondary onPress={() => void allowCamera()}>
+              {permission.canAskAgain
+                ? "Zezwól na aparat"
+                : "Otwórz ustawienia"}
+            </Button>
+          </View>
         ) : null}
-        {!preview && !ready && !error && foreground && !disabled ? (
+        {!preview &&
+        !ready &&
+        !error &&
+        foreground &&
+        !disabled &&
+        (!permission || permission.granted) ? (
           <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator
               color={colors.white}
@@ -159,53 +222,151 @@ export function PhotoCapture({
         </Text>
       ) : null}
       <View style={s.row}>
-        {preview ? (
-          <>
-            <Button
-              secondary
-              disabled={taking || uploading}
-              onPress={() => {
-                deletePhoto();
-                setError("");
-                setReady(false);
-                setPreview(null);
-              }}
-            >
-              Powtórz
-            </Button>
-            <Button
-              disabled={disabled || uploading}
-              onPress={() => void acceptPhoto()}
-            >
-              {uploading ? "Wysyłanie zdjęcia…" : "Użyj zdjęcia"}
-            </Button>
-          </>
-        ) : (
+        {error && !ready && !preview ? (
           <Button
+            secondary
+            disabled={disabled || taking}
+            onPress={() => {
+              setError("");
+              setCameraVersion((version) => version + 1);
+            }}
+          >
+            Ponów uruchomienie
+          </Button>
+        ) : null}
+        {preview ? (
+          accepted ? (
+            <Button secondary disabled={disabled} onPress={retake}>
+              Zrób nowe zdjęcie
+            </Button>
+          ) : (
+            <>
+              <Button secondary disabled={uploading} onPress={retake}>
+                Zrób nowe zdjęcie
+              </Button>
+              <Button
+                disabled={disabled || uploading}
+                onPress={() => void savePhoto()}
+              >
+                {uploading ? "Zapisywanie zdjęcia…" : "Ponów zapis zdjęcia"}
+              </Button>
+              <Button
+                secondary
+                disabled={uploading}
+                onPress={() => {
+                  deletePhoto();
+                  setError("");
+                  setReady(false);
+                  setAccepted(!!savedUri);
+                  setPreview(savedUri ?? null);
+                }}
+              >
+                Anuluj
+              </Button>
+            </>
+          )
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={taking ? "Robienie zdjęcia" : "Zrób zdjęcie"}
+            accessibilityState={{
+              disabled: disabled || !foreground || !ready || taking,
+              busy: taking,
+            }}
             disabled={disabled || !foreground || !ready || taking}
             onPress={() => void takePhoto()}
+            style={({ pressed }) => [
+              styles.shutterButton,
+              (disabled || !foreground || !ready || taking) && s.dim,
+              pressed && s.pressed,
+            ]}
           >
-            {taking ? "Robienie zdjęcia…" : "Zrób zdjęcie"}
-          </Button>
+            <View style={styles.shutterRing}>
+              <View style={styles.shutterDisc}>
+                {taking ? (
+                  <ActivityIndicator size="small" color={colors.ink} />
+                ) : (
+                  <Feather
+                    name="camera"
+                    size={20}
+                    color={colors.ink}
+                    accessible={false}
+                    importantForAccessibility="no"
+                  />
+                )}
+              </View>
+            </View>
+            <Text style={styles.shutterText}>
+              {taking ? "Robienie zdjęcia…" : "Zrób zdjęcie"}
+            </Text>
+          </Pressable>
         )}
-        <Button secondary disabled={taking || uploading} onPress={onCancel}>
-          Anuluj
-        </Button>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 16 },
+  container: { flex: 3, minHeight: 0, gap: 10 },
   viewport: {
-    height: 360,
+    flex: 1,
+    minHeight: 0,
     width: "100%",
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: colors.ink,
   },
   camera: { flex: 1, width: "100%" },
+  shutterButton: {
+    width: "100%",
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: colors.ink,
+    borderWidth: 1,
+    borderColor: "#354940",
+    borderRadius: 16,
+  },
+  shutterRing: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "#ffffff99",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterDisc: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterText: {
+    color: colors.white,
+    fontSize: 20,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  permission: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 16,
+  },
+  permissionText: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 27,
+    textAlign: "center",
+  },
   loading: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",
