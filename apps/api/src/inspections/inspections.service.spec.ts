@@ -76,6 +76,57 @@ describe('InspectionsService public reports', () => {
     expect(dashboard.summary.totalStations).toBe(9);
   });
 
+  it.each([
+    ['2026-10-19T22:00:00.000Z', '2026-10-20T21:59:59.999Z', ['2026-10-20']],
+    ['2026-10-24T22:00:00.000Z', '2026-10-25T22:59:59.999Z', ['2026-10-25']],
+    ['2026-03-28T23:00:00.000Z', '2026-03-29T21:59:59.999Z', ['2026-03-29']],
+    [
+      '2026-10-23T22:00:00.000Z',
+      '2026-10-26T22:59:59.999Z',
+      ['2026-10-24', '2026-10-25', '2026-10-26'],
+    ],
+  ])(
+    'groups complete local days across DST: %s to %s',
+    async (from, to, dates) => {
+      const result = (createdAt: string) => ({
+        publicReportId: 'report',
+        vinOrSerialNumber: 'SN-1',
+        formId: 'form-1',
+        status: 'PASSED',
+        stationId: 'ST-01',
+        createdAt: new Date(createdAt),
+        durationSeconds: null,
+        answers: [],
+        answerCorrections: [],
+        originalInspectionId: null,
+        form: { code: 'QC-01', title: 'Kontrola', questions: [] },
+      });
+      findManyResults
+        .mockResolvedValueOnce([result(from), result(to)])
+        .mockResolvedValueOnce([]);
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+
+      const dashboard = await service.getPublicDashboard({
+        from,
+        to,
+        timeZone: 'Europe/Warsaw',
+      });
+
+      expect(findManyResults).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { createdAt: { gte: new Date(from), lte: new Date(to) } },
+        }),
+      );
+      expect(dashboard.daily.map((day) => day.date)).toEqual(dates);
+      expect(dashboard.daily.reduce((sum, day) => sum + day.total, 0)).toBe(2);
+      expect(dashboard.daily[0].total).toBe(dates.length === 1 ? 2 : 1);
+      expect(dashboard.daily.at(-1)?.total).toBe(dates.length === 1 ? 2 : 1);
+    },
+  );
+
   it('returns a minimal public report based on the stored form revision', async () => {
     findUniqueReport.mockResolvedValue({
       id: 'result-original',

@@ -54,6 +54,7 @@ const translations = {
     "common.developedBy": "Opracowane przez",
     "common.qualityIntelligence": "Analityka jakości",
     "common.qualityOperations": "OPERACJE JAKOŚCIOWE",
+    "nav.home": "Strona główna",
     "nav.openStation": "Otwórz stanowisko",
     "form.translations": "Tłumaczenia pytania",
     "form.translationsHelp": "Puste pola użyją polskiej wersji bazowej.",
@@ -520,6 +521,7 @@ const translations = {
     "common.developedBy": "Developed by",
     "common.qualityIntelligence": "Quality intelligence",
     "common.qualityOperations": "QUALITY OPERATIONS",
+    "nav.home": "Home",
     "nav.openStation": "Open inspection station",
     "form.translations": "Question translations",
     "form.translationsHelp": "Empty fields fall back to the Polish source.",
@@ -978,6 +980,7 @@ const translations = {
     "common.developedBy": "Розроблено",
     "common.qualityIntelligence": "Аналітика якості",
     "common.qualityOperations": "ОПЕРАЦІЇ З ЯКОСТІ",
+    "nav.home": "Головна",
     "nav.openStation": "Відкрити станцію контролю",
     "form.translations": "Переклади питання",
     "form.translationsHelp":

@@ -30,6 +30,7 @@ export class InspectionsController {
     @Query('formIds') formIds?: string,
     @Query('result') result?: string,
     @Query('search') search?: string,
+    @Query('timeZone') timeZone?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -40,6 +41,7 @@ export class InspectionsController {
       formIds,
       result,
       search,
+      timeZone,
     });
   }
 
@@ -53,6 +55,7 @@ export class InspectionsController {
     @Query('formIds') formIds?: string,
     @Query('result') result?: string,
     @Query('search') search?: string,
+    @Query('timeZone') timeZone?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -63,6 +66,7 @@ export class InspectionsController {
       formIds,
       result,
       search,
+      timeZone,
     });
   }
 
@@ -78,12 +82,23 @@ export class InspectionsController {
     @Query('formIds') formIds?: string,
     @Query('result') result?: string,
     @Query('search') search?: string,
+    @Query('timeZone') timeZone?: string,
   ) {
     if (!['csv', 'xlsx', 'pdf'].includes(format)) {
       throw new BadRequestException('Obsługiwane formaty: csv, xlsx, pdf');
     }
     const file = await this.inspections.exportAnalytics(
-      { from, to, processId, stationId, formCode, formIds, result, search },
+      {
+        from,
+        to,
+        processId,
+        stationId,
+        formCode,
+        formIds,
+        result,
+        search,
+        timeZone,
+      },
       format as 'csv' | 'xlsx' | 'pdf',
     );
     response.setHeader('Content-Type', file.contentType);

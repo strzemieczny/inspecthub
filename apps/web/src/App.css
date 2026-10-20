@@ -6922,6 +6922,7 @@ label.check {
   min-width: 0;
   gap: 0.65rem;
 }
+.admin-topbar .home-link,
 .admin-topbar .station-link,
 .admin-topbar .admin-logout,
 .admin-topbar .settings-trigger {
@@ -6945,7 +6946,10 @@ label.check {
 .admin-topbar .admin-logout {
   padding: 0.55rem 0.8rem;
 }
-.admin-topbar :is(.station-link, .admin-logout, .settings-trigger):hover,
+.admin-topbar .home-link {
+  padding: 0.55rem 0.8rem;
+}
+.admin-topbar :is(.home-link, .station-link, .admin-logout, .settings-trigger):hover,
 .admin-topbar .settings-trigger[aria-expanded="true"] {
   color: #fff;
   background: #345d4c;
@@ -7019,6 +7023,7 @@ label.check {
   }
   .admin-topbar .nav-actions {
     width: 100%;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
   .admin-topbar .station-link {

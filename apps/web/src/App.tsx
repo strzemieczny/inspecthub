@@ -41,6 +41,11 @@ import {
 import "./App.css";
 import { FormRevisionHistory } from "./components/FormRevisionHistory";
 import { appPath, appRoute, currentAppPath } from "./lib/routing";
+import {
+  dashboardDate,
+  dashboardQuery,
+  validDashboardRange,
+} from "./lib/dashboard-dates";
 import { SettingsMenu, useI18n, type Language } from "./lib/i18n";
 
 function createClientId(): string {
@@ -834,13 +839,6 @@ const emptyDashboard: DashboardData = {
   recent: [],
 };
 
-function dashboardDate(daysAgo: number, end = false) {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-  if (!end) date.setHours(0, 0, 0, 0);
-  return date.toISOString().slice(0, 10);
-}
-
 function RevisionMultiSelect({
   revisions,
   selected,
@@ -1025,7 +1023,7 @@ function Dashboard() {
   );
   const [filters, setFilters] = useState({
     from: dashboardDate(6),
-    to: dashboardDate(0, true),
+    to: dashboardDate(0),
     processId: "",
     stationId: "",
     formCode: "",
@@ -1040,21 +1038,10 @@ function Dashboard() {
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState("");
 
+  const dateRangeValid = validDashboardRange(filters.from, filters.to);
+
   function analyticsQuery(selected = appliedFilters) {
-    const query = new URLSearchParams();
-    query.set("from", new Date(`${selected.from}T00:00:00`).toISOString());
-    query.set("to", new Date(`${selected.to}T23:59:59.999`).toISOString());
-    Object.entries(selected).forEach(([key, value]) => {
-      if (Array.isArray(value) && value.length) query.set(key, value.join(","));
-      else if (
-        typeof value === "string" &&
-        value &&
-        key !== "from" &&
-        key !== "to"
-      )
-        query.set(key, value);
-    });
-    return query;
+    return dashboardQuery(selected);
   }
 
   async function exportData(format: "csv" | "xlsx" | "pdf") {
@@ -1102,30 +1089,23 @@ function Dashboard() {
   };
 
   useEffect(() => {
-    queueMicrotask(() => setConnection("loading"));
-    const query = new URLSearchParams();
-    query.set(
-      "from",
-      new Date(`${appliedFilters.from}T00:00:00`).toISOString(),
-    );
-    const rangeEnd = new Date(`${appliedFilters.to}T23:59:59.999`);
-    query.set("to", rangeEnd.toISOString());
-    Object.entries(appliedFilters).forEach(([key, value]) => {
-      if (Array.isArray(value) && value.length) query.set(key, value.join(","));
-      else if (
-        typeof value === "string" &&
-        value &&
-        key !== "from" &&
-        key !== "to"
-      )
-        query.set(key, value);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) setConnection("loading");
     });
+    const query = dashboardQuery(appliedFilters);
     void api<DashboardData>(`/inspections/public-dashboard?${query}`)
       .then((result) => {
+        if (!active) return;
         setData(result);
         setConnection("live");
       })
-      .catch(() => setConnection("error"));
+      .catch(() => {
+        if (active) setConnection("error");
+      });
+    return () => {
+      active = false;
+    };
   }, [appliedFilters]);
 
   const maxTotal = Math.max(...data.daily.map((item) => item.total), 1);
@@ -1283,7 +1263,7 @@ function Dashboard() {
               </button>
             </div>
             <span className="active-range">
-              {filters.from} — {filters.to}
+              {appliedFilters.from} — {appliedFilters.to}
             </span>
           </div>
           <div className="filter-grid">
@@ -1424,13 +1404,18 @@ function Dashboard() {
               </button>
               <button
                 className="filter-apply"
-                disabled={connection === "loading"}
+                disabled={connection === "loading" || !dateRangeValid}
                 onClick={() => setAppliedFilters(filters)}
               >
                 {connection === "loading" ? "Analizuję…" : "Analizuj"}
               </button>
             </div>
           </div>
+          {!dateRangeValid && (
+            <p role="alert">
+              Wybierz prawidłowy zakres dat: Od nie może być później niż Do.
+            </p>
+          )}
           <div className="export-toolbar">
             <div>
               <strong>Eksport danych</strong>
@@ -6101,6 +6086,9 @@ function App() {
           Inspect Hub
         </a>
         <div className="nav-actions">
+          <a className="home-link" href={route("/")}>
+            {t("nav.home")}
+          </a>
           <a className="station-link" href={route("/inspection")}>
             {t("nav.openStation")}
           </a>

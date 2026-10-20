@@ -147,6 +147,7 @@ export class InspectionsService {
       formIds?: string;
       result?: string;
       search?: string;
+      timeZone?: string;
     } = {},
   ) {
     const now = new Date();
@@ -328,22 +329,49 @@ export class InspectionsService {
         total + (item.form.questions as unknown as InspectionQuestion[]).length,
       0,
     );
-    const dayCount = Math.max(1, Math.ceil(periodMs / (24 * 60 * 60 * 1000)));
-    const daily = Array.from({ length: dayCount }, (_, index) => {
-      const date = new Date(from);
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + index);
-      const next = new Date(date);
-      next.setDate(next.getDate() + 1);
-      const items = results.filter(
-        (item) => item.createdAt >= date && item.createdAt < next,
-      );
+    let calendar: Intl.DateTimeFormat;
+    try {
+      calendar = new Intl.DateTimeFormat('en-CA', {
+        timeZone: filters.timeZone ?? 'Europe/Warsaw',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hourCycle: 'h23',
+      });
+    } catch {
+      throw new BadRequestException('Nieprawidłowa strefa czasowa');
+    }
+    const calendarParts = (date: Date) => {
+      const parts = calendar.formatToParts(date);
+      const part = (type: string) =>
+        parts.find((item) => item.type === type)!.value;
       return {
-        date: date.toISOString().slice(0, 10),
+        date: `${part('year')}-${part('month')}-${part('day')}`,
+        hour: Number(part('hour')).toString(),
+      };
+    };
+    const resultsByDate = new Map<string, typeof results>();
+    for (const result of results) {
+      const key = calendarParts(result.createdAt).date;
+      const items = resultsByDate.get(key) ?? [];
+      items.push(result);
+      resultsByDate.set(key, items);
+    }
+    const daily: { date: string; total: number; passed: number }[] = [];
+    const lastDate = calendarParts(to).date;
+    // Iterate calendar dates, since a local day may have 23 or 25 hours.
+    const cursor = new Date(`${calendarParts(from).date}T00:00:00Z`);
+    while (cursor.toISOString().slice(0, 10) <= lastDate) {
+      const date = cursor.toISOString().slice(0, 10);
+      const items = resultsByDate.get(date) ?? [];
+      daily.push({
+        date,
         total: items.length,
         passed: items.filter((item) => isPassed(item.status)).length,
-      };
-    });
+      });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
     const stationMap = new Map(
       stations.map((station) => [station.code, station]),
     );
@@ -462,8 +490,9 @@ export class InspectionsService {
     const productCells = new Map<string, { total: number; nok: number }>();
     const productCounts = new Map<string, number>();
     for (const result of results) {
-      const day = result.createdAt.getDay().toString();
-      const hour = result.createdAt.getHours().toString();
+      const local = calendarParts(result.createdAt);
+      const day = new Date(`${local.date}T00:00:00Z`).getUTCDay().toString();
+      const hour = local.hour;
       const timeKey = `${day}:${hour}`;
       const timeCell = timeCells.get(timeKey) ?? { total: 0, nok: 0 };
       timeCell.total += 1;
@@ -618,6 +647,7 @@ export class InspectionsService {
       formIds?: string;
       result?: string;
       search?: string;
+      timeZone?: string;
     },
     format: 'csv' | 'xlsx' | 'pdf',
   ) {
