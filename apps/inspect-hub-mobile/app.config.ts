@@ -28,10 +28,12 @@ const config: ExpoConfig = {
   plugins: [
     "expo-secure-store",
     [
-      "expo-image-picker",
+      "expo-camera",
       {
         cameraPermission: "Zdjęcia z inspekcji jakości.",
         microphonePermission: false,
+        recordAudioAndroid: false,
+        barcodeScannerEnabled: false,
       },
     ],
     [

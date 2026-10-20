@@ -1,7 +1,6 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Keyboard,
   Modal,
@@ -34,6 +33,8 @@ import {
   type Session,
 } from "./inspection";
 import { storage } from "./storage";
+import { INACTIVITY_TIMEOUT_MS } from "./inactivity";
+import { useInactivityLogout } from "./useInactivityLogout";
 import { Question } from "./Question";
 import { NumericKeypad } from "./NumericKeypad";
 import { Button, colors, Field, IconButton, Photo, s } from "./ui";
@@ -53,7 +54,9 @@ function OperatorApp() {
   const { width } = useWindowDimensions();
   const wideHeader = width >= 600;
   const [ready, setReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<
+    (Session & { lastActiveAt?: number }) | null
+  >(null);
   const [station, setStation] = useState<Station | null>(null);
   const [stationCode, setStationCode] = useState("");
   const [stationName, setStationName] = useState("");
@@ -70,6 +73,7 @@ function OperatorApp() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginCardCode, setLoginCardCode] = useState("");
   const [pairingRequired, setPairingRequired] = useState(false);
@@ -81,6 +85,13 @@ function OperatorApp() {
     serial: string;
     formId: string;
   } | null>(null);
+  const recordActivity = useInactivityLogout(session, () => {
+    setApiSession(null);
+    setSession(null);
+    void storage.saveSession(null).catch(() => {});
+    closeOperatorLogin();
+    message("Wylogowano po ponad 30 minutach bez aktywności.");
+  });
 
   useEffect(() => {
     if (
@@ -136,6 +147,7 @@ function OperatorApp() {
     return write;
   }
   function editDraft(change: (current: Draft) => Draft) {
+    if (!recordActivity()) return;
     if (!draftRef.current || draftRef.current.submission) return;
     void commitDraft(change(draftRef.current)).catch(() =>
       message(
@@ -145,6 +157,7 @@ function OperatorApp() {
     );
   }
   async function run(task: () => Promise<void>) {
+    if (!recordActivity()) return;
     if (running.current) return;
     running.current = true;
     setBusy(true);
@@ -161,7 +174,7 @@ function OperatorApp() {
       message(
         cause instanceof TypeError ||
           (cause instanceof Error && cause.name === "AbortError")
-          ? "Brak odpowiedzi serwera. Sprawdź połączenie i ponów operację. Szkic pozostaje na urządzeniu."
+          ? "Brak połączenia. Spróbuj ponownie. Szkic został zachowany."
           : cause instanceof Error
             ? cause.message
             : "Operacja nie powiodła się. Spróbuj ponownie.",
@@ -176,11 +189,17 @@ function OperatorApp() {
     let active = true;
     async function restore() {
       try {
-        const [savedSession, savedStation, savedDraft] = await Promise.all([
+        const [storedSession, savedStation, savedDraft] = await Promise.all([
           storage.session(),
           storage.station(),
           storage.draft(),
         ]);
+        if (!active) return;
+        const expired =
+          storedSession &&
+          Date.now() - storedSession.lastActiveAt > INACTIVITY_TIMEOUT_MS;
+        const savedSession = expired ? null : storedSession;
+        if (expired) await storage.saveSession(null);
         if (!active) return;
         setApiSession(savedSession);
         setSession(savedSession);
@@ -189,6 +208,9 @@ function OperatorApp() {
         draftRef.current = savedDraft;
         setDraft(savedDraft);
         if (savedDraft) message("Przywrócono niedokończoną inspekcję.");
+        if (expired) {
+          message("Wylogowano po ponad 30 minutach bez aktywności.");
+        }
       } catch {
         if (active)
           message(
@@ -259,9 +281,7 @@ function OperatorApp() {
       }),
     });
     if (!result.allowed)
-      throw new Error(
-        "SCADA nie zezwala na inspekcję tej sztuki na tym stanowisku.",
-      );
+      throw new Error("Ta sztuka nie może być sprawdzana na tym stanowisku.");
     if (result.forms?.length) {
       setSerial(normalized);
       setFormChoice({ serial: normalized, forms: result.forms });
@@ -286,7 +306,6 @@ function OperatorApp() {
       serial: normalized,
       routeCheckId: result.routeCheckId,
       // This timestamp is recorded only by the scan/press handler, after route check.
-      // eslint-disable-next-line react-hooks/purity
       startedAt: Date.now(),
       answers: {},
       correctedIds: [],
@@ -346,7 +365,8 @@ function OperatorApp() {
     }
   }
   const onScan = useEffectEvent((scan: Scan) => {
-    if (!ready || running.current) return;
+    if (!recordActivity()) return;
+    if (!ready || running.current || discardOpen) return;
     if (loginOpen) {
       if (!pairingRequired) {
         const identifier = scan.data.trim().toUpperCase();
@@ -355,7 +375,7 @@ function OperatorApp() {
       }
       return;
     }
-    setLastScan(`${scan.data}${scan.symbology ? ` · ${scan.symbology}` : ""}`);
+    setLastScan(scan.data);
     if (draft || formChoice) return; // Keep the serial while inspecting or choosing a form.
     if (!station || stationSettingsOpen) {
       setStationCode(scan.data);
@@ -368,8 +388,8 @@ function OperatorApp() {
   const onScannerResult = useEffectEvent(({ result }: { result: string }) => {
     message(
       result === "SUCCESS"
-        ? "Profil skanera gotowy. Zeskanuj kod przyciskiem urządzenia."
-        : `DataWedge: ${result}. Sprawdź profil InspectHubMobile.`,
+        ? "Skaner gotowy."
+        : "Nie udało się skonfigurować skanera. Skontaktuj się z administratorem.",
       result !== "SUCCESS",
     );
   });
@@ -450,35 +470,19 @@ function OperatorApp() {
     }
     await commitDraft(null);
     setSerial("");
-    message(
-      "Inspekcja zapisana w Inspect Hub. Przekazanie wyniku do SCADA odbywa się po stronie serwera. Możesz zeskanować kolejną sztukę.",
-    );
+    message("Inspekcja zapisana. Zeskanuj kolejną sztukę.");
   }
   function discard() {
-    Alert.alert(
-      "Odrzucić inspekcję?",
-      locked
-        ? "Wysyłka mogła dotrzeć do serwera. Najpierw ponów zapis, aby potwierdzić wynik."
-        : "Odpowiedzi zapisane na tym urządzeniu zostaną usunięte.",
-      locked
-        ? [{ text: "Wróć" }]
-        : [
-            { text: "Zachowaj", style: "cancel" },
-            {
-              text: "Odrzuć",
-              style: "destructive",
-              onPress: () =>
-                void run(async () => {
-                  await commitDraft(null);
-                  setSerial("");
-                }),
-            },
-          ],
-    );
+    Keyboard.dismiss();
+    setDiscardOpen(true);
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView
+      style={s.safe}
+      onTouchStart={recordActivity}
+      onTouchMove={recordActivity}
+    >
       <StatusBar hidden />
       <View style={s.header}>
         <View style={s.headerBrand} accessible accessibilityLabel="Inspect Hub">
@@ -521,7 +525,8 @@ function OperatorApp() {
             onPress={openOperatorLogin}
             style={({ pressed }) => [
               s.headerOperator,
-              (busy || !ready || pressed) && s.dim,
+              (busy || !ready) && s.dim,
+              pressed && s.pressed,
             ]}
           >
             <View style={[s.headerAvatar, session && s.headerAvatarActive]}>
@@ -617,8 +622,8 @@ function OperatorApp() {
                 </Text>
                 <Text style={s.subtitle}>
                   {station && !stationSettingsOpen
-                    ? "Zeskanuj kod sztuki. Jeśli pasuje kilka formularzy, wybierz właściwy."
-                    : "Zeskanuj kod stanowiska lub wpisz go poniżej."}
+                    ? "Zeskanuj lub wpisz kod sztuki."
+                    : "Zeskanuj lub wpisz kod stanowiska."}
                 </Text>
               </View>
               {!station || stationSettingsOpen ? (
@@ -628,25 +633,30 @@ function OperatorApp() {
                     value={stationCode}
                     autoCapitalize="characters"
                     editable={!busy}
-                    onChangeText={setStationCode}
+                    onChangeText={(value) => {
+                      if (recordActivity()) setStationCode(value);
+                    }}
                     onSubmitEditing={() => void run(() => pair(stationCode))}
                   />
                   <Text style={s.muted}>
-                    Dla nowego stanowiska uzupełnij nazwę i proces inspekcji.
-                    Jeśli stanowisko już istnieje, wystarczy jego kod.
+                    Nazwę i proces uzupełnij tylko dla nowego stanowiska.
                   </Text>
                   <Field
                     label="Nazwa nowego stanowiska"
                     value={stationName}
                     editable={!busy}
-                    onChangeText={setStationName}
+                    onChangeText={(value) => {
+                      if (recordActivity()) setStationName(value);
+                    }}
                   />
                   <Field
                     label="Proces inspekcji nowego stanowiska"
                     value={stationProcessName}
                     autoCorrect={false}
                     editable={!busy}
-                    onChangeText={setStationProcessName}
+                    onChangeText={(value) => {
+                      if (recordActivity()) setStationProcessName(value);
+                    }}
                     onSubmitEditing={() => void run(() => pair(stationCode))}
                   />
                   <View style={s.row}>
@@ -664,9 +674,7 @@ function OperatorApp() {
                       disabled={busy || !dataWedge}
                       onPress={() => {
                         dataWedge?.configure();
-                        message(
-                          "Wysłano konfigurację skanera. Oczekiwanie na potwierdzenie DataWedge.",
-                        );
+                        message("Konfigurowanie skanera…");
                       }}
                     >
                       Skonfiguruj skaner
@@ -674,8 +682,7 @@ function OperatorApp() {
                   </View>
                   {!dataWedge ? (
                     <Text style={s.muted}>
-                      Moduł skanera jest dostępny po zbudowaniu aplikacji na
-                      Androida. Kod możesz wpisać ręcznie.
+                      Skaner niedostępny. Wpisz kod ręcznie.
                     </Text>
                   ) : null}
                 </View>
@@ -683,9 +690,7 @@ function OperatorApp() {
               {station && !stationSettingsOpen && formChoice ? (
                 <View style={s.panel}>
                   <Text style={s.title}>Wybierz formularz</Text>
-                  <Text style={s.body}>
-                    Do produktu {formChoice.serial} pasuje kilka formularzy.
-                  </Text>
+                  <Text style={s.body}>Sztuka: {formChoice.serial}</Text>
                   {formChoice.forms.map((form) => (
                     <Button
                       key={form.id}
@@ -725,6 +730,7 @@ function OperatorApp() {
                     autoCorrect={false}
                     editable={!busy}
                     onChangeText={(value) => {
+                      if (!recordActivity()) return;
                       const normalized = value.replace(/[\r\n]+/g, "");
                       setSerial(normalized);
                       if (/[\r\n]/.test(value)) {
@@ -759,7 +765,7 @@ function OperatorApp() {
               {ownerMismatch ? (
                 <View style={[s.notice, s.error]}>
                   <Text style={s.body}>
-                    Zapis wymaga konta operatora, który rozpoczął inspekcję.
+                    Zaloguj się na konto operatora, który rozpoczął inspekcję.
                   </Text>
                   <Button onPress={openOperatorLogin}>Zaloguj operatora</Button>
                 </View>
@@ -786,10 +792,10 @@ function OperatorApp() {
                   value={draft.answers[currentQuestion.id]}
                   disabled={busy || locked || ownerMismatch}
                   onChange={answer}
-                  onUpload={(task) => void run(task)}
+                  onUpload={(task) => run(task)}
                 />
               ) : (
-                <View style={s.panel}>
+                <View style={[s.panel, s.summaryPanel]}>
                   {draft.form.questions.map((q) => {
                     const value = draft.answers[q.id];
                     const passed = !hasValue(value)
@@ -805,108 +811,111 @@ function OperatorApp() {
                             : null;
                     return (
                       <View key={q.id} style={s.answerRow}>
-                        <View style={s.answerHeading}>
+                        <View style={s.answerContent}>
                           <Text style={[s.label, s.answerLabel]}>
                             {q.label}
                           </Text>
-                          {passed !== null ? (
-                            <View
+                          {typeof value === "boolean" &&
+                          passed === value ? null : q.type === "PHOTO_UPLOAD" &&
+                            typeof value === "string" &&
+                            value ? (
+                            <Photo uri={value} label="Zdjęcie z inspekcji" />
+                          ) : (
+                            <Text
                               style={[
-                                s.resultBadge,
-                                passed ? s.resultPass : s.resultFail,
+                                s.body,
+                                passed === true && s.resultPassText,
+                                passed === false && s.resultFailText,
                               ]}
                             >
-                              <Text
-                                style={[
-                                  s.resultText,
-                                  passed ? s.resultPassText : s.resultFailText,
-                                ]}
-                              >
-                                {passed ? "✓ OK" : "✕ NOK"}
-                              </Text>
-                            </View>
-                          ) : null}
+                              {typeof value === "boolean"
+                                ? value
+                                  ? "OK"
+                                  : "NOK"
+                                : String(value ?? "Brak odpowiedzi")}
+                            </Text>
+                          )}
                         </View>
-                        {q.type === "PHOTO_UPLOAD" &&
-                        typeof draft.answers[q.id] === "string" &&
-                        draft.answers[q.id] ? (
-                          <Photo
-                            uri={String(draft.answers[q.id])}
-                            label="Zdjęcie z inspekcji"
-                          />
-                        ) : (
-                          <Text
+                        {passed !== null ? (
+                          <View
                             style={[
-                              s.body,
-                              passed === true && s.resultPassText,
-                              passed === false && s.resultFailText,
+                              s.resultBadge,
+                              passed ? s.resultPass : s.resultFail,
                             ]}
                           >
-                            {typeof draft.answers[q.id] === "boolean"
-                              ? draft.answers[q.id]
-                                ? "OK"
-                                : "NOK"
-                              : String(
-                                  draft.answers[q.id] ?? "Brak odpowiedzi",
-                                )}
-                          </Text>
-                        )}
+                            <Feather
+                              name={passed ? "check" : "x"}
+                              size={16}
+                              color={passed ? colors.green : colors.red}
+                              accessible={false}
+                            />
+                            <Text
+                              style={[
+                                s.resultText,
+                                passed ? s.resultPassText : s.resultFailText,
+                              ]}
+                            >
+                              {passed ? "OK" : "NOK"}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                     );
                   })}
-                  {finalStatus ? (
-                    <View style={[s.notice, !isPassed(finalStatus) && s.error]}>
-                      <Text
+                  <View style={s.summaryFooter}>
+                    {finalStatus ? (
+                      <View
                         style={[
-                          s.label,
-                          isPassed(finalStatus)
-                            ? s.resultPassText
-                            : s.resultFailText,
+                          s.summaryResult,
+                          isPassed(finalStatus) ? s.resultPass : s.resultFail,
                         ]}
                       >
-                        {isPassed(finalStatus) ? "✓" : "✕"}{" "}
-                        {automatic !== null
-                          ? "Wynik automatyczny"
-                          : "Wynik inspekcji"}
-                        : {finalStatus}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={s.label}>
-                      {automatic !== null
-                        ? "Brak pasującego statusu — sprawdź konfigurację formularza"
-                        : "Wybierz wynik inspekcji"}
-                    </Text>
-                  )}
-                  {automatic === null ? (
-                    <View style={s.row}>
-                      {draft.form.allowedStatuses.map((status) => (
-                        <Button
-                          key={status}
-                          secondary
-                          selected={draft.status === status}
-                          disabled={busy || locked || ownerMismatch}
-                          onPress={() =>
-                            editDraft((current) => ({ ...current, status }))
-                          }
+                        <Text style={s.muted}>Wynik inspekcji</Text>
+                        <Text
+                          style={[
+                            s.label,
+                            isPassed(finalStatus)
+                              ? s.resultPassText
+                              : s.resultFailText,
+                          ]}
                         >
-                          {status}
-                        </Button>
-                      ))}
-                    </View>
-                  ) : null}
-                  {locked ? (
-                    <Text style={s.body}>
-                      Oczekiwanie na potwierdzenie zapisu. Ponów wysyłkę, aby
-                      sprawdzić wynik. Odpowiedzi są zablokowane do czasu
-                      potwierdzenia.
-                    </Text>
-                  ) : null}
+                          {finalStatus}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={s.label}>
+                        {automatic !== null
+                          ? "Nie można ustalić wyniku. Skontaktuj się z administratorem."
+                          : "Wybierz wynik inspekcji"}
+                      </Text>
+                    )}
+                    {automatic === null ? (
+                      <View style={s.row}>
+                        {draft.form.allowedStatuses.map((status) => (
+                          <Button
+                            key={status}
+                            secondary
+                            selected={draft.status === status}
+                            disabled={busy || locked || ownerMismatch}
+                            onPress={() =>
+                              editDraft((current) => ({ ...current, status }))
+                            }
+                          >
+                            {status}
+                          </Button>
+                        ))}
+                      </View>
+                    ) : null}
+                    {locked ? (
+                      <Text style={s.body}>
+                        Brak potwierdzenia zapisu. Ponów zapis inspekcji.
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
               )}
             </>
           )}
-          <Text style={s.muted}>Inspect Hub · Aplikacja operatora</Text>
         </ScrollView>
       )}
       {ready && (draft || (station && !stationSettingsOpen && !formChoice)) ? (
@@ -978,6 +987,84 @@ function OperatorApp() {
         </View>
       ) : null}
       <Modal
+        visible={discardOpen && !!draft && !loginOpen}
+        transparent
+        animationType="fade"
+        onShow={() => Keyboard.dismiss()}
+        onRequestClose={() => {
+          if (!busy) setDiscardOpen(false);
+        }}
+      >
+        <View
+          style={s.modal}
+          onTouchStart={recordActivity}
+          onTouchMove={recordActivity}
+        >
+          <ScrollView
+            style={s.dialog}
+            contentContainerStyle={[s.panel, s.discardPanel]}
+            keyboardShouldPersistTaps="handled"
+            accessibilityViewIsModal
+          >
+            <View style={s.discardIcon}>
+              <Feather
+                name={locked ? "alert-triangle" : "trash-2"}
+                size={28}
+                color={colors.red}
+                accessible={false}
+                importantForAccessibility="no"
+              />
+            </View>
+            <Text style={s.loginTitle} accessibilityRole="header">
+              {locked ? "Nie można odrzucić inspekcji" : "Odrzucić inspekcję?"}
+            </Text>
+            <Text style={s.body}>
+              {locked
+                ? "Najpierw ponów zapis, aby potwierdzić wynik."
+                : "Wszystkie odpowiedzi zostaną usunięte. Tej operacji nie można cofnąć."}
+            </Text>
+            <View style={s.discardSubject}>
+              <Text style={s.label} numberOfLines={2}>
+                {draft?.form.title}
+              </Text>
+              <Text style={s.serial} numberOfLines={2}>
+                {draft?.serial}
+              </Text>
+            </View>
+            <View style={s.row}>
+              <View style={s.discardAction}>
+                <Button
+                  secondary
+                  disabled={busy}
+                  onPress={() => setDiscardOpen(false)}
+                >
+                  Wróć
+                </Button>
+              </View>
+              {!locked ? (
+                <View style={s.discardAction}>
+                  <Button
+                    danger
+                    disabled={busy}
+                    onPress={() =>
+                      void run(async () => {
+                        if (!draftRef.current || draftRef.current.submission)
+                          return;
+                        setDiscardOpen(false);
+                        await commitDraft(null);
+                        setSerial("");
+                      })
+                    }
+                  >
+                    Odrzuć inspekcję
+                  </Button>
+                </View>
+              ) : null}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+      <Modal
         visible={loginOpen}
         transparent
         animationType="fade"
@@ -988,7 +1075,11 @@ function OperatorApp() {
           }
         }}
       >
-        <View style={s.modal}>
+        <View
+          style={s.modal}
+          onTouchStart={recordActivity}
+          onTouchMove={recordActivity}
+        >
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={s.dialog}
@@ -997,8 +1088,8 @@ function OperatorApp() {
             <Text style={s.loginTitle}>Logowanie operatora</Text>
             <Text style={s.body}>
               {pairingRequired
-                ? "Dla bezpieczeństwa podaj kod z odwrotu karty."
-                : "Odczytaj identyfikator czytnikiem lub wpisz jego numer. Dostęp zostanie sprawdzony w systemie kontroli dostępu."}
+                ? "Podaj kod z odwrotu karty."
+                : "Zeskanuj lub wpisz numer identyfikatora."}
             </Text>
             {session ? (
               <Text style={s.body}>Zalogowano: {session.user.name}</Text>
@@ -1020,11 +1111,12 @@ function OperatorApp() {
               importantForAutofill="no"
               maxLength={30}
               editable={!busy && !pairingRequired}
-              onChangeText={(value) =>
+              onChangeText={(value) => {
+                if (!recordActivity()) return;
                 setLoginIdentifier(
                   value.replace(/[^A-Za-z0-9]/g, "").toUpperCase(),
-                )
-              }
+                );
+              }}
               onSubmitEditing={() => {
                 if (!pairingRequired) void run(() => login());
               }}
@@ -1042,14 +1134,12 @@ function OperatorApp() {
                   secureTextEntry
                   maxLength={4}
                   editable={!busy}
-                  onChangeText={(value) =>
-                    setLoginCardCode(value.replace(/\D/g, ""))
-                  }
+                  onChangeText={(value) => {
+                    if (recordActivity())
+                      setLoginCardCode(value.replace(/\D/g, ""));
+                  }}
                   onSubmitEditing={() => void run(() => login())}
                 />
-                <Text style={s.muted}>
-                  Kod zostanie sprawdzony w APACS i nie będzie przechowywany.
-                </Text>
               </>
             ) : null}
             <NumericKeypad
@@ -1066,7 +1156,7 @@ function OperatorApp() {
               }
               onPress={() => void run(() => login())}
             >
-              {busy ? "Sprawdzanie identyfikatora…" : "Zaloguj identyfikatorem"}
+              {busy ? "Logowanie…" : "Zaloguj"}
             </Button>
             {pairingRequired ? (
               <Button secondary disabled={busy} onPress={openOperatorLogin}>

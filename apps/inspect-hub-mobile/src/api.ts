@@ -23,7 +23,9 @@ export async function api<T>(
   options: RequestInit = {},
 ): Promise<T> {
   if (!/^https?:\/\//.test(API_URL))
-    throw new Error("Ustaw EXPO_PUBLIC_API_URL w pliku .env aplikacji.");
+    throw new Error(
+      "Nie można połączyć z serwerem. Skontaktuj się z administratorem.",
+    );
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 20000);
   try {

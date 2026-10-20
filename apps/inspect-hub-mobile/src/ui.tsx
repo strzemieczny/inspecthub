@@ -16,9 +16,12 @@ export const colors = {
   muted: "#52615d",
   background: "#f3f5f2",
   line: "#d9e2dc",
-  green: "#14795c",
-  pale: "#e7f2ed",
-  red: "#a52c35",
+  green: "#087f45",
+  pale: "#dff5e8",
+  greenSelected: "#bceccd",
+  red: "#c62832",
+  redPale: "#ffe5e8",
+  redSelected: "#ffcbd0",
   white: "#ffffff",
 };
 export function IconButton({
@@ -44,7 +47,8 @@ export function IconButton({
       style={({ pressed }) => [
         s.iconButton,
         selected && s.selected,
-        (disabled || pressed) && s.dim,
+        disabled && s.dim,
+        pressed && s.pressed,
       ]}
     >
       <Feather
@@ -64,6 +68,7 @@ export function Button({
   secondary = false,
   selected = false,
   danger = false,
+  result,
 }: {
   children: ReactNode;
   onPress: () => void;
@@ -71,6 +76,7 @@ export function Button({
   secondary?: boolean;
   selected?: boolean;
   danger?: boolean;
+  result?: "OK" | "NOK";
 }) {
   return (
     <Pressable
@@ -83,7 +89,14 @@ export function Button({
         secondary && s.secondary,
         selected && s.selected,
         danger && s.danger,
-        (disabled || pressed) && s.dim,
+        danger && secondary && s.dangerSecondary,
+        danger && secondary && selected && s.dangerSecondarySelected,
+        result === "OK" && s.photoOk,
+        result === "NOK" && s.photoNok,
+        selected && result === "OK" && s.photoSelectedOk,
+        selected && result === "NOK" && s.photoSelectedNok,
+        disabled && s.dim,
+        pressed && s.pressed,
       ]}
     >
       <Text
@@ -91,6 +104,11 @@ export function Button({
           s.buttonText,
           secondary && s.secondaryText,
           selected && s.selectedText,
+          danger && s.dangerText,
+          danger && secondary && s.dangerSecondaryText,
+          result === "OK" && s.resultPassText,
+          result === "NOK" && s.resultFailText,
+          result && selected && s.answerSelectedText,
         ]}
       >
         {children}
@@ -120,25 +138,73 @@ export function Photo({
   uri,
   label,
   result,
+  onPress,
+  selected = false,
+  disabled = false,
 }: {
   uri: string;
   label: string;
   result?: "OK" | "NOK";
+  onPress?: () => void;
+  selected?: boolean;
+  disabled?: boolean;
 }) {
-  return (
-    <View style={s.photo}>
-      <Text style={s.label}>{label}</Text>
+  const frameStyles = [
+    s.photo,
+    result && s.photoFrame,
+    result === "OK" && s.photoOk,
+    result === "NOK" && s.photoNok,
+    selected && s.photoSelected,
+    selected && result === "OK" && s.photoSelectedOk,
+    selected && result === "NOK" && s.photoSelectedNok,
+  ];
+  const content = (
+    <>
+      <View style={result && s.photoHeading}>
+        {result ? (
+          <View style={s.photoStatusIcon}>
+            <Feather
+              name={result === "OK" ? "check" : "x"}
+              size={20}
+              color={result === "OK" ? colors.green : colors.red}
+              accessible={false}
+              importantForAccessibility="no"
+            />
+          </View>
+        ) : null}
+        <Text
+          style={[
+            s.label,
+            result && s.photoHeadingText,
+            result === "OK" && s.resultPassText,
+            result === "NOK" && s.resultFailText,
+            result && selected && s.answerSelectedText,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
       <Image
         accessibilityLabel={label}
         source={{ uri: mediaUrl(uri) }}
-        style={[
-          s.image,
-          result === "OK" && s.imageOk,
-          result === "NOK" && s.imageNok,
-        ]}
+        style={[s.image, result && s.photoFrameImage]}
         resizeMode="contain"
       />
-    </View>
+    </>
+  );
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [frameStyles, pressed && s.pressed]}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View style={frameStyles}>{content}</View>
   );
 }
 export const s = StyleSheet.create({
@@ -298,10 +364,21 @@ export const s = StyleSheet.create({
   },
   secondary: { backgroundColor: colors.white, borderColor: colors.line },
   secondaryText: { color: colors.ink },
-  selected: { backgroundColor: colors.pale, borderColor: colors.green },
+  selected: {
+    backgroundColor: colors.greenSelected,
+    borderColor: colors.green,
+  },
   selectedText: { color: colors.green },
-  danger: { backgroundColor: colors.red },
+  danger: { backgroundColor: colors.red, borderColor: colors.red },
+  dangerText: { color: colors.white },
+  dangerSecondary: { backgroundColor: colors.white, borderColor: "#d75b66" },
+  dangerSecondarySelected: {
+    backgroundColor: colors.redSelected,
+    borderColor: colors.red,
+  },
+  dangerSecondaryText: { color: colors.red },
   dim: { opacity: 0.45 },
+  pressed: { transform: [{ scale: 0.99 }] },
   notice: {
     backgroundColor: colors.pale,
     borderLeftWidth: 5,
@@ -330,22 +407,83 @@ export const s = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: 8,
   },
-  imageOk: { borderWidth: 3, borderColor: colors.green },
-  imageNok: { borderWidth: 3, borderColor: colors.red },
+  photoFrame: {
+    gap: 0,
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    boxShadow: [
+      {
+        offsetX: 0,
+        offsetY: 2,
+        blurRadius: 4,
+        color: "rgba(24, 32, 33, 0.06)",
+      },
+      {
+        offsetX: 0,
+        offsetY: 10,
+        blurRadius: 24,
+        spreadDistance: -6,
+        color: "rgba(24, 32, 33, 0.16)",
+      },
+    ],
+  },
+  photoOk: { backgroundColor: colors.pale, borderColor: "#59b981" },
+  photoNok: { backgroundColor: colors.redPale, borderColor: "#e87983" },
+  photoSelected: { borderWidth: 3, padding: 6 },
+  photoSelectedOk: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
+  photoSelectedNok: {
+    backgroundColor: colors.red,
+    borderColor: colors.red,
+  },
+  answerSelectedText: { color: colors.white },
+  photoHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 6,
+    paddingTop: 2,
+    paddingBottom: 10,
+  },
+  photoStatusIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    boxShadow: [
+      {
+        offsetX: 0,
+        offsetY: 2,
+        blurRadius: 4,
+        color: "rgba(24, 32, 33, 0.08)",
+      },
+    ],
+  },
+  photoHeadingText: { flexShrink: 1 },
+  photoFrameImage: { borderRadius: 12, backgroundColor: colors.white },
+  summaryPanel: { padding: 18, gap: 0 },
   answerRow: {
-    paddingVertical: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderColor: colors.line,
-    gap: 7,
+    gap: 16,
   },
-  answerHeading: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: 12,
-  },
-  answerLabel: { flexGrow: 1, flexShrink: 1 },
+  answerContent: { flex: 1, minWidth: 0, gap: 6 },
+  answerLabel: { lineHeight: 24 },
   resultBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    minWidth: 82,
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 8,
@@ -354,6 +492,13 @@ export const s = StyleSheet.create({
   resultPass: { backgroundColor: colors.pale, borderColor: colors.green },
   resultFail: { backgroundColor: "#fbecef", borderColor: colors.red },
   resultText: { fontSize: 17, fontWeight: "700" },
+  summaryFooter: { paddingTop: 18, gap: 14 },
+  summaryResult: {
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
   resultPassText: { color: colors.green },
   resultFailText: { color: colors.red },
   modal: {
@@ -372,6 +517,23 @@ export const s = StyleSheet.create({
     maxHeight: "95%",
   },
   loginPanel: { gap: 16, padding: 22, borderRadius: 22 },
+  discardPanel: { padding: 28, gap: 20, borderRadius: 22 },
+  discardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#fbecef",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  discardSubject: {
+    gap: 6,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+  },
+  discardAction: { flexGrow: 1, flexBasis: 180 },
   loginTitle: {
     fontSize: 26,
     lineHeight: 32,

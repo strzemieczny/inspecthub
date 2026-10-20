@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { Camera } from "expo-camera";
 import type {
   InspectionAnswerValue,
   InspectionQuestion,
 } from "@inspect-hub/types";
 import { Button, Field, Photo, s } from "./ui";
 import { uploadPhoto } from "./api";
+import { PhotoCapture } from "./PhotoCapture";
 
 export function Question({
   question: q,
@@ -18,25 +19,20 @@ export function Question({
   question: InspectionQuestion;
   value: InspectionAnswerValue | undefined;
   onChange: (value: InspectionAnswerValue) => void;
-  onUpload: (task: () => Promise<void>) => void;
+  onUpload: (task: () => Promise<void>) => Promise<void>;
   disabled: boolean;
 }) {
   const [measurement, setMeasurement] = useState(
     typeof value === "number" ? String(value) : "",
   );
-  async function photo() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
+  const [cameraOpen, setCameraOpen] = useState(false);
+  async function openCamera() {
+    const permission = await Camera.requestCameraPermissionsAsync();
     if (!permission.granted)
       throw new Error(
         "Zezwól aplikacji na dostęp do aparatu w ustawieniach Androida.",
       );
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 0.75,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    onChange(await uploadPhoto(asset.uri));
+    setCameraOpen(true);
   }
   return (
     <View style={s.panel}>
@@ -51,10 +47,24 @@ export function Question({
       ) : null}
       <View style={s.row}>
         {q.okImageUrl ? (
-          <Photo uri={q.okImageUrl} label="Wzorzec OK" result="OK" />
+          <Photo
+            uri={q.okImageUrl}
+            label="Wzorzec OK"
+            result="OK"
+            onPress={q.type === "CHECKBOX" ? () => onChange(true) : undefined}
+            selected={q.type === "CHECKBOX" && value === true}
+            disabled={disabled}
+          />
         ) : null}
         {q.nokImageUrl ? (
-          <Photo uri={q.nokImageUrl} label="Wzorzec NOK" result="NOK" />
+          <Photo
+            uri={q.nokImageUrl}
+            label="Wzorzec NOK"
+            result="NOK"
+            onPress={q.type === "CHECKBOX" ? () => onChange(false) : undefined}
+            selected={q.type === "CHECKBOX" && value === false}
+            disabled={disabled}
+          />
         ) : null}
       </View>
       {q.type === "CHECKBOX" ? (
@@ -63,6 +73,7 @@ export function Question({
             <Button
               secondary
               selected={value === true}
+              result="OK"
               disabled={disabled}
               onPress={() => onChange(true)}
             >
@@ -73,6 +84,7 @@ export function Question({
             <Button
               secondary
               selected={value === false}
+              result="NOK"
               disabled={disabled}
               onPress={() => onChange(false)}
             >
@@ -129,15 +141,31 @@ export function Question({
       ) : null}
       {q.type === "PHOTO_UPLOAD" ? (
         <>
-          {typeof value === "string" && value ? (
-            <Photo uri={value} label="Zdjęcie z inspekcji" />
-          ) : null}
-          <Button secondary disabled={disabled} onPress={() => onUpload(photo)}>
-            {value ? "Zrób nowe zdjęcie" : "Zrób zdjęcie"}
-          </Button>
-          <Text style={s.muted}>
-            Przesłanie zdjęcia wymaga połączenia z serwerem.
-          </Text>
+          {cameraOpen ? (
+            <PhotoCapture
+              disabled={disabled}
+              onCancel={() => setCameraOpen(false)}
+              onAccept={(uri) =>
+                onUpload(async () => {
+                  onChange(await uploadPhoto(uri));
+                  setCameraOpen(false);
+                })
+              }
+            />
+          ) : (
+            <>
+              {typeof value === "string" && value ? (
+                <Photo uri={value} label="Zdjęcie z inspekcji" />
+              ) : null}
+              <Button
+                secondary
+                disabled={disabled}
+                onPress={() => void onUpload(openCamera)}
+              >
+                {value ? "Zrób nowe zdjęcie" : "Zrób zdjęcie"}
+              </Button>
+            </>
+          )}
         </>
       ) : null}
       {!q.isRequired && value !== undefined && value !== null ? (

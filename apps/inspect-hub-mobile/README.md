@@ -74,10 +74,28 @@ trzeba przebudować i zainstalować APK (`pnpm mobile:android`).
 6. Sprawdź podsumowanie i zapisz. Komunikat potwierdza zapis w Inspect Hub;
    potwierdzenie SCADA jest osobnym procesem backendu.
 
+Pytania ze zdjęciem otwierają podgląd aparatu bezpośrednio w aplikacji.
+Po zrobieniu zdjęcia wybierz „Powtórz” albo „Użyj zdjęcia”. Dopiero zaakceptowane
+zdjęcie jest wysyłane. Przy błędzie wysyłki podgląd pozostaje dostępny do ponowienia;
+„Anuluj” zachowuje poprzednią odpowiedź. Aparat zatrzymuje się w tle oraz po
+opuszczeniu pytania. Zdjęcia tymczasowe są usuwane po powtórzeniu, anulowaniu
+lub zakończeniu pracy z aparatem. Nie jest wymagany dostęp do mikrofonu ani galerii.
+Zmiana z systemowego aparatu na `expo-camera` wymaga przebudowania i instalacji APK
+(`pnpm mobile:android`); sam restart Metro nie wystarczy.
+
 Token sesji jest przechowywany w Android Keystore przez Expo SecureStore.
 Hasło nie jest zapisywane. Stanowisko oraz szkic są zapisywane w AsyncStorage,
 w prywatnych danych aplikacji. Kopia zapasowa Androida jest wyłączona.
 Dane są rozdzielone według adresu API.
+
+Po ponad 30 minutach bez aktywności operator jest automatycznie wylogowywany.
+Dotyk ekranu, wpisywanie danych i skany czytnika odnawiają czas aktywności.
+Czas spędzony w tle i przy zamkniętej aplikacji również jest wliczany;
+powrót do aplikacji nie odnawia wygasłej sesji. Wylogowanie nie otwiera okna
+logowania; formularze bez wymaganego logowania nadal są dostępne.
+Stanowisko oraz szkic inspekcji zostają zachowane. Kontynuacja szkicu
+przypisanego do operatora wymaga ponownego zalogowania tego samego operatora.
+Sesje zapisane przed wprowadzeniem pomiaru aktywności są usuwane.
 
 Stanowisko jest pamiętane lokalnie; aplikacja jawnie przekazuje jego kod do API.
 Nie polega na trwałości ciasteczka przypisania stanowiska w Androidzie.
