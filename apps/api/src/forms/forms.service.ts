@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@inspect-hub/database';
 import type { InspectionForm, InspectionQuestion } from '@inspect-hub/types';
 import { DatabaseService } from '../database/database.service';
@@ -161,7 +165,19 @@ export class FormsService {
 
   async remove(id: string): Promise<void> {
     await this.findOne(id);
-    await this.database.form.delete({ where: { id } });
+    try {
+      await this.database.form.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'Nie można usunąć formularza z zapisanymi inspekcjami. Zarchiwizuj go.',
+        );
+      }
+      throw error;
+    }
   }
 
   async archive(id: string): Promise<void> {

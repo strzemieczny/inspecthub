@@ -1,10 +1,16 @@
 const INSECURE_VALUES = new Set([
   'replace-with-at-least-32-random-characters',
+  'example-only-replace-with-random-secret-at-least-32-characters',
+  'example-only-replace-with-random-storage-secret',
+  'example-only-replace-before-deploy',
   'minio_admin',
   'minio_password_123',
   'inspect_pass',
   'replace-me',
 ]);
+
+const INSECURE_PATTERN =
+  /example-only-replace|replace-before-deploy|replace-with-at-least-32-random-characters/i;
 
 function requireSecureValue(
   environment: Record<string, unknown>,
@@ -13,7 +19,11 @@ function requireSecureValue(
 ): string {
   const value =
     typeof environment[key] === 'string' ? environment[key].trim() : '';
-  if (value.length < minimumLength || INSECURE_VALUES.has(value)) {
+  if (
+    value.length < minimumLength ||
+    INSECURE_VALUES.has(value) ||
+    INSECURE_PATTERN.test(value)
+  ) {
     throw new Error(
       `${key} musi być ustawione na bezpieczną wartość dla środowiska produkcyjnego`,
     );

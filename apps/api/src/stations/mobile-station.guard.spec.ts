@@ -4,13 +4,13 @@ import { StationsService } from './stations.service';
 
 function context(
   headers: Record<string, string | undefined>,
-  stationCode: unknown = 'ST-01',
+  body: Record<string, unknown> = { stationCode: 'ST-01' },
 ) {
   return {
     switchToHttp: () => ({
       getRequest: () => ({
         get: (key: string) => headers[key],
-        body: { stationCode },
+        body,
       }),
     }),
   } as unknown as ExecutionContext;
@@ -45,9 +45,26 @@ describe('MobileStationGuard', () => {
     },
   );
 
+  it('resolves stationId from inspection submission payloads', async () => {
+    await guard.canActivate(
+      context(
+        { 'x-device-id': 'uuid', 'x-device-token': 'token' },
+        { stationId: 'ST-02' },
+      ),
+    );
+    expect(stations.currentMobile).toHaveBeenCalledWith(
+      'uuid',
+      'token',
+      'ST-02',
+    );
+  });
+
   it('does not let an invalid body bypass station matching', async () => {
     await guard.canActivate(
-      context({ 'x-device-id': 'uuid', 'x-device-token': 'token' }, 123),
+      context(
+        { 'x-device-id': 'uuid', 'x-device-token': 'token' },
+        { stationCode: 123 },
+      ),
     );
     expect(stations.currentMobile).toHaveBeenCalledWith('uuid', 'token', '');
   });

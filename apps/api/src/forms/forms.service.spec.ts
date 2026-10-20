@@ -1,3 +1,5 @@
+import { ConflictException } from '@nestjs/common';
+import { Prisma } from '@inspect-hub/database';
 import { DatabaseService } from '../database/database.service';
 import { FormsService } from './forms.service';
 import { CreateFormDto } from './dto/form.dto';
@@ -21,9 +23,11 @@ const stored = {
 
 describe('form revision authors', () => {
   const create = jest.fn().mockResolvedValue(stored);
+  const remove = jest.fn();
   const database = {
     form: {
       create,
+      delete: remove,
       findUnique: jest.fn().mockResolvedValue(stored),
       findFirst: jest.fn().mockResolvedValue(stored),
       findMany: jest.fn(),
@@ -78,5 +82,15 @@ describe('form revision authors', () => {
 
   it('does not expose author identity in public form endpoints', async () => {
     expect(await service.findOne(stored.id)).not.toHaveProperty('createdBy');
+  });
+
+  it('rejects deleting a form referenced by existing inspections with 409 Conflict', async () => {
+    remove.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Foreign key constraint failed', {
+        code: 'P2003',
+        clientVersion: '6.19.3',
+      }),
+    );
+    await expect(service.remove(stored.id)).rejects.toThrow(ConflictException);
   });
 });

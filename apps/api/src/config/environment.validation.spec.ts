@@ -26,6 +26,22 @@ describe('validateEnvironment', () => {
     },
   );
 
+  it.each([
+    [
+      'DATABASE_URL',
+      'postgresql://inspect_user:example-only-replace-before-deploy@postgres:5432/inspect_hub_db?schema=public',
+    ],
+    [
+      'JWT_SECRET',
+      'example-only-replace-with-random-secret-at-least-32-characters',
+    ],
+    ['MINIO_SECRET_KEY', 'example-only-replace-with-random-storage-secret'],
+  ])('rejects template placeholder value for %s', (key, value) => {
+    expect(() =>
+      validateEnvironment({ ...productionEnvironment, [key]: value }),
+    ).toThrow(key);
+  });
+
   it('rejects a CORS origin containing a path', () => {
     expect(() =>
       validateEnvironment({

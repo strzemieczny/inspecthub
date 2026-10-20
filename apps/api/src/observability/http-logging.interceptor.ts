@@ -129,6 +129,7 @@ export class HttpLoggingInterceptor implements NestInterceptor {
         actorType: request.user ? `USER:${request.user.role}` : 'ANONYMOUS',
         stationCode: this.stringValue(
           (request.body as Record<string, unknown> | undefined)?.stationCode ??
+            (request.body as Record<string, unknown> | undefined)?.stationId ??
             (request.body as Record<string, unknown> | undefined)?.code,
         ),
         entityType: controllerName,

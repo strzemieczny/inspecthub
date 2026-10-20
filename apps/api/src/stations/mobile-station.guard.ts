@@ -12,11 +12,14 @@ export class MobileStationGuard implements CanActivate {
     const token = request.get('x-device-token');
     // Browser clients retain their existing cookie flow. Mobile always sends its UUID.
     if (deviceId === undefined && token === undefined) return true;
-    const body = request.body as { stationCode?: unknown } | undefined;
+    const body = request.body as
+      | { stationCode?: unknown; stationId?: unknown }
+      | undefined;
+    const stationCode = body?.stationCode ?? body?.stationId;
     await this.stations.currentMobile(
       deviceId,
       token,
-      typeof body?.stationCode === 'string' ? body.stationCode : '',
+      typeof stationCode === 'string' ? stationCode : '',
     );
     return true;
   }
