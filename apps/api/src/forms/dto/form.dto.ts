@@ -9,7 +9,7 @@ import {
   Min,
   IsOptional,
   IsString,
-  IsUrl,
+  isURL,
   Validate,
   ValidateNested,
   ValidatorConstraint,
@@ -25,6 +25,21 @@ const FIELD_TYPES: FieldType[] = [
   'PHOTO_UPLOAD',
   'NUMBER_RANGE',
 ];
+
+@ValidatorConstraint({ name: 'isQuestionImageUrl' })
+class IsQuestionImageUrl implements ValidatorConstraintInterface {
+  validate(value: unknown) {
+    if (typeof value !== 'string') return false;
+    if (isURL(value, { require_tld: false })) return true;
+
+    // Form images are stored as portable paths to the media endpoint.
+    return /^\/(?:inspect-hub\/)?api\/media\/object\?[^\s#]+$/.test(value);
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return `${args.property} must be a URL address`;
+  }
+}
 
 @ValidatorConstraint({ name: 'expectedValueMatchesFieldType' })
 class ExpectedValueMatchesFieldType implements ValidatorConstraintInterface {
@@ -118,15 +133,15 @@ export class QuestionDto {
   severity?: 'NORMAL' | 'MAJOR' | 'CRITICAL';
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @Validate(IsQuestionImageUrl)
   instructionImageUrl?: string;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @Validate(IsQuestionImageUrl)
   okImageUrl?: string;
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @Validate(IsQuestionImageUrl)
   nokImageUrl?: string;
 
   @IsOptional()
