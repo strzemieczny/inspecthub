@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+@import './fonts.css';
 
 :root { font-family: 'DM Sans', sans-serif; color: #182021; background: #f3f5f2; color-scheme: light; font-synthesis: none; text-rendering: optimizeLegibility; }
 :root[data-theme="dark"] { color: #f1f3f5; background: #0d0f12; color-scheme: dark; }
