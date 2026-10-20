@@ -24,14 +24,14 @@ export class FormsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   create(@Body() dto: CreateFormDto, @Req() request: RequestWithUser) {
     return this.forms.create(dto, request.user.userId);
   }
 
   @Post(':id/duplicate')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   duplicate(
     @Param('id') id: string,
     @Body() dto: DuplicateFormDto,
@@ -52,14 +52,14 @@ export class FormsController {
 
   @Get(':id/revisions')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   findRevisions(@Param('id') id: string) {
     return this.forms.findRevisions(id);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateFormDto,
@@ -70,7 +70,7 @@ export class FormsController {
 
   @Patch(':id/archive')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   @HttpCode(204)
   archive(@Param('id') id: string) {
     return this.forms.archive(id);
@@ -78,7 +78,7 @@ export class FormsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   @HttpCode(204)
   remove(@Param('id') id: string) {
     return this.forms.remove(id);

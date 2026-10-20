@@ -28,7 +28,7 @@ export class StationsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'OPERATOR')
+  @Roles('ADMIN', 'MANAGER', 'OPERATOR')
   findAll() {
     return this.stations.findAll();
   }
@@ -59,21 +59,21 @@ export class StationsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   create(@Body() dto: CreateStationDto) {
     return this.stations.create(dto);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   update(@Param('id') id: string, @Body() dto: UpdateStationDto) {
     return this.stations.update(id, dto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   @HttpCode(204)
   remove(@Param('id') id: string) {
     return this.stations.remove(id);

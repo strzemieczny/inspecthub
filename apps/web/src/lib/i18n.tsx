@@ -316,6 +316,7 @@ const translations = {
     "users.role": "Rola",
     "users.operator": "Operator",
     "users.admin": "Administrator",
+    "users.manager": "Manager",
     "scada.eyebrow": "INTEGRACJA PRODUKCYJNA",
     "scada.description":
       "Kontroluj dostęp produktu do inspekcji i automatycznie przekazuj wyniki do systemu produkcyjnego.",
@@ -770,6 +771,7 @@ const translations = {
     "users.role": "Role",
     "users.operator": "Operator",
     "users.admin": "Administrator",
+    "users.manager": "Manager",
     "scada.eyebrow": "PRODUCTION INTEGRATION",
     "scada.description":
       "Control product access to inspections and automatically send results to the production system.",
@@ -1219,6 +1221,7 @@ const translations = {
     "users.role": "Роль",
     "users.operator": "Оператор",
     "users.admin": "Адміністратор",
+    "users.manager": "Менеджер",
     "scada.eyebrow": "ВИРОБНИЧА ІНТЕГРАЦІЯ",
     "scada.description":
       "Контролюйте доступ продукту до інспекції та автоматично передавайте результати у виробничу систему.",

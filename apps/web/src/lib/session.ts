@@ -23,7 +23,9 @@ export function readStoredUser(): SessionUser | null {
       typeof user.id === "string" &&
       typeof user.name === "string" &&
       typeof user.email === "string" &&
-      (user.role === "ADMIN" || user.role === "OPERATOR")
+      (user.role === "ADMIN" ||
+        user.role === "MANAGER" ||
+        user.role === "OPERATOR")
     )
       snapshot = user as SessionUser;
   } catch {

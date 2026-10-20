@@ -25,7 +25,7 @@ export class EventsController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'MANAGER')
   find(@Query() query: EventQueryDto) {
     return this.events.find(query);
   }

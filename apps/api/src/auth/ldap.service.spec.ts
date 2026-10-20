@@ -135,6 +135,51 @@ describe('LdapService', () => {
     ).resolves.toMatchObject({ role: 'ADMIN' });
   });
 
+  it('grants managers access without operator group membership', async () => {
+    groups = [
+      'CN=(PDS - Blonie) BW-Mind InspectHub Managers,OU=Groups,DC=example',
+    ];
+    await expect(
+      service.authenticate('alice', 'secret'),
+    ).resolves.toMatchObject({ role: 'MANAGER' });
+  });
+
+  it('gives manager membership precedence over operator membership', async () => {
+    groups.push(
+      'CN=(pds - blonie) bw-mind inspecthub managers,OU=Groups,DC=example',
+    );
+    await expect(
+      service.authenticate('alice', 'secret'),
+    ).resolves.toMatchObject({ role: 'MANAGER' });
+  });
+
+  it('keeps full admin access when also a manager', async () => {
+    groups = [
+      'CN=Inspect-Hub-Admins,DC=example',
+      'CN=(PDS - Blonie) BW-Mind InspectHub Managers,DC=example',
+    ];
+    await expect(
+      service.authenticate('alice', 'secret'),
+    ).resolves.toMatchObject({ role: 'ADMIN' });
+  });
+
+  it('supports a configured manager group DN and rejects a different OU', async () => {
+    service = new LdapService({
+      get: (key: string) =>
+        key === 'LDAP_MANAGER_GROUP'
+          ? 'CN=Managers,OU=InspectHub,DC=example'
+          : settings[key],
+    } as ConfigService);
+    groups = ['CN=Managers,OU=InspectHub,DC=example'];
+    await expect(
+      service.authenticate('alice', 'secret'),
+    ).resolves.toMatchObject({ role: 'MANAGER' });
+    groups = ['CN=Managers,OU=Other,DC=example'];
+    await expect(
+      service.authenticate('alice', 'secret'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('rejects unauthorized groups', async () => {
     groups = ['CN=Visitors,DC=example'];
     await expect(

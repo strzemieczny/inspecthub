@@ -2,12 +2,13 @@ import type {
   InspectionAnswerValue,
   InspectionForm,
   InspectionQuestion,
+  UserRole,
 } from "@inspect-hub/types";
 
 export type Answers = Record<string, InspectionAnswerValue>;
 export type Session = {
   accessToken: string;
-  user: { id: string; name: string; email: string; role: "ADMIN" | "OPERATOR" };
+  user: { id: string; name: string; email: string; role: UserRole };
 };
 export type Draft = {
   id: string;

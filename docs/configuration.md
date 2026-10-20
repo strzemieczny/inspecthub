@@ -101,12 +101,14 @@ Konfiguracja jest niezależna od BW-Mind; ustaw w `.env` (lokalnie) lub
 | `LDAP_BIND_PASSWORD` | Hasło konta serwisowego |
 | `LDAP_SEARCH_BASE` | Baza wyszukiwania, np. `DC=example,DC=local` |
 | `LDAP_ADMIN_GROUP` | Grupa przyznająca rolę `ADMIN` |
+| `LDAP_MANAGER_GROUP` | Grupa przyznająca rolę `MANAGER`, domyślnie `(PDS - Blonie) BW-Mind InspectHub Managers`; cała konfiguracja poza SCADA |
 | `LDAP_REQUIRED_GROUP` | Grupa przyznająca rolę `OPERATOR` |
 | `LDAP_TIMEOUT_MS` | Timeout operacji, domyślnie 5000 ms |
 | `LDAP_CONNECT_TIMEOUT_MS` | Timeout połączenia, domyślnie 5000 ms |
 | `LDAP_REQUEST_TIMEOUT_MS` | Limit całego logowania, domyślnie 10000 ms |
 
-Wszystkie wartości oprócz timeoutów są wymagane. Timeouty muszą być całkowite
+Wszystkie wartości oprócz timeoutów i `LDAP_MANAGER_GROUP` są wymagane.
+Priorytet ról: `ADMIN`, `MANAGER`, `OPERATOR`. Zmiana grupy lub roli wymaga ponownego logowania. Timeouty muszą być całkowite
 w zakresie 100–120000 ms. Grupy można podawać jako CN lub pełny DN; pełny DN
 musi pasować do całego `memberOf`, nazwy porównywane są bez rozróżniania
 wielkości liter. Sprawdzane jest bezpośrednie członkostwo `memberOf`, tak jak

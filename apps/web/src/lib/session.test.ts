@@ -129,3 +129,12 @@ test("incomplete or corrupt shared storage is treated as logged out", () => {
   storage.removeItem("inspect-hub-token");
   assert.equal(readStoredUser(), null);
 });
+
+test("manager sessions survive storage and page reload", () => {
+  const manager = {
+    ...session,
+    user: { ...session.user, role: "MANAGER" as const },
+  };
+  saveSession(manager);
+  assert.deepEqual(readStoredUser(), manager.user);
+});

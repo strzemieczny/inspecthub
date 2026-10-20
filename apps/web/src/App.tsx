@@ -32,7 +32,12 @@ import {
   type Session,
   type SessionUser,
 } from "./lib/api";
-import { clearSession, readStoredUser, saveSession, subscribeToSession } from "./lib/session";
+import {
+  clearSession,
+  readStoredUser,
+  saveSession,
+  subscribeToSession,
+} from "./lib/session";
 import "./App.css";
 import { FormRevisionHistory } from "./components/FormRevisionHistory";
 import { appPath, appRoute, currentAppPath } from "./lib/routing";
@@ -2432,7 +2437,13 @@ function UsersManager() {
                   : t("users.legacy")}
             </span>
             <span>
-              {t(user.role === "ADMIN" ? "users.admin" : "users.operator")}
+              {t(
+                user.role === "ADMIN"
+                  ? "users.admin"
+                  : user.role === "MANAGER"
+                    ? "users.manager"
+                    : "users.operator",
+              )}
             </span>
           </article>
         ))}
@@ -2442,7 +2453,8 @@ function UsersManager() {
   );
 }
 
-function AdminPanel() {
+function AdminPanel({ role }: { role: SessionUser["role"] }) {
+  const canManageScada = role === "ADMIN";
   const { locale, t } = useI18n();
   const initialDraft = useMemo(() => readNewFormDraft(), []);
   const [section, setSection] = useState<
@@ -2834,7 +2846,7 @@ function AdminPanel() {
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
           <div className="admin-sidebar-title">
-            <span>ADMIN</span>
+            <span>{role}</span>
             <strong>{t("admin.management")}</strong>
           </div>
           <button
@@ -2937,20 +2949,22 @@ function AdminPanel() {
               <small>{t("admin.logsSubtitle")}</small>
             </span>
           </button>
-          <button
-            className={section === "settings" ? "active" : ""}
-            type="button"
-            onClick={() => setSection("settings")}
-            title={sidebarCollapsed ? t("admin.scada") : undefined}
-          >
-            <i>
-              <AdminMenuIcon type="settings" />
-            </i>
-            <span>
-              {t("admin.scada")}
-              <small>{t("admin.scadaSubtitle")}</small>
-            </span>
-          </button>
+          {canManageScada && (
+            <button
+              className={section === "settings" ? "active" : ""}
+              type="button"
+              onClick={() => setSection("settings")}
+              title={sidebarCollapsed ? t("admin.scada") : undefined}
+            >
+              <i>
+                <AdminMenuIcon type="settings" />
+              </i>
+              <span>
+                {t("admin.scada")}
+                <small>{t("admin.scadaSubtitle")}</small>
+              </span>
+            </button>
+          )}
         </nav>
       </aside>
       <div className="workspace admin-content">
@@ -3006,7 +3020,9 @@ function AdminPanel() {
         {section === "logs" ? (
           <AuditEventsPanel />
         ) : section === "settings" ? (
-          <ScadaSettingsPanel />
+          canManageScada ? (
+            <ScadaSettingsPanel />
+          ) : null
         ) : section === "users" ? (
           <UsersManager />
         ) : section === "stations" ? (
@@ -6015,7 +6031,12 @@ function App() {
   if (user.role === "OPERATOR" && path !== "/inspection") {
     window.history.replaceState({}, "", route("/inspection"));
     return (
-      <OperatorPanel key={user.id} user={user} onLogin={loginUser} onLogout={logoutUser} />
+      <OperatorPanel
+        key={user.id}
+        user={user}
+        onLogin={loginUser}
+        onLogout={logoutUser}
+      />
     );
   } else if (path === "/login") {
     window.history.replaceState({}, "", route("/admin"));
@@ -6047,7 +6068,13 @@ function App() {
           </a>
           <div className="admin-account" title={user.name}>
             <span className="admin-account-avatar" aria-hidden="true">
-              {user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+              {user.name
+                .trim()
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()}
             </span>
             <span className="admin-account-copy">
               <strong>{user.name}</strong>
@@ -6060,7 +6087,7 @@ function App() {
           <SettingsMenu />
         </div>
       </nav>
-      <AdminPanel key={user.id} />
+      <AdminPanel key={`${user.id}-${user.role}`} role={user.role} />
     </>
   );
 }

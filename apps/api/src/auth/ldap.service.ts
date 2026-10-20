@@ -65,6 +65,9 @@ export class LdapService {
       throw new ServiceUnavailableException('Brak konfiguracji LDAP');
     const searchBase = this.required('LDAP_SEARCH_BASE');
     const adminGroup = this.required('LDAP_ADMIN_GROUP');
+    const managerGroup =
+      this.config.get<string>('LDAP_MANAGER_GROUP')?.trim() ||
+      '(PDS - Blonie) BW-Mind InspectHub Managers';
     const requiredGroup = this.required('LDAP_REQUIRED_GROUP');
     const requestTimeout = this.timeout('LDAP_REQUEST_TIMEOUT_MS', 10000);
     const options = {
@@ -197,9 +200,11 @@ export class LdapService {
         const groups = this.values(entry, 'memberOf');
         const role = this.matches(groups, adminGroup)
           ? Role.ADMIN
-          : this.matches(groups, requiredGroup)
-            ? Role.OPERATOR
-            : null;
+          : this.matches(groups, managerGroup)
+            ? Role.MANAGER
+            : this.matches(groups, requiredGroup)
+              ? Role.OPERATOR
+              : null;
         if (!role)
           throw new ForbiddenException(
             'Brak uprawnień do Inspect Hub w Active Directory',

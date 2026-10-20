@@ -67,7 +67,7 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "OPERATOR";
+  role: import("@inspect-hub/types").UserRole;
 }
 
 export interface Session {

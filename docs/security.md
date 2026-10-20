@@ -10,7 +10,9 @@
 - Formularz może dodatkowo wymagać zalogowanego operatora.
 - Logowanie hasłem korzysta wyłącznie z Active Directory. Rejestracja i lokalna
   edycja kont, haseł oraz ról nie są dostępne.
-- Role pochodzą z `LDAP_ADMIN_GROUP` i `LDAP_REQUIRED_GROUP`; brak członkostwa
+- Rola `MANAGER` ma dostęp do formularzy, stanowisk, użytkowników i logów.
+  Odczyt i zapis ustawień SCADA wymagają roli `ADMIN`, również w API.
+- Role pochodzą z `LDAP_ADMIN_GROUP`, `LDAP_MANAGER_GROUP` i `LDAP_REQUIRED_GROUP`; brak członkostwa
   oznacza odmowę dostępu. Role są odświeżane przy logowaniu, JWT wygasa po 8 h.
 - Stare JWT kont lokalnych są odrzucane. Dane historyczne kont pozostają w bazie.
 - Logowanie, wylogowanie i wylogowanie po 401 synchronizują sesję między kartami

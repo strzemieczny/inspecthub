@@ -1,4 +1,4 @@
-export type UserRole = "ADMIN" | "OPERATOR";
+export type UserRole = "ADMIN" | "MANAGER" | "OPERATOR";
 
 export type FieldType =
   | "CHECKBOX"
