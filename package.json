@@ -16,19 +16,8 @@
     "turbo": "^2.10.9",
     "typescript": "5.9.2"
   },
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@12.14.0",
   "engines": {
     "node": ">=22.13"
-  },
-  "pnpm": {
-    "overrides": {
-      "minimatch@<3.1.4": "3.1.4",
-      "brace-expansion@<1.1.18": "1.1.18",
-      "brace-expansion@>=2.0.0 <2.1.4": "2.1.4",
-      "uuid@<11.1.1": "11.1.1"
-    },
-    "patchedDependencies": {
-      "ldapjs@3.0.7": "patches/ldapjs@3.0.7.patch"
-    }
   }
 }

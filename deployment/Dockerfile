@@ -1,7 +1,7 @@
 FROM node:22-bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && npm install --global pnpm@9.0.0
+    && npm install --global pnpm@12.14.0
 WORKDIR /app
 # Deploy checks out files with umask 077. Keep them readable by the runtime user.
 COPY --chown=node:node . .
@@ -15,6 +15,8 @@ RUN pnpm --filter web build
 
 FROM build AS api
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+# Dependencies are installed at build time; runtime commands must not reinstall them.
+ENV PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false
 USER node
 WORKDIR /app/apps/api
 EXPOSE 3000

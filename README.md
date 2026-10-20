@@ -48,7 +48,7 @@ pnpm exec prettier --check "**/*.{ts,tsx,md}"
 pnpm check-types
 pnpm lint
 pnpm build
-pnpm --filter api test -- --runInBand
+pnpm --filter api test --runInBand
 pnpm audit --prod
 ```
 
@@ -98,7 +98,7 @@ Usługi lokalne:
 ## Wymagania
 
 - Node.js 22.13 lub nowszy,
-- pnpm 9,
+- pnpm 12.14.0 (wersja przypięta w `package.json`),
 - Docker z obsługą Docker Compose.
 
 ## Uruchomienie lokalne

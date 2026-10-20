@@ -3,7 +3,7 @@
 ## Wymagania
 
 - Node.js co najmniej 22.13,
-- pnpm 9,
+- pnpm 12.14.0 (wersja przypięta w `package.json`),
 - Docker Compose,
 - PostgreSQL 16 i MinIO dla pełnego uruchomienia lokalnego.
 
@@ -29,7 +29,7 @@ pnpm exec prettier --check "**/*.{ts,tsx,md}"
 pnpm check-types
 pnpm lint
 pnpm build
-pnpm --filter api test -- --runInBand
+pnpm --filter api test --runInBand
 pnpm audit --prod
 ```
 

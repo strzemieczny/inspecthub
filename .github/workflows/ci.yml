@@ -30,7 +30,7 @@ jobs:
       - run: pnpm --filter @inspect-hub/database build
       - run: pnpm check-types
       - run: pnpm lint
-      - run: pnpm --filter api test -- --runInBand
+      - run: pnpm --filter api test --runInBand
       - run: pnpm --filter inspect-hub-mobile test
       - name: Build API and web
         run: pnpm exec turbo run build --filter=api... --filter=web...
