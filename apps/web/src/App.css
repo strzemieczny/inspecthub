@@ -2373,10 +2373,6 @@ nav {
 .revision-history b {
   color: #176148;
 }
-.stations-manager {
-  padding: 1.5rem;
-  margin-bottom: 1.25rem;
-}
 .users-manager {
   padding: 1.5rem;
 }
@@ -2432,60 +2428,148 @@ nav {
   color: #77827e;
   font-size: 0.7rem;
 }
+.stations-manager {
+  min-width: 0;
+  padding: 1.5rem;
+  container: stations / inline-size;
+}
 .stations-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
-.stations-heading h2 {
-  margin: 0.15rem 0 0.35rem;
+.stations-heading h2 { margin: 0.15rem 0 0.35rem; }
+.station-add { margin-top: 1rem; }
+.station-add > summary {
+  width: fit-content;
+  color: #176148;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.45rem 0;
 }
-.station-create {
+.station-create, .station-editor-fields {
   display: grid;
-  grid-template-columns: 160px minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(110px, 0.65fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: end;
+}
+.station-create {
   padding: 1rem;
-  margin-top: 1.25rem;
+  margin-top: 0.5rem;
   background: #f6f8f5;
   border: 1px solid #e2e7e2;
-  border-radius: 10px;
+  border-radius: 8px;
 }
-.station-create label {
-  margin: 0;
+.station-create label, .station-editor-fields label { min-width: 0; margin: 0; }
+.station-create .primary { min-height: 43px; }
+.stations-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.8rem 0 1rem;
 }
-.station-create .primary {
-  min-height: 43px;
-}
-.station-list {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: 0.8rem;
-}
-.station-row {
-  display: grid;
-  grid-template-columns: 130px minmax(160px, 1fr) minmax(150px, 0.8fr) auto auto;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem;
+.stations-toolbar input { max-width: 440px; }
+.stations-toolbar select { width: auto; max-width: 100%; }
+.stations-table-scroll {
+  overflow: auto;
+  max-height: 60vh;
   border: 1px solid #e1e6e2;
-  border-radius: 9px;
+  border-radius: 8px;
+  scrollbar-gutter: stable;
 }
-.station-row.inactive {
-  background: #f7f7f6;
-  opacity: 0.72;
+.stations-table {
+  width: 100%;
+  min-width: 800px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8rem;
 }
-.station-name-field {
-  display: grid;
-  gap: 0.3rem;
+.station-col-code { width: 17%; }
+.station-col-status { width: 124px; }
+.station-col-tablet { width: 100px; }
+.station-col-action { width: 108px; }
+.stations-table :is(th, td) { padding: 0.65rem 0.8rem; text-align: left; }
+.stations-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #65736c;
+  background: #f6f8f5;
+  border-bottom: 1px solid #dfe5e0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
-.station-name-field small {
-  overflow-wrap: anywhere;
-  padding-left: 0.2rem;
-  color: #7b8581;
-  font: 600 0.66rem "DM Sans";
+.station-summary td {
+  height: 49px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid #e9ede9;
 }
+.station-summary:last-child td { border-bottom: 0; }
+.station-summary:hover, .station-summary.expanded { background: #f3f8f5; }
+.station-summary strong { font-weight: 650; }
+.station-paired { color: #176148; font-size: 0.74rem; }
+.station-edit-button {
+  padding: 0.3rem 0;
+  border: 0;
+  background: transparent;
+  color: #176148;
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+.station-edit-button:hover { text-decoration: underline; }
+.station-edit-button:focus-visible, .station-add > summary:focus-visible {
+  outline: 2px solid #176148;
+  outline-offset: 3px;
+}
+.stations-table .station-editor-row > td { padding: 1rem; white-space: normal; background: #f6f8f5; border-bottom: 1px solid #dfe5e0; }
+.station-editor-fields { grid-template-columns: minmax(0, 0.65fr) repeat(2, minmax(0, 1fr)); }
+.station-device-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  margin: 1rem 0;
+  font-size: 0.74rem;
+}
+.station-device-details dt { color: #77827e; margin-bottom: 0.25rem; }
+.station-device-details dd { margin: 0; overflow-wrap: anywhere; }
+.station-editor-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.station-editor-actions button { width: auto; padding: 0.5rem 0.8rem; font-size: 0.77rem; }
+.station-editor-actions .danger { margin-left: auto; }
+.stations-table .stations-empty { padding: 2.5rem 1rem; text-align: center; color: #77827e; }
+.stations-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding-top: 0.85rem;
+  font-size: 0.75rem;
+  color: #65736c;
+}
+.stations-pagination > label { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0 auto; white-space: nowrap; font-size: inherit; }
+.stations-pagination select { width: auto; padding: 0.35rem 0.6rem; font-size: inherit; }
+.stations-page-buttons { display: flex; align-items: center; gap: 0.65rem; }
+.stations-page-buttons button { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
+@container stations (max-width: 760px) {
+  .station-create { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container stations (max-width: 480px) {
+  .stations-heading, .stations-toolbar { flex-wrap: wrap; }
+  .station-create { grid-template-columns: minmax(0, 1fr); }
+  .stations-pagination > label { margin-left: 0; }
+}
+:root[data-theme="dark"] .stations-table-scroll { border-color: var(--dark-border); }
+:root[data-theme="dark"] .station-summary td { border-color: var(--dark-border); }
+:root[data-theme="dark"] .stations-table .station-editor-row > td,
+:root[data-theme="dark"] .station-summary:hover,
+:root[data-theme="dark"] .station-summary.expanded { background: #252e29; border-color: var(--dark-border); }
+:root[data-theme="dark"] :is(.station-edit-button, .station-add > summary, .station-paired) { color: #86dfbd; }
 .station-identify {
   width: min(100%, 480px);
   display: grid;
@@ -2537,6 +2621,8 @@ nav {
   }
 }
 .station-state {
+  justify-self: start;
+  align-self: start;
   padding: 0.35rem 0.55rem;
   color: #6c7471;
   background: #eceeed;
@@ -2547,14 +2633,6 @@ nav {
 .station-state.active {
   color: #176148;
   background: #e4f2ec;
-}
-.station-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.station-actions button {
-  white-space: nowrap;
 }
 .icon-button.danger {
   color: #a33d3d;
@@ -2598,13 +2676,6 @@ nav {
   font-size: 0.75rem;
 }
 @media (max-width: 900px) {
-  .station-create,
-  .station-row {
-    grid-template-columns: 1fr;
-  }
-  .station-actions {
-    flex-wrap: wrap;
-  }
   .form-row {
     grid-template-columns: 1fr auto;
   }

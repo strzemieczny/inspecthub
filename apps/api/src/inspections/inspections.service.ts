@@ -751,7 +751,7 @@ export class InspectionsService {
     const dateStamp = now.toISOString().slice(0, 10);
     const columns = [
       ['completedAt', 'Data zakończenia'],
-      ['serialNumber', 'Numer seryjny / VIN'],
+      ['serialNumber', 'Numer seryjny'],
       ['partNumber', 'Numer części'],
       ['productFamily', 'Rodzina produktu'],
       ['station', 'Stanowisko'],

@@ -854,7 +854,7 @@ function OperatorApp() {
                 {station && !stationSettingsOpen && !formChoice ? (
                   <View style={s.panel}>
                     <Field
-                      label={t("Numer seryjny / VIN")}
+                      label={t("Numer seryjny")}
                       inputRef={serialInput}
                       value={serial}
                       showSoftInputOnFocus={false}

@@ -1,0 +1,229 @@
+.users-directory {
+  --users-border: #e1e6e2;
+  --users-muted: #718078;
+  --users-heading: #f6f8f5;
+  --users-hover: #f7faf8;
+  --users-text: #263b32;
+  min-width: 0;
+  container-type: inline-size;
+  padding: 1.5rem;
+}
+.users-directory-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.users-directory-heading h2 {
+  margin: 0 0 0.5rem;
+}
+.users-directory-heading p {
+  max-width: 75ch;
+  margin: 0;
+  line-height: 1.6;
+  font-size: 0.85rem;
+}
+.users-directory-heading .table-count {
+  flex-shrink: 0;
+}
+.users-directory-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+}
+.users-directory-search {
+  position: relative;
+  width: min(100%, 440px);
+}
+.users-directory-search input {
+  height: 100%;
+  padding-left: 2.5rem;
+  font-size: 0.8rem;
+}
+.users-directory-search svg {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: var(--users-muted);
+  stroke-width: 1.6;
+  pointer-events: none;
+}
+.users-directory-toolbar .compact-select {
+  min-width: 180px;
+}
+.users-directory-toolbar .compact-select-trigger {
+  height: 100%;
+}
+.users-directory-scroll {
+  overflow: auto;
+  max-height: 65vh;
+  border: 1px solid var(--users-border);
+  border-radius: 9px;
+  scrollbar-gutter: stable;
+}
+.users-directory-table {
+  width: 100%;
+  min-width: 680px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8rem;
+}
+.users-directory-role-col {
+  width: 150px;
+}
+.users-directory-source-col {
+  width: 180px;
+}
+.users-directory-date-col {
+  width: 110px;
+}
+.users-directory-table :is(th, td) {
+  padding: 0.8rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--users-border);
+}
+.users-directory-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--users-heading);
+  color: var(--users-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-top: 0;
+}
+.users-directory-table td {
+  color: var(--users-text);
+  vertical-align: middle;
+}
+.users-directory-table tbody tr:hover {
+  background: var(--users-hover);
+}
+.users-directory-person {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.users-directory-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #edf2ef;
+  color: #486356;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.users-directory-person > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.users-directory-person strong,
+.users-directory-person > div > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.users-directory-person strong {
+  color: var(--users-text);
+  font-weight: 650;
+}
+.users-directory-person > div > span {
+  color: var(--users-muted);
+  font-size: 0.72rem;
+}
+.users-directory-role {
+  display: inline-flex;
+  padding: 0.3rem 0.55rem;
+  border-radius: 5px;
+  background: #f0f2f1;
+  color: #5b6862;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.users-directory-role.role-admin {
+  color: #176148;
+  background: #e4f2ec;
+}
+.users-directory-role.role-manager {
+  color: #4b5c91;
+  background: #edf0fa;
+}
+.users-directory-source {
+  font-size: 0.76rem;
+}
+.users-directory-table td small {
+  color: var(--users-muted);
+  white-space: normal;
+  line-height: 1.4;
+  font-size: 0.65rem;
+}
+.users-directory-table time {
+  color: var(--users-muted);
+  font-size: 0.73rem;
+  font-variant-numeric: tabular-nums;
+}
+.users-directory-table .users-directory-empty {
+  padding: 2.5rem 1rem;
+  color: var(--users-muted);
+  text-align: center;
+  white-space: normal;
+}
+.users-directory-footer {
+  margin-top: 0.85rem;
+  color: var(--users-muted);
+  font-size: 0.75rem;
+}
+@media (max-width: 600px) {
+  .users-directory {
+    padding: 1rem;
+  }
+  .users-directory-heading,
+  .users-directory-toolbar {
+    flex-wrap: wrap;
+  }
+  .users-directory-table {
+    min-width: 680px;
+  }
+  .users-directory-role-col {
+    width: 130px;
+  }
+  .users-directory-source-col {
+    width: 150px;
+  }
+}
+:root[data-theme="dark"] .users-directory {
+  --users-border: #353c44;
+  --users-muted: #aab7b3;
+  --users-heading: #20242a;
+  --users-hover: #252e29;
+  --users-text: #f3f7f6;
+}
+:root[data-theme="dark"] .users-directory-avatar {
+  background: #293630;
+  color: #b8d1c8;
+}
+:root[data-theme="dark"] .users-directory-role {
+  background: #30363c;
+  color: #cbd0d6;
+}
+:root[data-theme="dark"] .users-directory-role.role-admin {
+  background: #213b32;
+  color: #86dfbd;
+}
+:root[data-theme="dark"] .users-directory-role.role-manager {
+  background: #29324a;
+  color: #b3c2f2;
+}
