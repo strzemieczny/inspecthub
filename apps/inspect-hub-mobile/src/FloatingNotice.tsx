@@ -1,3 +1,4 @@
+import { useI18n } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import Feather from "@expo/vector-icons/Feather";
 import {
@@ -22,6 +23,7 @@ export function FloatingNotice({
   revision?: number;
   onDismiss?: () => void;
 }) {
+  const { t } = useI18n();
   const [progress] = useState(() => new Animated.Value(0));
   // Retain the outgoing content until the native exit animation completes.
   const [displayed, setDisplayed] = useState(() =>
@@ -164,7 +166,7 @@ export function FloatingNotice({
         {onDismiss ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Zamknij powiadomienie"
+            accessibilityLabel={t("Zamknij powiadomienie")}
             disabled={!current}
             onPress={() => dismissRef.current?.()}
             style={({ pressed }) => [

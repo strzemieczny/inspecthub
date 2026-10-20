@@ -1,3 +1,6 @@
+import { LanguagePicker } from "./LanguagePicker";
+import { localizeQuestion } from "./localization";
+import { LanguageProvider, useI18n } from "./i18n";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -46,17 +49,21 @@ import { Button, colors, Field, IconButton, Photo, s } from "./ui";
 export default function App() {
   return (
     <SafeAreaProvider>
-      <OperatorApp />
+      <LanguageProvider>
+        <OperatorApp />
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }
 function OperatorApp() {
+  const { t, language } = useI18n();
   useEffect(() => {
     operatorDisplay?.activate();
     return () => operatorDisplay?.deactivate();
   }, []);
   const { width, height } = useWindowDimensions();
   const wideHeader = width >= 600;
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<
     (Session & { lastActiveAt?: number }) | null
@@ -95,7 +102,7 @@ function OperatorApp() {
     setSession(null);
     void storage.saveSession(null).catch(() => {});
     closeOperatorLogin();
-    message("Wylogowano po ponad 30 minutach bez aktywności.");
+    message(t("Wylogowano po ponad 30 minutach bez aktywności."));
   });
 
   useEffect(() => {
@@ -106,6 +113,7 @@ function OperatorApp() {
       busy ||
       loginOpen ||
       stationSettingsOpen ||
+      languageOpen ||
       formChoice
     )
       return;
@@ -113,7 +121,16 @@ function OperatorApp() {
     // Wait until it is editable and native layout has caught up before focusing.
     const frame = requestAnimationFrame(() => serialInput.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [ready, station, draft, busy, loginOpen, stationSettingsOpen, formChoice]);
+  }, [
+    ready,
+    station,
+    draft,
+    busy,
+    loginOpen,
+    stationSettingsOpen,
+    languageOpen,
+    formChoice,
+  ]);
 
   function message(value: string, isError = false) {
     setNotice(value);
@@ -157,7 +174,9 @@ function OperatorApp() {
     if (!draftRef.current || draftRef.current.submission) return;
     void commitDraft(change(draftRef.current)).catch(() =>
       message(
-        "Nie udało się zapisać szkicu w pamięci urządzenia. Nie zamykaj aplikacji.",
+        t(
+          "Nie udało się zapisać szkicu w pamięci urządzenia. Nie zamykaj aplikacji.",
+        ),
         true,
       ),
     );
@@ -185,10 +204,10 @@ function OperatorApp() {
       message(
         cause instanceof TypeError ||
           (cause instanceof Error && cause.name === "AbortError")
-          ? "Brak połączenia. Spróbuj ponownie. Szkic został zachowany."
+          ? t("Brak połączenia. Spróbuj ponownie. Szkic został zachowany.")
           : cause instanceof Error
-            ? cause.message
-            : "Operacja nie powiodła się. Spróbuj ponownie.",
+            ? t(cause.message)
+            : t("Operacja nie powiodła się. Spróbuj ponownie."),
         true,
       );
     } finally {
@@ -196,6 +215,7 @@ function OperatorApp() {
       setBusy(false);
     }
   }
+  const translateRestored = useEffectEvent(t);
   useEffect(() => {
     let active = true;
     async function restore() {
@@ -221,7 +241,8 @@ function OperatorApp() {
         setStationCode(savedDraft?.stationCode ?? savedStation?.code ?? "");
         draftRef.current = savedDraft;
         setDraft(savedDraft);
-        if (savedDraft) message("Przywrócono niedokończoną inspekcję.");
+        if (savedDraft)
+          message(translateRestored("Przywrócono niedokończoną inspekcję."));
         try {
           const current = await api<Station>("/stations/mobile/current");
           if (!active) return;
@@ -229,9 +250,10 @@ function OperatorApp() {
             setStation(null);
             await storage.saveStation(null);
             message(
-              "Szkic należy do stanowiska " +
-                savedDraft.stationCode +
-                ". Połącz tablet z tym stanowiskiem.",
+              translateRestored(
+                "Szkic należy do stanowiska {code}. Połącz tablet z tym stanowiskiem.",
+                { code: savedDraft.stationCode },
+              ),
               true,
             );
           } else {
@@ -246,22 +268,32 @@ function OperatorApp() {
             await storage.saveStation(null);
             if (savedStation || savedDraft)
               message(
-                "Połącz tablet ze stanowiskiem. Zapisany szkic zostanie zachowany.",
+                translateRestored(
+                  "Połącz tablet ze stanowiskiem. Zapisany szkic zostanie zachowany.",
+                ),
                 true,
               );
           } else
             message(
-              "Nie udało się potwierdzić przypisania tabletu. Sprawdź połączenie i spróbuj ponownie.",
+              translateRestored(
+                "Nie udało się potwierdzić przypisania tabletu. Sprawdź połączenie i spróbuj ponownie.",
+              ),
               true,
             );
         }
         if (expired) {
-          message("Wylogowano po ponad 30 minutach bez aktywności.");
+          message(
+            translateRestored(
+              "Wylogowano po ponad 30 minutach bez aktywności.",
+            ),
+          );
         }
       } catch {
         if (active)
           message(
-            "Nie udało się odczytać danych urządzenia. Uruchom aplikację ponownie.",
+            translateRestored(
+              "Nie udało się odczytać danych urządzenia. Uruchom aplikację ponownie.",
+            ),
             true,
           );
       } finally {
@@ -291,9 +323,10 @@ function OperatorApp() {
   async function pair(code: string) {
     if (draft && code.trim().toUpperCase() !== draft.stationCode) {
       throw new Error(
-        "Aby dokończyć zapisany szkic, połącz tablet ze stanowiskiem " +
-          draft.stationCode +
-          ".",
+        t(
+          "Aby dokończyć zapisany szkic, połącz tablet ze stanowiskiem {code}.",
+          { code: draft.stationCode },
+        ),
       );
     }
     const device = await storage.device();
@@ -310,7 +343,9 @@ function OperatorApp() {
     const nextStation = paired.station;
     if (!nextStation.active || !nextStation.process)
       throw new Error(
-        "Stanowisko musi być aktywne i mieć przypisany proces. Skontaktuj się z administratorem.",
+        t(
+          "Stanowisko musi być aktywne i mieć przypisany proces. Skontaktuj się z administratorem.",
+        ),
       );
     await storage.saveStation(nextStation);
     setStation(nextStation);
@@ -319,7 +354,7 @@ function OperatorApp() {
     setStationProcessName("");
     setStationSettingsOpen(false);
     setFormChoice(null);
-    message(`Połączono ze stanowiskiem ${nextStation.name}.`);
+    message(t("Połączono ze stanowiskiem {name}.", { name: nextStation.name }));
   }
   async function handleStartInspection(
     value: string,
@@ -333,7 +368,7 @@ function OperatorApp() {
     await storage.saveStation(checkedStation);
     if (!checkedStation.active || !checkedStation.process) {
       throw new Error(
-        "Konfiguracja stanowiska uległa zmianie. Odśwież stanowisko.",
+        t("Konfiguracja stanowiska uległa zmianie. Odśwież stanowisko."),
       );
     }
     const result = await api<RouteCheckResult>("/scada/route-check", {
@@ -345,7 +380,9 @@ function OperatorApp() {
       }),
     });
     if (!result.allowed)
-      throw new Error("Ta sztuka nie może być sprawdzana na tym stanowisku.");
+      throw new Error(
+        t("Ta sztuka nie może być sprawdzana na tym stanowisku."),
+      );
     if (result.forms?.length) {
       setSerial(normalized);
       setFormChoice({ serial: normalized, forms: result.forms });
@@ -353,7 +390,7 @@ function OperatorApp() {
     }
     const selectedForm = result.form;
     if (!selectedForm)
-      throw new Error("Brak dopasowanego formularza dla produktu.");
+      throw new Error(t("Brak dopasowanego formularza dla produktu."));
     if (selectedForm.requiresLogin && !operatorSession) {
       inspectionAfterLogin.current = {
         serial: normalized,
@@ -383,9 +420,11 @@ function OperatorApp() {
   async function login(identifier = loginIdentifier) {
     const normalizedIdentifier = identifier.trim().toUpperCase();
     if (!/^[A-Z0-9]{1,30}$/.test(normalizedIdentifier))
-      throw new Error("Identyfikator musi zawierać od 1 do 30 liter lub cyfr.");
+      throw new Error(
+        t("Identyfikator musi zawierać od 1 do 30 liter lub cyfr."),
+      );
     if (pairingRequired && !/^\d{4}$/.test(loginCardCode))
-      throw new Error("Kod z odwrotu karty musi mieć dokładnie 4 cyfry.");
+      throw new Error(t("Kod z odwrotu karty musi mieć dokładnie 4 cyfry."));
     let value: Session | { requiresPairing: true; verification?: boolean };
     try {
       value = pairingRequired
@@ -412,14 +451,16 @@ function OperatorApp() {
     }
     if (draft && draft.operatorId !== value.user.id)
       throw new Error(
-        "Tę inspekcję rozpoczął inny operator. Zaloguj się na jego konto lub odrzuć szkic.",
+        t(
+          "Tę inspekcję rozpoczął inny operator. Zaloguj się na jego konto lub odrzuć szkic.",
+        ),
       );
     await storage.saveSession(value);
     setApiSession(value);
     setSession(value);
     const pendingInspection = inspectionAfterLogin.current;
     closeOperatorLogin();
-    message(`Zalogowano: ${value.user.name}.`);
+    message(t("Zalogowano: {name}.", { name: value.user.name }));
     if (pendingInspection) {
       await handleStartInspection(
         pendingInspection.serial,
@@ -430,7 +471,7 @@ function OperatorApp() {
   }
   const onScan = useEffectEvent((scan: Scan) => {
     if (!recordActivity()) return;
-    if (!ready || running.current || discardOpen) return;
+    if (!ready || running.current || discardOpen || languageOpen) return;
     if (loginOpen) {
       if (!pairingRequired) {
         const identifier = scan.data.trim().toUpperCase();
@@ -452,8 +493,10 @@ function OperatorApp() {
   const onScannerResult = useEffectEvent(({ result }: { result: string }) => {
     message(
       result === "SUCCESS"
-        ? "Skaner gotowy."
-        : "Nie udało się skonfigurować skanera. Skontaktuj się z administratorem.",
+        ? t("Skaner gotowy.")
+        : t(
+            "Nie udało się skonfigurować skanera. Skontaktuj się z administratorem.",
+          ),
       result !== "SUCCESS",
     );
   });
@@ -493,7 +536,7 @@ function OperatorApp() {
       currentQuestion.isRequired &&
       !hasValue(draft.answers[currentQuestion.id])
     ) {
-      message("Odpowiedz na wymagane pytanie przed przejściem dalej.", true);
+      message(t("Odpowiedz na wymagane pytanie przed przejściem dalej."), true);
       return;
     }
     if (error) message("");
@@ -507,16 +550,17 @@ function OperatorApp() {
     if (!draft) return;
     if (ownerMismatch) {
       openOperatorLogin();
-      throw new Error("Zaloguj operatora, który rozpoczął tę inspekcję.");
+      throw new Error(t("Zaloguj operatora, który rozpoczął tę inspekcję."));
     }
     const current = await api<Station>("/stations/mobile/current");
     if (current.code !== draft.stationCode) {
       setStation(null);
       await storage.saveStation(null);
       throw new Error(
-        "Szkic należy do stanowiska " +
-          draft.stationCode +
-          ". Połącz tablet z tym stanowiskiem.",
+        t(
+          "Szkic należy do stanowiska {code}. Połącz tablet z tym stanowiskiem.",
+          { code: draft.stationCode },
+        ),
       );
     }
     const submission = submissionFor(draft, Date.now());
@@ -545,7 +589,7 @@ function OperatorApp() {
     }
     await commitDraft(null);
     setSerial("");
-    message("Inspekcja zapisana. Zeskanuj kolejną sztukę.");
+    message(t("Inspekcja zapisana. Zeskanuj kolejną sztukę."));
   }
   function discard() {
     Keyboard.dismiss();
@@ -577,15 +621,15 @@ function OperatorApp() {
             numberOfLines={1}
             accessibilityLabel={
               station
-                ? `${station.name}, ${station.code}, ${station.process?.name ?? "Brak procesu"}`
-                : "Połącz urządzenie ze stanowiskiem"
+                ? `${station.name}, ${station.code}, ${station.process?.name ?? t("Brak procesu")}`
+                : t("Połącz urządzenie ze stanowiskiem")
             }
           >
-            {station?.name ?? "Stanowisko inspekcji"}
+            {station?.name ?? t("Stanowisko inspekcji")}
           </Text>
           {wideHeader && station ? (
             <Text style={s.headerMeta} numberOfLines={1}>
-              {station.code} · {station.process?.name ?? "Brak procesu"}
+              {station.code} · {station.process?.name ?? t("Brak procesu")}
             </Text>
           ) : null}
         </View>
@@ -593,7 +637,9 @@ function OperatorApp() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              session ? `Operator: ${session.user.name}` : "Zaloguj operatora"
+              session
+                ? t("Operator: {name}", { name: session.user.name })
+                : t("Zaloguj operatora")
             }
             accessibilityState={{ disabled: busy || !ready }}
             disabled={busy || !ready}
@@ -627,17 +673,22 @@ function OperatorApp() {
             </View>
             {wideHeader ? (
               <Text style={s.headerOperatorText} numberOfLines={1}>
-                {session?.user.name ?? "Zaloguj operatora"}
+                {session?.user.name ?? t("Zaloguj operatora")}
               </Text>
             ) : null}
           </Pressable>
+          <LanguagePicker
+            onOpenChange={setLanguageOpen}
+            onActivity={recordActivity}
+            disabled={busy || !ready || loginOpen || discardOpen}
+          />
           {station && !draft ? (
             <IconButton
               icon={stationSettingsOpen ? "x" : "settings"}
               label={
                 stationSettingsOpen
-                  ? "Wróć do inspekcji"
-                  : "Ustawienia stanowiska"
+                  ? t("Wróć do inspekcji")
+                  : t("Ustawienia stanowiska")
               }
               selected={stationSettingsOpen}
               disabled={busy || !ready || !!formChoice}
@@ -673,7 +724,7 @@ function OperatorApp() {
           >
             {busy ? (
               <ActivityIndicator
-                accessibilityLabel="Trwa operacja"
+                accessibilityLabel={t("Trwa operacja")}
                 color={colors.green}
               />
             ) : null}
@@ -682,21 +733,21 @@ function OperatorApp() {
                 <View>
                   <Text style={s.title}>
                     {stationSettingsOpen
-                      ? "Ustawienia stanowiska"
+                      ? t("Ustawienia stanowiska")
                       : station
-                        ? "Nowa inspekcja"
-                        : "Przygotuj stanowisko"}
+                        ? t("Nowa inspekcja")
+                        : t("Przygotuj stanowisko")}
                   </Text>
                   <Text style={s.subtitle}>
                     {station && !stationSettingsOpen
-                      ? "Zeskanuj lub wpisz kod sztuki."
-                      : "Zeskanuj lub wpisz kod stanowiska."}
+                      ? t("Zeskanuj lub wpisz kod sztuki.")
+                      : t("Zeskanuj lub wpisz kod stanowiska.")}
                   </Text>
                 </View>
                 {!station || stationSettingsOpen ? (
                   <View style={s.panel}>
                     <Field
-                      label="Kod stanowiska"
+                      label={t("Kod stanowiska")}
                       value={stationCode}
                       autoCapitalize="characters"
                       editable={!busy}
@@ -706,10 +757,12 @@ function OperatorApp() {
                       onSubmitEditing={() => void run(() => pair(stationCode))}
                     />
                     <Text style={s.muted}>
-                      Nazwę i proces uzupełnij tylko dla nowego stanowiska.
+                      {t(
+                        "Nazwę i proces uzupełnij tylko dla nowego stanowiska.",
+                      )}
                     </Text>
                     <Field
-                      label="Nazwa nowego stanowiska"
+                      label={t("Nazwa nowego stanowiska")}
                       value={stationName}
                       editable={!busy}
                       onChangeText={(value) => {
@@ -717,7 +770,7 @@ function OperatorApp() {
                       }}
                     />
                     <Field
-                      label="Proces inspekcji nowego stanowiska"
+                      label={t("Proces inspekcji nowego stanowiska")}
                       value={stationProcessName}
                       autoCorrect={false}
                       editable={!busy}
@@ -733,41 +786,45 @@ function OperatorApp() {
                         onPress={() => void run(() => pair(stationCode))}
                       >
                         {station
-                          ? "Odśwież / zmień stanowisko"
-                          : "Połącz stanowisko"}
+                          ? t("Odśwież / zmień stanowisko")
+                          : t("Połącz stanowisko")}
                       </Button>
                       <Button
                         secondary
                         disabled={busy || !dataWedge}
                         onPress={() => {
                           dataWedge?.configure();
-                          message("Konfigurowanie skanera…");
+                          message(t("Konfigurowanie skanera…"));
                         }}
                       >
-                        Skonfiguruj skaner
+                        {t("Skonfiguruj skaner")}
                       </Button>
                     </View>
                     {draft ? (
                       <>
                         <Text style={s.body}>
-                          Zapisany szkic: stanowisko {draft.stationCode}.
+                          {t("Zapisany szkic: stanowisko {code}.", {
+                            code: draft.stationCode,
+                          })}
                         </Text>
                         <Button secondary disabled={busy} onPress={discard}>
-                          Odrzuć szkic
+                          {t("Odrzuć szkic")}
                         </Button>
                       </>
                     ) : null}
                     {!dataWedge ? (
                       <Text style={s.muted}>
-                        Skaner niedostępny. Wpisz kod ręcznie.
+                        {t("Skaner niedostępny. Wpisz kod ręcznie.")}
                       </Text>
                     ) : null}
                   </View>
                 ) : null}
                 {station && !stationSettingsOpen && formChoice ? (
                   <View style={s.panel}>
-                    <Text style={s.title}>Wybierz formularz</Text>
-                    <Text style={s.body}>Sztuka: {formChoice.serial}</Text>
+                    <Text style={s.title}>{t("Wybierz formularz")}</Text>
+                    <Text style={s.body}>
+                      {t("Sztuka: {serial}", { serial: formChoice.serial })}
+                    </Text>
                     {formChoice.forms.map((form) => (
                       <Button
                         key={form.id}
@@ -790,14 +847,14 @@ function OperatorApp() {
                         setSerial("");
                       }}
                     >
-                      Anuluj wybór
+                      {t("Anuluj wybór")}
                     </Button>
                   </View>
                 ) : null}
                 {station && !stationSettingsOpen && !formChoice ? (
                   <View style={s.panel}>
                     <Field
-                      label="Numer seryjny / VIN"
+                      label={t("Numer seryjny / VIN")}
                       inputRef={serialInput}
                       value={serial}
                       showSoftInputOnFocus={false}
@@ -822,7 +879,7 @@ function OperatorApp() {
                 ) : null}
                 {lastScan ? (
                   <Text selectable style={s.muted}>
-                    Ostatni skan: {lastScan}
+                    {t("Ostatni skan: {scan}", { scan: lastScan })}
                   </Text>
                 ) : null}
               </>
@@ -842,10 +899,12 @@ function OperatorApp() {
                 {ownerMismatch ? (
                   <View style={[s.notice, s.error]}>
                     <Text style={s.body}>
-                      Zaloguj się na konto operatora, który rozpoczął inspekcję.
+                      {t(
+                        "Zaloguj się na konto operatora, który rozpoczął inspekcję.",
+                      )}
                     </Text>
                     <Button onPress={openOperatorLogin}>
-                      Zaloguj operatora
+                      {t("Zaloguj operatora")}
                     </Button>
                   </View>
                 ) : null}
@@ -853,7 +912,7 @@ function OperatorApp() {
                   style={s.progressGroup}
                   accessible
                   accessibilityRole="progressbar"
-                  accessibilityLabel="Postęp inspekcji"
+                  accessibilityLabel={t("Postęp inspekcji")}
                   accessibilityValue={{
                     min: 0,
                     max: Math.max(1, draft.form.questions.length),
@@ -861,14 +920,20 @@ function OperatorApp() {
                       ? draft.form.questions.length
                       : draft.index,
                     text: draft.summary
-                      ? "Podsumowanie inspekcji"
-                      : `Pytanie ${draft.index + 1} z ${draft.form.questions.length}`,
+                      ? t("Podsumowanie inspekcji")
+                      : t("Pytanie {current} z {total}", {
+                          current: draft.index + 1,
+                          total: draft.form.questions.length,
+                        }),
                   }}
                 >
                   <Text style={s.progressLabel} numberOfLines={1}>
                     {draft.summary
-                      ? "Podsumowanie inspekcji"
-                      : `Pytanie ${draft.index + 1} z ${draft.form.questions.length}`}
+                      ? t("Podsumowanie inspekcji")
+                      : t("Pytanie {current} z {total}", {
+                          current: draft.index + 1,
+                          total: draft.form.questions.length,
+                        })}
                   </Text>
                   {draft.form.questions.length > 0 ? (
                     <View style={s.progress}>
@@ -914,7 +979,7 @@ function OperatorApp() {
                         <View key={q.id} style={s.answerRow}>
                           <View style={s.answerContent}>
                             <Text style={[s.label, s.answerLabel]}>
-                              {q.label}
+                              {localizeQuestion(q, language).label}
                             </Text>
                             {typeof value === "boolean" &&
                             passed === value ? null : q.type ===
@@ -923,7 +988,7 @@ function OperatorApp() {
                               value ? (
                               <Photo
                                 uri={value}
-                                label="Zdjęcie z inspekcji"
+                                label={t("Zdjęcie z inspekcji")}
                                 height={Math.min(
                                   640,
                                   Math.max(360, height * 0.55),
@@ -941,7 +1006,13 @@ function OperatorApp() {
                                   ? value
                                     ? "OK"
                                     : "NOK"
-                                  : String(value ?? "Brak odpowiedzi")}
+                                  : q.type === "SELECT" &&
+                                      typeof value === "string"
+                                    ? localizeQuestion(q, language).optionLabel(
+                                        value,
+                                        q.options?.indexOf(value) ?? -1,
+                                      )
+                                    : String(value ?? t("Brak odpowiedzi"))}
                               </Text>
                             )}
                           </View>
@@ -979,7 +1050,7 @@ function OperatorApp() {
                             isPassed(finalStatus) ? s.resultPass : s.resultFail,
                           ]}
                         >
-                          <Text style={s.muted}>Wynik inspekcji</Text>
+                          <Text style={s.muted}>{t("Wynik inspekcji")}</Text>
                           <Text
                             style={[
                               s.label,
@@ -994,8 +1065,10 @@ function OperatorApp() {
                       ) : (
                         <Text style={s.label}>
                           {automatic !== null
-                            ? "Nie można ustalić wyniku. Skontaktuj się z administratorem."
-                            : "Wybierz wynik inspekcji"}
+                            ? t(
+                                "Nie można ustalić wyniku. Skontaktuj się z administratorem.",
+                              )
+                            : t("Wybierz wynik inspekcji")}
                         </Text>
                       )}
                       {automatic === null ? (
@@ -1017,7 +1090,9 @@ function OperatorApp() {
                       ) : null}
                       {locked ? (
                         <Text style={s.body}>
-                          Brak potwierdzenia zapisu. Ponów zapis inspekcji.
+                          {t(
+                            "Brak potwierdzenia zapisu. Ponów zapis inspekcji.",
+                          )}
                         </Text>
                       ) : null}
                     </View>
@@ -1032,11 +1107,13 @@ function OperatorApp() {
             {!operatorDisplay ? (
               <FloatingNotice
                 error
-                message="Ta wersja aplikacji nie obsługuje pełnego ekranu. Zainstaluj aktualną wersję APK."
+                message={t(
+                  "Ta wersja aplikacji nie obsługuje pełnego ekranu. Zainstaluj aktualną wersję APK.",
+                )}
               />
             ) : null}
             <FloatingNotice
-              message={notice}
+              message={t(notice)}
               error={error}
               revision={noticeRevision}
               onDismiss={() => message("")}
@@ -1049,7 +1126,7 @@ function OperatorApp() {
           {draft ? (
             <>
               <Button secondary disabled={busy} onPress={discard}>
-                Odrzuć
+                {t("Odrzuć")}
               </Button>
               {!draft.summary && currentQuestion ? (
                 <>
@@ -1063,12 +1140,12 @@ function OperatorApp() {
                       }));
                     }}
                   >
-                    Wstecz
+                    {t("Wstecz")}
                   </Button>
                   <Button disabled={busy || ownerMismatch} onPress={next}>
                     {draft.index === draft.form.questions.length - 1
-                      ? "Podsumowanie"
-                      : "Dalej"}
+                      ? t("Podsumowanie")
+                      : t("Dalej")}
                   </Button>
                 </>
               ) : (
@@ -1080,13 +1157,13 @@ function OperatorApp() {
                       editDraft((current) => ({ ...current, summary: false }));
                     }}
                   >
-                    Wróć do pytań
+                    {t("Wróć do pytań")}
                   </Button>
                   <Button
                     disabled={busy || ownerMismatch || !finalStatus}
                     onPress={() => void run(submit)}
                   >
-                    {locked ? "Ponów zapis" : "Zapisz inspekcję"}
+                    {locked ? t("Ponów zapis") : t("Zapisz inspekcję")}
                   </Button>
                 </>
               )}
@@ -1099,14 +1176,14 @@ function OperatorApp() {
                   disabled={busy}
                   onPress={() => dataWedge?.trigger()}
                 >
-                  Skanuj kod
+                  {t("Skanuj kod")}
                 </Button>
               ) : null}
               <Button
                 disabled={busy || !serial.trim()}
                 onPress={() => void run(() => handleStartInspection(serial))}
               >
-                Rozpocznij inspekcję
+                {t("Rozpocznij inspekcję")}
               </Button>
             </>
           )}
@@ -1142,12 +1219,16 @@ function OperatorApp() {
               />
             </View>
             <Text style={s.loginTitle} accessibilityRole="header">
-              {locked ? "Nie można odrzucić inspekcji" : "Odrzucić inspekcję?"}
+              {locked
+                ? t("Nie można odrzucić inspekcji")
+                : t("Odrzucić inspekcję?")}
             </Text>
             <Text style={s.body}>
               {locked
-                ? "Najpierw ponów zapis, aby potwierdzić wynik."
-                : "Wszystkie odpowiedzi zostaną usunięte. Tej operacji nie można cofnąć."}
+                ? t("Najpierw ponów zapis, aby potwierdzić wynik.")
+                : t(
+                    "Wszystkie odpowiedzi zostaną usunięte. Tej operacji nie można cofnąć.",
+                  )}
             </Text>
             <View style={s.discardSubject}>
               <Text style={s.label} numberOfLines={2}>
@@ -1164,7 +1245,7 @@ function OperatorApp() {
                   disabled={busy}
                   onPress={() => setDiscardOpen(false)}
                 >
-                  Wróć
+                  {t("Wróć")}
                 </Button>
               </View>
               {!locked ? (
@@ -1182,7 +1263,7 @@ function OperatorApp() {
                       })
                     }
                   >
-                    Odrzuć inspekcję
+                    {t("Odrzuć inspekcję")}
                   </Button>
                 </View>
               ) : null}
@@ -1211,22 +1292,24 @@ function OperatorApp() {
             style={s.dialog}
             contentContainerStyle={[s.panel, s.loginPanel]}
           >
-            <Text style={s.loginTitle}>Logowanie operatora</Text>
+            <Text style={s.loginTitle}>{t("Logowanie operatora")}</Text>
             <Text style={s.body}>
               {pairingRequired
-                ? "Podaj kod z odwrotu karty."
-                : "Zeskanuj lub wpisz numer identyfikatora."}
+                ? t("Podaj kod z odwrotu karty.")
+                : t("Zeskanuj lub wpisz numer identyfikatora.")}
             </Text>
             {session ? (
-              <Text style={s.body}>Zalogowano: {session.user.name}</Text>
+              <Text style={s.body}>
+                {t("Zalogowano: {name}", { name: session.user.name })}
+              </Text>
             ) : null}
             {notice && error ? (
               <Text accessibilityLiveRegion="polite" style={s.body}>
-                {notice}
+                {t(notice)}
               </Text>
             ) : null}
             <Field
-              label="Numer identyfikatora"
+              label={t("Numer identyfikatora")}
               style={s.loginNumber}
               value={loginIdentifier}
               autoCapitalize="characters"
@@ -1250,7 +1333,7 @@ function OperatorApp() {
             {pairingRequired ? (
               <>
                 <Field
-                  label="4-cyfrowy kod z odwrotu karty"
+                  label={t("4-cyfrowy kod z odwrotu karty")}
                   style={s.loginNumber}
                   value={loginCardCode}
                   keyboardType="number-pad"
@@ -1282,11 +1365,11 @@ function OperatorApp() {
               }
               onPress={() => void run(() => login())}
             >
-              {busy ? "Logowanie…" : "Zaloguj"}
+              {busy ? t("Logowanie…") : t("Zaloguj")}
             </Button>
             {pairingRequired ? (
               <Button secondary disabled={busy} onPress={openOperatorLogin}>
-                Użyj innego identyfikatora
+                {t("Użyj innego identyfikatora")}
               </Button>
             ) : null}
             {session ? (
@@ -1302,17 +1385,18 @@ function OperatorApp() {
                   })
                 }
               >
-                Wyloguj operatora
+                {t("Wyloguj operatora")}
               </Button>
             ) : null}
             {draft ? (
               <Text style={s.muted}>
-                Zmiana operatora jest dostępna po zakończeniu lub odrzuceniu
-                inspekcji.
+                {t(
+                  "Zmiana operatora jest dostępna po zakończeniu lub odrzuceniu inspekcji.",
+                )}
               </Text>
             ) : null}
             <Button secondary disabled={busy} onPress={closeOperatorLogin}>
-              Zamknij
+              {t("Zamknij")}
             </Button>
           </ScrollView>
         </View>

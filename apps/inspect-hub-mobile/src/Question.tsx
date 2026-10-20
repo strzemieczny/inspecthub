@@ -1,3 +1,5 @@
+import { localizeQuestion } from "./localization";
+import { useI18n } from "./i18n";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import type {
@@ -21,24 +23,30 @@ export function Question({
   onUpload: (task: () => Promise<void>) => Promise<void>;
   disabled: boolean;
 }) {
+  const { t, language } = useI18n();
   const [measurement, setMeasurement] = useState(
     typeof value === "number" ? String(value) : "",
   );
+  const localized = localizeQuestion(q, language);
   const photoQuestion = q.type === "PHOTO_UPLOAD";
   return (
     <View style={[s.panel, photoQuestion && s.photoQuestionPanel]}>
       <Text style={s.muted}>
-        {q.isRequired ? "Odpowiedź wymagana" : "Odpowiedź opcjonalna"}
-        {q.severity === "CRITICAL" || q.isCritical ? " · Cecha krytyczna" : ""}
+        {q.isRequired ? t("Odpowiedź wymagana") : t("Odpowiedź opcjonalna")}
+        {q.severity === "CRITICAL" || q.isCritical
+          ? t(" · Cecha krytyczna")
+          : ""}
       </Text>
       <Text style={[s.title, photoQuestion && s.photoQuestionTitle]}>
-        {q.label}
+        {localized.label}
       </Text>
-      {q.description ? <Text style={s.subtitle}>{q.description}</Text> : null}
+      {localized.description ? (
+        <Text style={s.subtitle}>{localized.description}</Text>
+      ) : null}
       {q.instructionImageUrl ? (
         <Photo
           uri={q.instructionImageUrl}
-          label="Instrukcja"
+          label={t("Instrukcja")}
           fit={photoQuestion}
         />
       ) : null}
@@ -53,7 +61,7 @@ export function Question({
         {q.okImageUrl ? (
           <Photo
             uri={q.okImageUrl}
-            label="Wzorzec OK"
+            label={t("Wzorzec OK")}
             result="OK"
             fit={photoQuestion}
             onPress={q.type === "CHECKBOX" ? () => onChange(true) : undefined}
@@ -64,7 +72,7 @@ export function Question({
         {q.nokImageUrl ? (
           <Photo
             uri={q.nokImageUrl}
-            label="Wzorzec NOK"
+            label={t("Wzorzec NOK")}
             result="NOK"
             fit={photoQuestion}
             onPress={q.type === "CHECKBOX" ? () => onChange(false) : undefined}
@@ -101,7 +109,7 @@ export function Question({
       ) : null}
       {q.type === "SELECT" ? (
         <View style={{ gap: 12 }}>
-          {q.options?.map((option) => (
+          {q.options?.map((option, index) => (
             <Button
               key={option}
               secondary
@@ -109,14 +117,14 @@ export function Question({
               disabled={disabled}
               onPress={() => onChange(option)}
             >
-              {option}
+              {localized.optionLabel(option, index)}
             </Button>
           ))}
         </View>
       ) : null}
       {q.type === "TEXT" ? (
         <Field
-          label="Odpowiedź"
+          label={t("Odpowiedź")}
           value={typeof value === "string" ? value : ""}
           onChangeText={onChange}
           editable={!disabled}
@@ -127,12 +135,15 @@ export function Question({
         <>
           {q.range ? (
             <Text style={s.body}>
-              Zakres OK: {q.range.min} – {q.range.max}
+              {t("Zakres OK: {min} – {max}", {
+                min: q.range.min,
+                max: q.range.max,
+              })}
             </Text>
           ) : null}
           <Field
             key={q.id}
-            label="Wynik pomiaru"
+            label={t("Wynik pomiaru")}
             value={measurement}
             keyboardType="numbers-and-punctuation"
             editable={!disabled}
@@ -156,7 +167,7 @@ export function Question({
               onChange(await uploadPhoto(uri));
               accepted = true;
             });
-            if (!accepted) throw new Error("Nie udało się wysłać zdjęcia.");
+            if (!accepted) throw new Error(t("Nie udało się wysłać zdjęcia."));
           }}
         />
       ) : null}
@@ -169,7 +180,7 @@ export function Question({
             onChange(null);
           }}
         >
-          Wyczyść odpowiedź
+          {t("Wyczyść odpowiedź")}
         </Button>
       ) : null}
     </View>

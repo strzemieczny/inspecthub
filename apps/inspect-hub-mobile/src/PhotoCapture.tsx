@@ -1,3 +1,4 @@
+import { useI18n } from "./i18n";
 import {
   useCallback,
   useEffect,
@@ -30,6 +31,7 @@ export function PhotoCapture({
   savedUri?: string;
   onAccept: (uri: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [permission, requestPermission, getPermission] = useCameraPermissions();
   const requested = useRef(false);
   const camera = useRef<CameraView>(null);
@@ -168,7 +170,7 @@ export function PhotoCapture({
         {preview ? (
           <Image
             source={{ uri: mediaUrl(preview) }}
-            accessibilityLabel="Zdjęcie z inspekcji"
+            accessibilityLabel={t("Zdjęcie z inspekcji")}
             style={styles.camera}
             resizeMode="cover"
           />
@@ -190,12 +192,12 @@ export function PhotoCapture({
         ) : !disabled && permission && !permission.granted ? (
           <View style={styles.permission}>
             <Text style={styles.permissionText}>
-              Zezwól na dostęp do aparatu, aby zrobić zdjęcie.
+              {t("Zezwól na dostęp do aparatu, aby zrobić zdjęcie.")}
             </Text>
             <Button secondary onPress={() => void allowCamera()}>
               {permission.canAskAgain
-                ? "Zezwól na aparat"
-                : "Otwórz ustawienia"}
+                ? t("Zezwól na aparat")
+                : t("Otwórz ustawienia")}
             </Button>
           </View>
         ) : null}
@@ -208,7 +210,7 @@ export function PhotoCapture({
           <View style={styles.loading} pointerEvents="none">
             <ActivityIndicator
               color={colors.white}
-              accessibilityLabel="Uruchamianie aparatu"
+              accessibilityLabel={t("Uruchamianie aparatu")}
             />
           </View>
         ) : null}
@@ -218,7 +220,7 @@ export function PhotoCapture({
           style={[s.body, s.resultFailText]}
           accessibilityLiveRegion="polite"
         >
-          {error}
+          {t(error)}
         </Text>
       ) : null}
       <View style={s.row}>
@@ -231,24 +233,26 @@ export function PhotoCapture({
               setCameraVersion((version) => version + 1);
             }}
           >
-            Ponów uruchomienie
+            {t("Ponów uruchomienie")}
           </Button>
         ) : null}
         {preview ? (
           accepted ? (
             <Button secondary disabled={disabled} onPress={retake}>
-              Zrób nowe zdjęcie
+              {t("Zrób nowe zdjęcie")}
             </Button>
           ) : (
             <>
               <Button secondary disabled={uploading} onPress={retake}>
-                Zrób nowe zdjęcie
+                {t("Zrób nowe zdjęcie")}
               </Button>
               <Button
                 disabled={disabled || uploading}
                 onPress={() => void savePhoto()}
               >
-                {uploading ? "Zapisywanie zdjęcia…" : "Ponów zapis zdjęcia"}
+                {uploading
+                  ? t("Zapisywanie zdjęcia…")
+                  : t("Ponów zapis zdjęcia")}
               </Button>
               <Button
                 secondary
@@ -261,14 +265,16 @@ export function PhotoCapture({
                   setPreview(savedUri ?? null);
                 }}
               >
-                Anuluj
+                {t("Anuluj")}
               </Button>
             </>
           )
         ) : (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={taking ? "Robienie zdjęcia" : "Zrób zdjęcie"}
+            accessibilityLabel={
+              taking ? t("Robienie zdjęcia") : t("Zrób zdjęcie")
+            }
             accessibilityState={{
               disabled: disabled || !foreground || !ready || taking,
               busy: taking,
@@ -297,7 +303,7 @@ export function PhotoCapture({
               </View>
             </View>
             <Text style={styles.shutterText}>
-              {taking ? "Robienie zdjęcia…" : "Zrób zdjęcie"}
+              {taking ? t("Robienie zdjęcia…") : t("Zrób zdjęcie")}
             </Text>
           </Pressable>
         )}

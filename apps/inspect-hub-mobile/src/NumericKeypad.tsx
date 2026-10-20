@@ -1,3 +1,4 @@
+import { useI18n } from "./i18n";
 import Feather from "@expo/vector-icons/Feather";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "./ui";
@@ -20,8 +21,9 @@ export function NumericKeypad({
   maxLength: number;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
   return (
-    <View style={styles.keypad} accessibilityLabel="Klawiatura numeryczna">
+    <View style={styles.keypad} accessibilityLabel={t("Klawiatura numeryczna")}>
       {rows.map((row, index) => (
         <View key={index} style={styles.row}>
           {row.map((key) => {
@@ -34,9 +36,9 @@ export function NumericKeypad({
                 accessibilityRole="button"
                 accessibilityLabel={
                   key === "clear"
-                    ? "Wyczyść numer"
+                    ? t("Wyczyść numer")
                     : key === "backspace"
-                      ? "Usuń ostatnią cyfrę"
+                      ? t("Usuń ostatnią cyfrę")
                       : key
                 }
                 accessibilityState={{ disabled: unavailable }}
@@ -67,7 +69,7 @@ export function NumericKeypad({
                   />
                 ) : (
                   <Text style={action ? styles.actionText : styles.digit}>
-                    {key === "clear" ? "Wyczyść" : key}
+                    {key === "clear" ? t("Wyczyść") : key}
                   </Text>
                 )}
               </Pressable>

@@ -5,6 +5,22 @@ TypeScript i lokalny moduł Kotlin do DataWedge. Panel administratora i dashboar
 pozostają w `apps/web`. To pierwsza implementacja mobilnego przepływu, wymagająca
 odbioru na docelowym urządzeniu przed wdrożeniem na produkcję.
 
+## Języki
+
+Aplikacja obsługuje polski, angielski i ukraiński. Przycisk z okrągłą ikoną flagi w nagłówku
+otwiera wybór języka; ustawienie jest zapisywane na urządzeniu i pozostaje po
+ponownym uruchomieniu oraz wylogowaniu. Przy pierwszym uruchomieniu aplikacja
+wybiera obsługiwany język urządzenia, a dla pozostałych języków używa polskiego.
+
+Ikony flag pochodzą z `react-native-circle-flags`; aplikacja importuje tylko trzy
+potrzebne grafiki i działa z nimi offline.
+
+Interfejs korzysta ze słownika `src/translations.ts`. Treści pytań, opisy i opcje
+pobierają tłumaczenia `en` / `uk` zapisane w formularzu przez administratora.
+Brakujące tłumaczenia używają treści bazowej. Odpowiedzi wyboru zachowują oryginalne
+wartości przy zapisie i ocenie, niezależnie od języka etykiet. Własne nazwy
+stanowisk, procesów, formularzy i statusów pozostają zgodne z konfiguracją.
+
 ## Uruchomienie
 
 Z katalogu głównego monorepo:
