@@ -40,6 +40,7 @@ import {
 } from "./lib/session";
 import "./App.css";
 import { FormRevisionHistory } from "./components/FormRevisionHistory";
+import { DashboardFilterSelect } from "./components/DashboardFilterSelect";
 import { appPath, appRoute, currentAppPath } from "./lib/routing";
 import {
   dashboardDate,
@@ -1290,87 +1291,63 @@ function Dashboard() {
                 }
               />
             </label>
-            <label>
-              Proces
-              <select
-                value={filters.processId}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    processId: event.target.value,
-                    stationId: "",
-                  })
-                }
-              >
-                <option value="">Wszystkie procesy</option>
-                {data.filters.processes.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Stanowisko
-              <select
-                value={filters.stationId}
-                onChange={(event) =>
-                  setFilters({ ...filters, stationId: event.target.value })
-                }
-              >
-                <option value="">Wszystkie stanowiska</option>
-                {data.filters.stations
-                  .filter(
-                    (item) =>
-                      !filters.processId ||
-                      item.processId === filters.processId,
-                  )
-                  .map((item) => (
-                    <option key={item.id} value={item.code}>
-                      {item.code} · {item.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              Standard
-              <select
-                value={filters.formCode}
-                onChange={(event) =>
-                  setFilters({
-                    ...filters,
-                    formCode: event.target.value,
-                    formIds: [],
-                  })
-                }
-              >
-                <option value="">Wszystkie standardy</option>
-                {standards.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.title} · {item.code}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <DashboardFilterSelect
+              label="Proces"
+              placeholder="Wszystkie procesy"
+              value={filters.processId}
+              options={data.filters.processes.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              onChange={(processId) =>
+                setFilters({ ...filters, processId, stationId: "" })
+              }
+            />
+            <DashboardFilterSelect
+              label="Stanowisko"
+              placeholder="Wszystkie stanowiska"
+              value={filters.stationId}
+              options={data.filters.stations
+                .filter(
+                  (item) =>
+                    !filters.processId || item.processId === filters.processId,
+                )
+                .map((item) => ({
+                  value: item.code,
+                  label: item.code,
+                  detail: item.name,
+                }))}
+              onChange={(stationId) => setFilters({ ...filters, stationId })}
+            />
+            <DashboardFilterSelect
+              label="Standard"
+              placeholder="Wszystkie standardy"
+              value={filters.formCode}
+              options={standards.map((item) => ({
+                value: item.code,
+                label: item.title,
+                detail: item.code,
+              }))}
+              onChange={(formCode) =>
+                setFilters({ ...filters, formCode, formIds: [] })
+              }
+            />
             <RevisionMultiSelect
               revisions={availableRevisions}
               selected={filters.formIds}
               disabled={!filters.formCode}
               onChange={(formIds) => setFilters({ ...filters, formIds })}
             />
-            <label>
-              Wynik
-              <select
-                value={filters.result}
-                onChange={(event) =>
-                  setFilters({ ...filters, result: event.target.value })
-                }
-              >
-                <option value="">Wszystkie wyniki</option>
-                <option value="pass">Tylko zgodne</option>
-                <option value="fail">Tylko niezgodne</option>
-              </select>
-            </label>
+            <DashboardFilterSelect
+              label="Wynik"
+              placeholder="Wszystkie wyniki"
+              value={filters.result}
+              options={[
+                { value: "pass", label: "Tylko zgodne" },
+                { value: "fail", label: "Tylko niezgodne" },
+              ]}
+              onChange={(result) => setFilters({ ...filters, result })}
+            />
             <label className="search-filter">
               Produkt
               <input
