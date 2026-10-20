@@ -1,4 +1,5 @@
 import { File } from "expo-file-system";
+import type { DeviceCredentials } from "./storage";
 import type { Session } from "./inspection";
 
 export const API_URL = (
@@ -6,6 +7,10 @@ export const API_URL = (
   "http://bw-mind-dev.borgwarner.net/inspect-hub/api"
 ).replace(/\/+$/, "");
 let token: string | null = null;
+let device: DeviceCredentials | null = null;
+export function setApiDevice(value: DeviceCredentials) {
+  device = value;
+}
 export function setApiSession(session: Session | null) {
   token = session?.accessToken ?? null;
 }
@@ -13,6 +18,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -26,6 +32,18 @@ export async function api<T>(
     throw new Error(
       "Nie można połączyć z serwerem. Skontaktuj się z administratorem.",
     );
+  if (
+    !device &&
+    [
+      "/stations/mobile/pair",
+      "/stations/mobile/current",
+      "/scada/route-check",
+      "/inspections",
+    ].includes(path)
+  )
+    throw new Error(
+      "Nie udało się odczytać tożsamości tabletu. Uruchom aplikację ponownie.",
+    );
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 20000);
   try {
@@ -36,6 +54,12 @@ export async function api<T>(
         ...(!(options.body instanceof FormData)
           ? { "Content-Type": "application/json" }
           : {}),
+        ...(device
+          ? {
+              "X-Device-Id": device.deviceId,
+              "X-Device-Token": device.deviceToken,
+            }
+          : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
@@ -43,12 +67,14 @@ export async function api<T>(
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as {
         message?: string | string[];
+        code?: string;
       } | null;
       throw new ApiError(
         Array.isArray(body?.message)
           ? body.message.join(", ")
           : (body?.message ?? `Błąd HTTP ${response.status}`),
         response.status,
+        body?.code,
       );
     }
     return response.status === 204

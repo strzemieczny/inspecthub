@@ -2226,6 +2226,24 @@ function StationsManager({
     }
   }
 
+  async function unpairTablet(station: Station) {
+    if (!window.confirm(t("stations.confirmUnpair", { code: station.code })))
+      return;
+    setBusyId(station.id);
+    setNotice("");
+    try {
+      await api(`/stations/${station.id}/mobile-device`, { method: "DELETE" });
+      setNotice(t("stations.tabletDisconnected"));
+      await onChange();
+    } catch (reason) {
+      setNotice(
+        reason instanceof Error ? reason.message : t("notice.saveError"),
+      );
+    } finally {
+      setBusyId("");
+    }
+  }
+
   async function removeStation(station: Station) {
     if (!window.confirm(t("confirm.removeStation", { code: station.code })))
       return;
@@ -2327,6 +2345,16 @@ function StationsManager({
                   }
                 />
                 <small>IP: {station.ipAddress ?? t("stations.unpaired")}</small>
+                <small>
+                  {t("stations.tablet")}:{" "}
+                  {station.mobileDeviceId ?? t("stations.unpaired")}
+                </small>
+                {station.mobileLastSeenAt ? (
+                  <small>
+                    {t("stations.lastSeen")}:{" "}
+                    {new Date(station.mobileLastSeenAt).toLocaleString()}
+                  </small>
+                ) : null}
               </div>
               <input
                 aria-label={t("aria.stationProcess", { code: station.code })}
@@ -2367,6 +2395,16 @@ function StationsManager({
                     ? t("stations.deactivate")
                     : t("stations.activate")}
                 </button>
+                {station.mobileDeviceId ? (
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={busyId === station.id}
+                    onClick={() => void unpairTablet(station)}
+                  >
+                    {t("stations.unpairTablet")}
+                  </button>
+                ) : null}
                 <button
                   className="icon-button danger"
                   type="button"

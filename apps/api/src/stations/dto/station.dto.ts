@@ -1,4 +1,10 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class CreateStationDto {
   @IsString()
@@ -49,4 +55,9 @@ export class IdentifyStationDto {
   @IsString()
   @MinLength(1)
   processName?: string;
+}
+
+export class PairMobileStationDto extends IdentifyStationDto {
+  @IsUUID('4')
+  deviceId!: string;
 }

@@ -1,3 +1,4 @@
+import { MobileStationGuard } from '../stations/mobile-station.guard';
 import {
   Body,
   Controller,
@@ -19,6 +20,7 @@ export class ScadaConnectorController {
   constructor(private readonly scada: ScadaConnectorService) {}
 
   @Post('route-check')
+  @UseGuards(MobileStationGuard)
   routeCheck(@Body() dto: RouteCheckDto) {
     return this.scada.routeCheck(dto.serialNumber, dto.stationCode, dto.formId);
   }

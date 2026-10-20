@@ -179,3 +179,32 @@ sieci. Kiosk i dystrybucję APK skonfiguruj w używanym MDM.
 Źródła integracji: [Expo Modules](https://docs.expo.dev/modules/module-api/),
 [Zebra SET_CONFIG](https://techdocs.zebra.com/datawedge/latest/guide/api/setconfig/),
 [Zebra Intent Output](https://techdocs.zebra.com/datawedge/latest/guide/output/intent/).
+
+## Tożsamość i przypisanie tabletu
+
+Przy pierwszym uruchomieniu aplikacja tworzy UUID v4 instalacji oraz niezależny,
+losowy token 256-bitowy. Obie wartości zapisuje w Expo SecureStore, osobno dla
+każdego adresu API. Token jest zapisany przed pierwszą próbą parowania, więc
+utrata odpowiedzi nie blokuje ponowienia. Serwer przechowuje wyłącznie SHA-256 tokenu.
+UUID nie jest sprzętowym identyfikatorem; MAC i IP nie służą do rozpoznawania mobile.
+
+`POST /stations/mobile/pair` otrzymuje `deviceId`, kod stanowiska i opcjonalne
+nazwę/proces dla nowego stanowiska. Nagłówki `X-Device-Id` i `X-Device-Token`
+są wysyłane przez aplikację; `GET /stations/mobile/current` odtwarza przypisanie.
+Route check i zapis inspekcji sprawdzają token oraz zgodność kodu stanowiska dla
+żądań z nagłówkami urządzenia. Klient webowy zachowuje dotychczasowy przepływ;
+nie jest to globalny wymóg autoryzacji urządzenia dla wszystkich klientów API.
+
+Jedna instalacja może być przypisana do jednego stanowiska, a stanowisko do jednego
+tabletu. Zmiana stanowiska zwalnia poprzednie przypisanie. Zajęte stanowisko wymaga
+odłączenia poprzedniego tabletu przez ADMIN/MANAGER w panelu stanowisk
+(`DELETE /stations/:id/mobile-device`). Odłączenie natychmiast unieważnia token
+w bazie; tablet wykryje to przy kolejnym sprawdzeniu lub zapisie.
+
+Po aktualizacji istniejącej aplikacji wymagane jest jednorazowe ponowne parowanie
+kodem stanowiska. Szkice pozostają zapisane i można je dokończyć po przypisaniu
+do ich stanowiska. Reinstalacja lub wyczyszczenie danych tworzy nową tożsamość;
+przed przypisaniem należy odłączyć poprzednią instalację w panelu.
+
+Przed uruchomieniem nowego API wykonaj migracje bazy, w tym
+`20261020100000_add_mobile_device_binding` (`pnpm --filter @inspect-hub/database db:migrate:deploy`).

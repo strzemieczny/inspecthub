@@ -2481,6 +2481,7 @@ nav {
   gap: 0.3rem;
 }
 .station-name-field small {
+  overflow-wrap: anywhere;
   padding-left: 0.2rem;
   color: #7b8581;
   font: 600 0.66rem "DM Sans";
@@ -2549,6 +2550,7 @@ nav {
 }
 .station-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 .station-actions button {

@@ -74,10 +74,17 @@ export interface Station {
   code: string;
   name: string;
   ipAddress: string | null;
+  mobileDeviceId?: string | null;
+  mobileLastSeenAt?: string | null;
   process: InspectionProcess | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MobileStationPairing {
+  station: Station;
+  deviceToken: string;
 }
 
 export interface MesTraceabilityPayload {

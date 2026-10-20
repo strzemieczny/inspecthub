@@ -20,10 +20,11 @@ import type {
   InspectionForm,
   RouteCheckResult,
   Station,
+  MobileStationPairing,
 } from "@inspect-hub/types";
 import { dataWedge, type Scan } from "../modules/zebra-datawedge/src";
 import { operatorDisplay } from "../modules/operator-display/src";
-import { api, ApiError, setApiSession } from "./api";
+import { api, ApiError, setApiSession, setApiDevice } from "./api";
 import {
   automaticStatus,
   hasValue,
@@ -165,6 +166,11 @@ function OperatorApp() {
     try {
       await task();
     } catch (cause) {
+      if (cause instanceof ApiError && cause.code === "DEVICE_NOT_PAIRED") {
+        setStation(null);
+        setFormChoice(null);
+        await storage.saveStation(null).catch(() => {});
+      }
       if (cause instanceof ApiError && cause.status === 401) {
         setSession(null);
         setApiSession(null);
@@ -189,11 +195,13 @@ function OperatorApp() {
     let active = true;
     async function restore() {
       try {
-        const [storedSession, savedStation, savedDraft] = await Promise.all([
-          storage.session(),
-          storage.station(),
-          storage.draft(),
-        ]);
+        const [storedSession, savedStation, savedDraft, device] =
+          await Promise.all([
+            storage.session(),
+            storage.station(),
+            storage.draft(),
+            storage.device(),
+          ]);
         if (!active) return;
         const expired =
           storedSession &&
@@ -201,13 +209,47 @@ function OperatorApp() {
         const savedSession = expired ? null : storedSession;
         if (expired) await storage.saveSession(null);
         if (!active) return;
+        setApiDevice(device);
         setApiSession(savedSession);
         setSession(savedSession);
         setStation(savedStation);
-        setStationCode(savedStation?.code ?? "");
+        setStationCode(savedDraft?.stationCode ?? savedStation?.code ?? "");
         draftRef.current = savedDraft;
         setDraft(savedDraft);
         if (savedDraft) message("Przywrócono niedokończoną inspekcję.");
+        try {
+          const current = await api<Station>("/stations/mobile/current");
+          if (!active) return;
+          if (savedDraft && savedDraft.stationCode !== current.code) {
+            setStation(null);
+            await storage.saveStation(null);
+            message(
+              "Szkic należy do stanowiska " +
+                savedDraft.stationCode +
+                ". Połącz tablet z tym stanowiskiem.",
+              true,
+            );
+          } else {
+            setStation(current);
+            setStationCode(current.code);
+            await storage.saveStation(current);
+          }
+        } catch (cause) {
+          if (!active) return;
+          if (cause instanceof ApiError && cause.code === "DEVICE_NOT_PAIRED") {
+            setStation(null);
+            await storage.saveStation(null);
+            if (savedStation || savedDraft)
+              message(
+                "Połącz tablet ze stanowiskiem. Zapisany szkic zostanie zachowany.",
+                true,
+              );
+          } else
+            message(
+              "Nie udało się potwierdzić przypisania tabletu. Sprawdź połączenie i spróbuj ponownie.",
+              true,
+            );
+        }
         if (expired) {
           message("Wylogowano po ponad 30 minutach bez aktywności.");
         }
@@ -235,14 +277,25 @@ function OperatorApp() {
     !!draft && draft.operatorId !== (session?.user.id ?? null);
 
   async function pair(code: string) {
-    const nextStation = await api<Station>("/stations/identify", {
+    if (draft && code.trim().toUpperCase() !== draft.stationCode) {
+      throw new Error(
+        "Aby dokończyć zapisany szkic, połącz tablet ze stanowiskiem " +
+          draft.stationCode +
+          ".",
+      );
+    }
+    const device = await storage.device();
+    setApiDevice(device);
+    const paired = await api<MobileStationPairing>("/stations/mobile/pair", {
       method: "POST",
       body: JSON.stringify({
         code: code.trim().toUpperCase(),
+        deviceId: device.deviceId,
         name: stationName.trim() || undefined,
         processName: stationProcessName.trim() || undefined,
       }),
     });
+    const nextStation = paired.station;
     if (!nextStation.active || !nextStation.process)
       throw new Error(
         "Stanowisko musi być aktywne i mieć przypisany proces. Skontaktuj się z administratorem.",
@@ -263,10 +316,9 @@ function OperatorApp() {
   ) {
     if (!station || !value.trim()) return;
     const normalized = value.trim().toUpperCase();
-    const checkedStation = await api<Station>("/stations/identify", {
-      method: "POST",
-      body: JSON.stringify({ code: station.code }),
-    });
+    const checkedStation = await api<Station>("/stations/mobile/current");
+    setStation(checkedStation);
+    await storage.saveStation(checkedStation);
     if (!checkedStation.active || !checkedStation.process) {
       throw new Error(
         "Konfiguracja stanowiska uległa zmianie. Odśwież stanowisko.",
@@ -276,7 +328,7 @@ function OperatorApp() {
       method: "POST",
       body: JSON.stringify({
         serialNumber: normalized,
-        stationCode: station.code,
+        stationCode: checkedStation.code,
         formId,
       }),
     });
@@ -302,7 +354,7 @@ function OperatorApp() {
       id: Crypto.randomUUID(),
       operatorId: operatorSession?.user.id ?? null,
       form: selectedForm,
-      stationCode: station.code,
+      stationCode: checkedStation.code,
       serial: normalized,
       routeCheckId: result.routeCheckId,
       // This timestamp is recorded only by the scan/press handler, after route check.
@@ -376,7 +428,7 @@ function OperatorApp() {
       return;
     }
     setLastScan(scan.data);
-    if (draft || formChoice) return; // Keep the serial while inspecting or choosing a form.
+    if ((draft && station) || formChoice) return; // Keep the serial while inspecting or choosing a form.
     if (!station || stationSettingsOpen) {
       setStationCode(scan.data);
       void run(() => pair(scan.data));
@@ -445,6 +497,16 @@ function OperatorApp() {
       openOperatorLogin();
       throw new Error("Zaloguj operatora, który rozpoczął tę inspekcję.");
     }
+    const current = await api<Station>("/stations/mobile/current");
+    if (current.code !== draft.stationCode) {
+      setStation(null);
+      await storage.saveStation(null);
+      throw new Error(
+        "Szkic należy do stanowiska " +
+          draft.stationCode +
+          ". Połącz tablet z tym stanowiskiem.",
+      );
+    }
     const submission = submissionFor(draft, Date.now());
     // Persist before networking, so a restart after a lost response retries the exact same request.
     const frozen = { ...draft, submission, summary: true };
@@ -461,6 +523,7 @@ function OperatorApp() {
         cause.status >= 400 &&
         cause.status < 500 &&
         cause.status !== 401 &&
+        cause.code !== "DEVICE_NOT_PAIRED" &&
         cause.status !== 408 &&
         cause.status !== 429
       ) {
@@ -610,7 +673,7 @@ function OperatorApp() {
               color={colors.green}
             />
           ) : null}
-          {!draft ? (
+          {!draft || !station ? (
             <>
               <View>
                 <Text style={s.title}>
@@ -680,6 +743,16 @@ function OperatorApp() {
                       Skonfiguruj skaner
                     </Button>
                   </View>
+                  {draft ? (
+                    <>
+                      <Text style={s.body}>
+                        Zapisany szkic: stanowisko {draft.stationCode}.
+                      </Text>
+                      <Button secondary disabled={busy} onPress={discard}>
+                        Odrzuć szkic
+                      </Button>
+                    </>
+                  ) : null}
                   {!dataWedge ? (
                     <Text style={s.muted}>
                       Skaner niedostępny. Wpisz kod ręcznie.
@@ -918,7 +991,7 @@ function OperatorApp() {
           )}
         </ScrollView>
       )}
-      {ready && (draft || (station && !stationSettingsOpen && !formChoice)) ? (
+      {ready && station && (draft || (!stationSettingsOpen && !formChoice)) ? (
         <View style={s.inspectionActions}>
           {draft ? (
             <>

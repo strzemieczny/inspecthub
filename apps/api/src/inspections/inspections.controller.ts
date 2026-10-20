@@ -1,3 +1,4 @@
+import { MobileStationGuard } from '../stations/mobile-station.guard';
 import {
   BadRequestException,
   Body,
@@ -99,7 +100,7 @@ export class InspectionsController {
   }
 
   @Post()
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard, MobileStationGuard)
   create(
     @Body() dto: CreateInspectionDto,
     @Req() request: RequestWithOptionalUser,

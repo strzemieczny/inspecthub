@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Header,
   Param,
   Patch,
   Post,
@@ -19,6 +20,7 @@ import {
   CreateStationDto,
   IdentifyStationDto,
   UpdateStationDto,
+  PairMobileStationDto,
 } from './dto/station.dto';
 import { StationsService } from './stations.service';
 
@@ -55,6 +57,28 @@ export class StationsController {
     const result = await this.stations.identify(dto, this.clientIp(request));
     this.setDeviceCookie(response, result.token);
     return result.station;
+  }
+
+  @Post('mobile/pair')
+  @Header('Cache-Control', 'no-store')
+  pairMobile(@Body() dto: PairMobileStationDto, @Req() request: Request) {
+    return this.stations.pairMobile(dto, request.get('x-device-token'));
+  }
+
+  @Get('mobile/current')
+  @Header('Cache-Control', 'no-store')
+  currentMobile(@Req() request: Request) {
+    return this.stations.currentMobile(
+      request.get('x-device-id'),
+      request.get('x-device-token'),
+    );
+  }
+
+  @Delete(':id/mobile-device')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'MANAGER')
+  unpairMobile(@Param('id') id: string) {
+    return this.stations.unpairMobile(id);
   }
 
   @Post()
