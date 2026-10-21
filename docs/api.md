@@ -159,3 +159,38 @@ Migracja `20261019110000_add_form_revision_author` uzupełnia autorów starszych
 rewizji na podstawie udanych zdarzeń publikacji w audycie. Gdy brakuje danych,
 `createdBy` pozostaje `null`. W panelu edycji formularza każdą rewizję można
 rozwinąć, aby zobaczyć wartości przed i po zmianie względem poprzedniej wersji.
+
+### Definicje wskaźników dashboardu
+
+Wskaźniki endpointów `public-dashboard` i `analytics/v1` dotyczą zakończonych
+inspekcji w wybranym okresie oraz wszystkich aktywnych filtrów. Filtr `result`
+zawęża także mianowniki procentów; do oceny ogólnej jakości należy go usunąć.
+
+- `summary.passRate`: udział OK wszystkich prób, w tym retestów (dotychczasowe pole).
+- `summary.firstPassTotal`, `firstPassPassed`, `firstPassRate`: liczba pierwszych
+  kontroli, liczba pierwszych OK oraz ich iloraz w procentach. Pierwsza kontrola
+  to początek zapisanego cyklu (`originalInspectionId = null`). Przy braku
+  pierwszych kontroli FPY wynosi `null`. Te same pola są dostępne w przekrojach
+  stanowisk i rewizji formularzy.
+- `summary.retestTotal`, `retestPassed`: liczba powiązanych retestów i ich wyników
+  OK. Pierwsza kontrola może pochodzić spoza wybranego okresu. Wynik retestu nie
+  jest dowodem wykonania naprawy.
+- `summary.uniqueUnits`: liczba różnych numerów seryjnych/VIN w wybranym zbiorze,
+  łącznie dla wszystkich wybranych standardów.
+- `summary.issuesToday`: liczba inspekcji NOK; `summary.defectCount`: liczba ocen
+  NOK punktów kontroli, które można ocenić automatycznie. Jedna inspekcja może
+  zawierać kilka takich ocen. Obie wartości obejmują również retesty.
+- `completeness.p90DurationSeconds`: percentyl najbliższej rangi (element
+  `ceil(0.9 * n)` posortowanej próby), `null` bez pomiarów. Czas dotyczy inspekcji,
+  nie pełnego cyklu produkcyjnego. `durationSampleSize` podaje liczebność próby.
+- `daily`: liczba wszystkich i pozytywnych prób dla każdego lokalnego dnia.
+  Dzień bez inspekcji oznacza brak danych o NOK%, a nie 0% NOK.
+
+Ranking na home uwzględnia stanowiska z co najmniej 30 pierwszymi kontrolami.
+Jest to próg prezentacji, nie gwarancja wiarygodności statystycznej. Stały cel
+97% nie jest stosowany. System nie zna wolumenu wymagającego kontroli, więc nie
+wylicza pokrycia kontrolą.
+
+Eksport CSV/XLSX zawiera dodatkowo ID inspekcji, ID pierwszej kontroli, rodzaj
+próby, czas inspekcji w sekundach oraz liczbę poprawionych odpowiedzi. Nowe pola
+uzupełniają dotychczasowy kontrakt API; `passRate` zachowuje swoje znaczenie.

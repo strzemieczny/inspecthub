@@ -341,6 +341,14 @@ export class InspectionsService {
             : true,
       );
     const passed = results.filter((item) => isPassed(item.status)).length;
+    // A first attempt is the root of a stored inspection/retest cycle.
+    const firstAttempts = results.filter((item) => !item.originalInspectionId);
+    const firstPassed = firstAttempts.filter((item) =>
+      isPassed(item.status),
+    ).length;
+    const retests = results.filter((item) => item.originalInspectionId);
+    const rate = (passed: number, total: number) =>
+      total ? Math.round((passed / total) * 1000) / 10 : null;
     const previousPassed = previous.filter((item) =>
       isPassed(item.status),
     ).length;
@@ -359,6 +367,9 @@ export class InspectionsService {
         ? sorted[middle]
         : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
     };
+    const durationValues = inspectionsWithDuration
+      .map((item) => item.durationSeconds!)
+      .sort((a, b) => a - b);
     const durationByForm = Array.from(
       inspectionsWithDuration
         .reduce((map, item) => {
@@ -446,22 +457,41 @@ export class InspectionsService {
     ) =>
       Array.from(
         results
-          .reduce((map, item) => {
-            const value = key(item);
-            const current = map.get(value) ?? {
-              key: value,
-              total: 0,
-              passed: 0,
-            };
-            current.total += 1;
-            if (isPassed(item.status)) current.passed += 1;
-            map.set(value, current);
-            return map;
-          }, new Map<T, { key: T; total: number; passed: number }>())
+          .reduce(
+            (map, item) => {
+              const value = key(item);
+              const current = map.get(value) ?? {
+                key: value,
+                total: 0,
+                passed: 0,
+                firstPassTotal: 0,
+                firstPassPassed: 0,
+              };
+              current.total += 1;
+              if (isPassed(item.status)) current.passed += 1;
+              if (!item.originalInspectionId) {
+                current.firstPassTotal += 1;
+                if (isPassed(item.status)) current.firstPassPassed += 1;
+              }
+              map.set(value, current);
+              return map;
+            },
+            new Map<
+              T,
+              {
+                key: T;
+                total: number;
+                passed: number;
+                firstPassTotal: number;
+                firstPassPassed: number;
+              }
+            >(),
+          )
           .values(),
       )
         .map((item) => ({
           ...item,
+          firstPassRate: rate(item.firstPassPassed, item.firstPassTotal),
           passRate: item.total
             ? Math.round((item.passed / item.total) * 1000) / 10
             : 0,
@@ -594,6 +624,17 @@ export class InspectionsService {
       range: { from, to, previousFrom, previousTo: from },
       summary: {
         completedToday: results.length,
+        firstPassTotal: firstAttempts.length,
+        firstPassPassed: firstPassed,
+        firstPassRate: rate(firstPassed, firstAttempts.length),
+        retestTotal: retests.length,
+        retestPassed: retests.filter((item) => isPassed(item.status)).length,
+        uniqueUnits: new Set(results.map((item) => item.vinOrSerialNumber))
+          .size,
+        defectCount: Array.from(questionStats.values()).reduce(
+          (total, item) => total + item.nok,
+          0,
+        ),
         passRate: results.length
           ? Math.round((passed / results.length) * 1000) / 10
           : 0,
@@ -626,6 +667,9 @@ export class InspectionsService {
             )
           : null,
         durationSampleSize: inspectionsWithDuration.length,
+        p90DurationSeconds: durationValues.length
+          ? durationValues[Math.ceil(durationValues.length * 0.9) - 1]
+          : null,
         skippedQuestions,
         skippedRate: totalQuestions
           ? Math.round((skippedQuestions / totalQuestions) * 1000) / 10
@@ -773,6 +817,7 @@ export class InspectionsService {
       },
       select: {
         id: true,
+        originalInspectionId: true,
         publicReportId: true,
         vinOrSerialNumber: true,
         stationId: true,
@@ -825,6 +870,11 @@ export class InspectionsService {
         standardName: row.form.title,
         revision: row.form.version,
         result: row.status,
+        inspectionId: row.id,
+        originalInspectionId: row.originalInspectionId ?? '',
+        attemptType: row.originalInspectionId ? 'RETEST' : 'PIERWSZA KONTROLA',
+        durationSeconds: row.durationSeconds ?? '',
+        answerCorrections: row.answerCorrections,
         scadaSynced: row.mesSynced ? 'TAK' : 'NIE',
         reportId: row.publicReportId,
         answers: answerText,
@@ -844,6 +894,11 @@ export class InspectionsService {
       ['scadaSynced', 'SCADA'],
       ['reportId', 'ID raportu'],
       ['answers', 'Odpowiedzi'],
+      ['inspectionId', 'ID inspekcji'],
+      ['originalInspectionId', 'ID pierwszej kontroli'],
+      ['attemptType', 'Rodzaj próby'],
+      ['durationSeconds', 'Czas inspekcji [s]'],
+      ['answerCorrections', 'Liczba poprawionych odpowiedzi'],
     ] as const;
     if (format === 'csv') {
       const escape = (value: unknown) => {
@@ -872,7 +927,7 @@ export class InspectionsService {
       const sheet = workbook.addWorksheet('Inspekcje', {
         views: [{ state: 'frozen', ySplit: 1 }],
       });
-      sheet.autoFilter = { from: 'A1', to: 'L1' };
+      sheet.autoFilter = { from: 'A1', to: 'Q1' };
       sheet.columns = columns.map(([key, header]) => ({
         key,
         header,
@@ -908,9 +963,16 @@ export class InspectionsService {
       );
       document.text(`Liczba inspekcji: ${dashboard.summary.completedToday}`);
       document.text(
-        `First pass yield: ${dashboard.summary.passRate.toFixed(1)}%`,
+        `First pass yield: ${dashboard.summary.firstPassRate === null ? 'brak pierwszych kontroli' : `${dashboard.summary.firstPassRate.toFixed(1)}%`} (${dashboard.summary.firstPassPassed}/${dashboard.summary.firstPassTotal})`,
       );
-      document.text(`Niezgodności: ${dashboard.summary.issuesToday}`);
+      document.text(`Inspekcje NOK: ${dashboard.summary.issuesToday}`);
+      document.text(`Punkty kontroli NOK: ${dashboard.summary.defectCount}`);
+      document.text(
+        `Retesty: ${dashboard.summary.retestTotal}, OK: ${dashboard.summary.retestPassed}`,
+      );
+      document.text(
+        `Udział OK wszystkich prób: ${dashboard.summary.passRate.toFixed(1)}%`,
+      );
       document.text(
         `Synchronizacja SCADA: ${dashboard.summary.mesSyncRate.toFixed(1)}%`,
       );

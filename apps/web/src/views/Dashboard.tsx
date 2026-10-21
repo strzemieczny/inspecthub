@@ -19,6 +19,13 @@ interface DashboardData {
   range: { from: string; to: string; previousFrom: string; previousTo: string };
   summary: {
     completedToday: number;
+    firstPassTotal: number;
+    firstPassPassed: number;
+    firstPassRate: number | null;
+    retestTotal: number;
+    retestPassed: number;
+    uniqueUnits: number;
+    defectCount: number;
     passRate: number;
     issuesToday: number;
     activeStations: number;
@@ -31,6 +38,7 @@ interface DashboardData {
     averageDurationSeconds: number | null;
     medianDurationSeconds: number | null;
     durationSampleSize: number;
+    p90DurationSeconds: number | null;
     skippedQuestions: number;
     skippedRate: number;
     unusuallyFast: number;
@@ -52,6 +60,9 @@ interface DashboardData {
       total: number;
       passed: number;
       passRate: number;
+      firstPassTotal: number;
+      firstPassPassed: number;
+      firstPassRate: number | null;
     }[];
     forms: {
       key: string;
@@ -59,6 +70,9 @@ interface DashboardData {
       total: number;
       passed: number;
       passRate: number;
+      firstPassTotal: number;
+      firstPassPassed: number;
+      firstPassRate: number | null;
     }[];
   };
   questionTrends: {
@@ -116,6 +130,13 @@ const emptyDashboard: DashboardData = {
   range: { from: "", to: "", previousFrom: "", previousTo: "" },
   summary: {
     completedToday: 0,
+    firstPassTotal: 0,
+    firstPassPassed: 0,
+    firstPassRate: null,
+    retestTotal: 0,
+    retestPassed: 0,
+    uniqueUnits: 0,
+    defectCount: 0,
     passRate: 0,
     issuesToday: 0,
     activeStations: 0,
@@ -128,6 +149,7 @@ const emptyDashboard: DashboardData = {
     averageDurationSeconds: null,
     medianDurationSeconds: null,
     durationSampleSize: 0,
+    p90DurationSeconds: null,
     skippedQuestions: 0,
     skippedRate: 0,
     unusuallyFast: 0,
@@ -316,13 +338,154 @@ function QualityHeatmap({
                     : `${row.label} × ${columnLabel(column)}: ${cell?.nok}/${cell?.total} NOK (${rate.toFixed(1)}%)`
                 }
               >
-                {rate === null ? "–" : `${Math.round(rate)}%`}
+                {rate === null ? (
+                  "–"
+                ) : (
+                  <>
+                    <span>{rate.toFixed(1)}%</span>
+                    <small>n={cell?.total}</small>
+                  </>
+                )}
               </div>
             );
           }),
         ])}
       </div>
     </div>
+  );
+}
+
+function NokTrend({
+  daily,
+  onSelect,
+}: {
+  daily: DashboardData["daily"];
+  onSelect: (date: string) => void;
+}) {
+  const points = daily.map((item, index) => ({
+    ...item,
+    nok: item.total - item.passed,
+    rate: item.total ? ((item.total - item.passed) / item.total) * 100 : null,
+    x: 48 + (index / Math.max(daily.length - 1, 1)) * 624,
+  }));
+  // Missing days break the line: no inspections does not mean 0% NOK.
+  const path = points
+    .map((point, index) => {
+      if (point.rate === null) return "";
+      const command = index > 0 && points[index - 1].rate !== null ? "L" : "M";
+      return `${command}${point.x},${172 - point.rate * 1.4}`;
+    })
+    .join(" ");
+  return (
+    <article className="dashboard-card nok-trend-card">
+      <div className="card-heading">
+        <div>
+          <h2>Trend NOK w czasie</h2>
+          <p>Udział inspekcji NOK we wszystkich próbach, łącznie z retestami</p>
+        </div>
+      </div>
+      <div className="nok-trend-scroll">
+        <svg
+          viewBox="0 0 720 210"
+          role="img"
+          aria-label="Dzienny udział inspekcji NOK. Szczegółowe wartości i liczebność próby w tabeli poniżej."
+        >
+          {[0, 50, 100].map((value) => (
+            <g key={value}>
+              <line
+                x1="48"
+                x2="672"
+                y1={172 - value * 1.4}
+                y2={172 - value * 1.4}
+                stroke="currentColor"
+                opacity="0.15"
+              />
+              <text x="40" y={176 - value * 1.4} textAnchor="end">
+                {value}%
+              </text>
+            </g>
+          ))}
+          <path
+            d={path}
+            fill="none"
+            stroke="var(--nok-trend-color, #be3e36)"
+            strokeWidth="2"
+          />
+          {points.map((point) =>
+            point.rate === null ? null : (
+              <circle
+                key={point.date}
+                cx={point.x}
+                cy={172 - point.rate * 1.4}
+                r="3"
+                fill="var(--nok-trend-color, #be3e36)"
+              >
+                <title>
+                  {point.date}: {point.rate.toFixed(1)}% NOK · {point.nok}/
+                  {point.total} inspekcji
+                </title>
+              </circle>
+            ),
+          )}
+          {points
+            .filter((_, index) => index === 0 || index === points.length - 1)
+            .map((point, index) => (
+              <text
+                key={point.date}
+                x={point.x}
+                y="200"
+                textAnchor={index === 0 ? "start" : "end"}
+              >
+                {point.date}
+              </text>
+            ))}
+        </svg>
+      </div>
+      {!daily.some((item) => item.total > 0) && (
+        <p className="analysis-empty">Brak inspekcji w wybranym okresie.</p>
+      )}
+      <details className="nok-trend-details">
+        <summary>Wartości dzienne i liczebność próby</summary>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Dzień</th>
+                <th>Inspekcje</th>
+                <th>NOK</th>
+                <th>NOK %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((point) => (
+                <tr key={point.date}>
+                  <td>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => onSelect(point.date)}
+                    >
+                      {point.date}
+                    </button>
+                  </td>
+                  <td>{point.total}</td>
+                  <td>{point.nok}</td>
+                  <td>
+                    {point.rate === null
+                      ? "Brak danych"
+                      : `${point.rate.toFixed(1)}%`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p className="analysis-note">
+        Przerwa w linii oznacza brak inspekcji. Porównuj odsetki razem z
+        liczebnością próby.
+      </p>
+    </article>
   );
 }
 
@@ -719,6 +882,13 @@ export default function Dashboard() {
                 }
               />
             </label>
+          </div>
+          <div className="filter-footer">
+            {!dateRangeValid && (
+              <p className="filter-error" role="alert">
+                Wybierz prawidłowy zakres dat: Od nie może być później niż Do.
+              </p>
+            )}
             <div className="filter-actions">
               <button
                 className="filter-reset"
@@ -750,11 +920,6 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
-          {!dateRangeValid && (
-            <p role="alert">
-              Wybierz prawidłowy zakres dat: Od nie może być później niż Do.
-            </p>
-          )}
           <div className="export-toolbar">
             <div>
               <strong>Eksport danych</strong>
@@ -796,6 +961,18 @@ export default function Dashboard() {
 
         {!hasData && connection === "loading" ? (
           <ViewSkeleton variant="dashboard" />
+        ) : !hasData && connection === "error" ? (
+          <section className="dashboard-card analysis-card" role="alert">
+            <h2>Nie udało się pobrać danych</h2>
+            <p>Wskaźniki będą dostępne po nawiązaniu połączenia z API.</p>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => window.location.reload()}
+            >
+              Spróbuj ponownie
+            </button>
+          </section>
         ) : (
           <div
             className="dashboard-results"
@@ -816,13 +993,20 @@ export default function Dashboard() {
                 <div className="metric-icon rate">%</div>
                 <div>
                   <span>First pass yield</span>
-                  <strong>{data.summary.passRate.toFixed(1)}%</strong>
-                  <small>{t("dashboard.dailyTarget")}</small>
+                  <strong>
+                    {data.summary.firstPassRate === null
+                      ? "—"
+                      : `${data.summary.firstPassRate.toFixed(1)}%`}
+                  </strong>
+                  <small>
+                    {data.summary.firstPassPassed} OK /{" "}
+                    {data.summary.firstPassTotal} pierwszych kontroli
+                  </small>
                 </div>
                 <i className="metric-progress">
                   <b
                     style={{
-                      width: `${Math.min(data.summary.passRate, 100)}%`,
+                      width: `${Math.min(data.summary.firstPassRate ?? 0, 100)}%`,
                     }}
                   />
                 </i>
@@ -830,7 +1014,7 @@ export default function Dashboard() {
               <article className="metric-card">
                 <div className="metric-icon issue">!</div>
                 <div>
-                  <span>Niezgodności w okresie</span>
+                  <span>Inspekcje NOK w okresie</span>
                   <strong>{data.summary.issuesToday}</strong>
                   {trend(data.summary.issuesTrend)}
                 </div>
@@ -838,16 +1022,79 @@ export default function Dashboard() {
               <article className="metric-card">
                 <div className="metric-icon station">▦</div>
                 <div>
-                  <span>{t("dashboard.activeStations")}</span>
-                  <strong>
-                    {data.summary.activeStations}
-                    <em>/ {data.summary.totalStations}</em>
-                  </strong>
-                  <small>
-                    <i className="tiny-live" /> {t("dashboard.working")}
-                  </small>
+                  <span>Stanowiska z inspekcjami</span>
+                  <strong>{data.breakdowns.stations.length}</strong>
+                  <small>W wybranym okresie i filtrach</small>
                 </div>
               </article>
+            </section>
+
+            <section className="dashboard-card process-summary-card">
+              <div className="card-heading">
+                <div>
+                  <h2>Pierwsze kontrole i retesty</h2>
+                  <p>
+                    Wskaźniki dotyczą inspekcji zakończonych w wybranym okresie
+                    i aktywnych filtrów.
+                  </p>
+                </div>
+              </div>
+              {appliedFilters.result && (
+                <p className="analysis-note" role="status">
+                  Aktywny filtr wyniku zawęża także mianowniki wskaźników. Usuń
+                  go, aby ocenić ogólną jakość procesu.
+                </p>
+              )}
+              <div className="completeness-grid">
+                <article>
+                  <div>
+                    <small>Unikalne numery seryjne / VIN</small>
+                    <strong>{data.summary.uniqueUnits}</strong>
+                  </div>
+                </article>
+                <article>
+                  <div>
+                    <small>Pierwsze kontrole</small>
+                    <strong>{data.summary.firstPassTotal}</strong>
+                    <em>
+                      {data.summary.firstPassPassed} OK ·{" "}
+                      {data.summary.firstPassTotal -
+                        data.summary.firstPassPassed}{" "}
+                      NOK
+                    </em>
+                  </div>
+                </article>
+                <article>
+                  <div>
+                    <small>Retesty</small>
+                    <strong>{data.summary.retestTotal}</strong>
+                    <em>
+                      {data.summary.retestPassed} OK ·{" "}
+                      {data.summary.retestTotal - data.summary.retestPassed} NOK
+                    </em>
+                  </div>
+                </article>
+                <article>
+                  <div>
+                    <small>Punkty kontroli NOK</small>
+                    <strong>{data.summary.defectCount}</strong>
+                    <em>Oceny automatyczne · kilka NOK w jednej inspekcji</em>
+                  </div>
+                </article>
+              </div>
+              <p className="analysis-note">
+                FPY = pierwsze kontrole OK / wszystkie pierwsze kontrole.
+                Pierwsza kontrola rozpoczyna zapisany cykl kontroli; retesty są
+                z nią powiązane. Retesty w okresie mogą dotyczyć pierwszej
+                kontroli sprzed tego okresu. Wynik retestu nie potwierdza
+                wykonania naprawy.
+              </p>
+              <p className="analysis-note">
+                Pokrycie kontrolą: brak danych o liczbie sztuk wymagających
+                kontroli. Liczba inspekcji obejmuje kolejne próby tej samej
+                sztuki; unikalne numery są liczone łącznie dla wybranych
+                standardów.
+              </p>
             </section>
 
             <section className="dashboard-main-grid">
@@ -921,8 +1168,8 @@ export default function Dashboard() {
               <aside className="dashboard-card quality-card">
                 <div className="card-heading">
                   <div>
-                    <h2>{t("dashboard.qualityStatus")}</h2>
-                    <p>Produkcja w wybranym okresie</p>
+                    <h2>Udział wyników OK</h2>
+                    <p>Wszystkie próby, łącznie z retestami</p>
                   </div>
                 </div>
                 <button
@@ -939,8 +1186,10 @@ export default function Dashboard() {
                 >
                   <div>
                     <strong>
-                      {data.summary.passRate.toFixed(1)}
-                      <small>%</small>
+                      {data.summary.completedToday
+                        ? data.summary.passRate.toFixed(1)
+                        : "—"}
+                      {data.summary.completedToday > 0 && <small>%</small>}
                     </strong>
                     <span>{t("dashboard.compliant")}</span>
                   </div>
@@ -973,22 +1222,36 @@ export default function Dashboard() {
                 <div className="mes-health">
                   <span>{t("dashboard.scadaSync")}</span>
                   <strong>
-                    {data.summary.mesSyncRate.toFixed(1)}% <i />
+                    {data.summary.completedToday
+                      ? `${data.summary.mesSyncRate.toFixed(1)}%`
+                      : "—"}{" "}
+                    <i />
                   </strong>
                 </div>
               </aside>
             </section>
 
+            <NokTrend
+              daily={data.daily}
+              onSelect={(date) =>
+                drillDown({ from: date, to: date, result: "" })
+              }
+            />
+
             <section className="dashboard-card completeness-card">
               <div className="card-heading">
                 <div>
                   <h2>{t("dashboard.completeness")}</h2>
-                  <p>{t("dashboard.completenessSubtitle")}</p>
+                  <p>
+                    Czas wykonania inspekcji i sygnały jakości kontroli. Pomiar
+                    nie obejmuje pełnego cyklu produkcyjnego.
+                  </p>
                 </div>
                 <span className="completeness-sample">
-                  {t("dashboard.durationSample", {
-                    count: data.completeness.durationSampleSize,
-                  })}
+                  Czas: {data.completeness.durationSampleSize} /{" "}
+                  {data.summary.completedToday} inspekcji · brak pomiaru:{" "}
+                  {data.summary.completedToday -
+                    data.completeness.durationSampleSize}
                 </span>
               </div>
               <div className="completeness-grid">
@@ -1008,6 +1271,15 @@ export default function Dashboard() {
                     <strong>
                       {duration(data.completeness.medianDurationSeconds)}
                     </strong>
+                  </div>
+                </article>
+                <article>
+                  <div>
+                    <small>P90 czasu inspekcji</small>
+                    <strong>
+                      {duration(data.completeness.p90DurationSeconds)}
+                    </strong>
+                    <em>90% zmierzonych inspekcji trwało nie dłużej</em>
                   </div>
                 </article>
                 <button
@@ -1080,7 +1352,9 @@ export default function Dashboard() {
               </div>
               {data.completeness.durationByForm.length > 0 && (
                 <div className="duration-by-form">
-                  <strong>Czas według formularza</strong>
+                  <strong>
+                    Czas inspekcji według standardu · wybrane rewizje łącznie
+                  </strong>
                   {data.completeness.durationByForm.slice(0, 8).map((item) => (
                     <div key={item.formCode}>
                       <span>
@@ -1101,7 +1375,7 @@ export default function Dashboard() {
               <article className="dashboard-card question-trends-card">
                 <div className="card-heading">
                   <div>
-                    <h2>Trendy pojedynczych pytań</h2>
+                    <h2>Najczęstsze punkty NOK</h2>
                     <p>Punkty kontroli najczęściej kończące się NOK</p>
                   </div>
                   <span className="table-count">TOP 10</span>
@@ -1136,7 +1410,11 @@ export default function Dashboard() {
                 <div className="card-heading heatmap-heading">
                   <div>
                     <h2>Heatmapa jakości</h2>
-                    <p>Intensywność koloru oznacza udział wyników NOK</p>
+                    <p>
+                      {heatmapType === "questionStation"
+                        ? "Udział ocen NOK danego pytania"
+                        : "Udział inspekcji NOK, łącznie z retestami"}
+                    </p>
                   </div>
                   <div className="heatmap-tabs" role="tablist">
                     <button
@@ -1151,7 +1429,7 @@ export default function Dashboard() {
                       className={heatmapType === "time" ? "active" : ""}
                       onClick={() => setHeatmapType("time")}
                     >
-                      Godzina × dzień
+                      Godzina × dzień tygodnia
                     </button>
                     <button
                       className={heatmapType === "formProduct" ? "active" : ""}
@@ -1165,6 +1443,12 @@ export default function Dashboard() {
                   data={data.heatmaps[heatmapType]}
                   type={heatmapType}
                 />
+                {heatmapType === "formProduct" && (
+                  <p className="analysis-note">
+                    Produkt oznacza rodzinę produktu, numer części lub — gdy ich
+                    brak — numer seryjny.
+                  </p>
+                )}
                 <div className="heatmap-legend">
                   <span>Brak danych</span>
                   <i />
@@ -1181,12 +1465,16 @@ export default function Dashboard() {
                 <div className="card-heading">
                   <div>
                     <h2>Stanowiska wymagające uwagi</h2>
-                    <p>Najniższy first pass yield, minimum jedna inspekcja</p>
+                    <p>Najniższy FPY · minimum 30 pierwszych kontroli</p>
                   </div>
                 </div>
                 <div className="ranking-list">
                   {[...data.breakdowns.stations]
-                    .sort((a, b) => a.passRate - b.passRate)
+                    .filter((item) => item.firstPassTotal >= 30)
+                    .sort(
+                      (a, b) =>
+                        (a.firstPassRate ?? 100) - (b.firstPassRate ?? 100),
+                    )
                     .slice(0, 6)
                     .map((item) => (
                       <button
@@ -1205,29 +1493,49 @@ export default function Dashboard() {
                         </div>
                         <div className="ranking-meter">
                           <i>
-                            <b style={{ width: `${item.passRate}%` }} />
+                            <b
+                              style={{ width: `${item.firstPassRate ?? 0}%` }}
+                            />
                           </i>
-                          <strong
-                            className={item.passRate < 97 ? "below-target" : ""}
-                          >
-                            {item.passRate.toFixed(1)}%
+                          <strong>
+                            {item.firstPassRate === null
+                              ? "—"
+                              : `${item.firstPassRate.toFixed(1)}%`}
                           </strong>
-                          <small>{item.total} kontroli</small>
+                          <small>
+                            {item.firstPassPassed}/{item.firstPassTotal}{" "}
+                            pierwszych OK · {item.total} prób
+                          </small>
                         </div>
                       </button>
                     ))}
-                  {!data.breakdowns.stations.length && (
+                  {!data.breakdowns.stations.some(
+                    (item) => item.firstPassTotal >= 30,
+                  ) && (
                     <div className="analysis-empty">
-                      Brak danych dla wybranych filtrów.
+                      Brak stanowisk z co najmniej 30 pierwszymi kontrolami.
                     </div>
                   )}
+                  <p className="analysis-note">
+                    Poza rankingiem:{" "}
+                    {
+                      data.breakdowns.stations.filter(
+                        (item) => item.firstPassTotal < 30,
+                      ).length
+                    }{" "}
+                    stanowisk z mniejszą próbą. Próg 30 służy selekcji rankingu;
+                    nie gwarantuje wiarygodności statystycznej.
+                  </p>
                 </div>
               </article>
               <article className="dashboard-card analysis-card">
                 <div className="card-heading">
                   <div>
                     <h2>Jakość według standardu</h2>
-                    <p>Wolumen, zgodność i liczba niezgodności</p>
+                    <p>
+                      FPY pierwszych kontroli i NOK wszystkich prób · podział
+                      według rewizji
+                    </p>
                   </div>
                 </div>
                 <div className="ranking-list">
@@ -1248,21 +1556,29 @@ export default function Dashboard() {
                       }}
                     >
                       <div>
-                        <strong>{item.name}</strong>
+                        <strong>
+                          {item.name} · rew.{" "}
+                          {data.filters.forms.find(
+                            (form) => form.id === item.key,
+                          )?.version ?? "—"}
+                        </strong>
                         <small>
                           {item.total - item.passed} niezgodnych z {item.total}
                         </small>
                       </div>
                       <div className="ranking-meter">
                         <i>
-                          <b style={{ width: `${item.passRate}%` }} />
+                          <b style={{ width: `${item.firstPassRate ?? 0}%` }} />
                         </i>
-                        <strong
-                          className={item.passRate < 97 ? "below-target" : ""}
-                        >
-                          {item.passRate.toFixed(1)}%
+                        <strong>
+                          {item.firstPassRate === null
+                            ? "—"
+                            : `${item.firstPassRate.toFixed(1)}%`}
                         </strong>
-                        <small>FPY</small>
+                        <small>
+                          FPY · n={item.firstPassTotal}
+                          {item.firstPassTotal < 30 ? " · mała próba" : ""}
+                        </small>
                       </div>
                     </button>
                   ))}

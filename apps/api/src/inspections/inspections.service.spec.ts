@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import ExcelJS from 'exceljs';
 import { DatabaseService } from '../database/database.service';
 import { ScadaConnectorService } from '../scada-connector/scada-connector.service';
 import { InspectionsService } from './inspections.service';
@@ -120,6 +121,145 @@ describe('InspectionsService public reports', () => {
     expect(countStations).toHaveBeenCalledWith({ where: { active: true } });
     expect(dashboard.summary.activeStations).toBe(4);
     expect(dashboard.summary.totalStations).toBe(9);
+  });
+
+  describe('process analysis metrics', () => {
+    const filters = {
+      from: '2026-10-20T00:00:00Z',
+      to: '2026-10-22T21:59:59Z',
+      timeZone: 'Europe/Warsaw',
+    };
+    const row = (
+      id: string,
+      status: string,
+      originalInspectionId: string | null = null,
+      durationSeconds: number | null = 60,
+    ) => ({
+      id,
+      publicReportId: `report-${id}`,
+      vinOrSerialNumber: originalInspectionId ?? id,
+      formId: 'form-1',
+      stationId: 'ST-01',
+      status,
+      originalInspectionId,
+      durationSeconds,
+      answerCorrections: 0,
+      mesSynced: true,
+      createdAt: new Date('2026-10-20T12:00:00Z'),
+      answers: [
+        { questionId: 'q1', value: status === 'PASSED' },
+        { questionId: 'q2', value: status === 'PASSED' },
+      ],
+      form: {
+        code: 'QC-01',
+        title: 'Kontrola',
+        version: 1,
+        questions: [
+          { id: 'q1', label: 'Punkt 1', type: 'BOOLEAN', expectedValue: true },
+          { id: 'q2', label: 'Punkt 2', type: 'BOOLEAN', expectedValue: true },
+        ],
+      },
+    });
+    beforeEach(() => {
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+    });
+
+    it('separates first attempts, retests, unique units and NOK control points', async () => {
+      findManyResults
+        .mockResolvedValueOnce([
+          row('a', 'FAILED', null, 10),
+          row('a-retest', 'PASSED', 'a', 100),
+          row('b', 'PASSED', null, null),
+          row('old-retest', 'FAILED', 'outside-period', 30),
+        ])
+        .mockResolvedValueOnce([]);
+      const dashboard = await service.getPublicDashboard(filters);
+      expect(dashboard.summary).toMatchObject({
+        completedToday: 4,
+        passRate: 50,
+        issuesToday: 2,
+        firstPassTotal: 2,
+        firstPassPassed: 1,
+        firstPassRate: 50,
+        retestTotal: 2,
+        retestPassed: 1,
+        uniqueUnits: 3,
+        defectCount: 4,
+      });
+      expect(dashboard.breakdowns.stations[0]).toMatchObject({
+        total: 4,
+        firstPassTotal: 2,
+        firstPassPassed: 1,
+        firstPassRate: 50,
+      });
+      expect(dashboard.breakdowns.forms[0]).toMatchObject({
+        total: 4,
+        firstPassTotal: 2,
+        firstPassPassed: 1,
+        firstPassRate: 50,
+      });
+      expect(dashboard.completeness).toMatchObject({
+        durationSampleSize: 3,
+        medianDurationSeconds: 30,
+        averageDurationSeconds: 47,
+        p90DurationSeconds: 100,
+      });
+      expect(
+        dashboard.daily.map(({ total, passed }) => ({ total, passed })),
+      ).toEqual([
+        { total: 4, passed: 2 },
+        { total: 0, passed: 0 },
+        { total: 0, passed: 0 },
+      ]);
+    });
+
+    it.each([
+      { rows: [] },
+      { rows: [row('retest', 'PASSED', 'outside-period', null)] },
+    ])(
+      'keeps FPY and duration unavailable without first attempts or time samples: %j',
+      async ({ rows }) => {
+        findManyResults.mockResolvedValueOnce(rows).mockResolvedValueOnce([]);
+        const dashboard = await service.getPublicDashboard(filters);
+        expect(dashboard.summary.firstPassTotal).toBe(0);
+        expect(dashboard.summary.firstPassRate).toBeNull();
+        expect(dashboard.completeness.durationSampleSize).toBe(0);
+        expect(dashboard.completeness.p90DurationSeconds).toBeNull();
+        for (const item of dashboard.breakdowns.forms)
+          expect(item.firstPassRate).toBeNull();
+      },
+    );
+
+    it('includes attempt links and timing in CSV and XLSX exports', async () => {
+      const results = [
+        row('a', 'FAILED', null, 0),
+        row('retry', 'PASSED', 'a', 90),
+      ];
+      findManyResults.mockResolvedValue(results);
+      const csv = (
+        await service.exportAnalytics(filters, 'csv')
+      ).buffer.toString('utf8');
+      const lines = csv
+        .replace(/^\uFEFF/, '')
+        .split('\r\n')
+        .map((line) => line.split(';').map((value) => value.slice(1, -1)));
+      const headers = lines[0];
+      expect(lines[1][headers.indexOf('Rodzaj próby')]).toBe(
+        'PIERWSZA KONTROLA',
+      );
+      expect(lines[1][headers.indexOf('Czas inspekcji [s]')]).toBe('0');
+      expect(lines[2][headers.indexOf('ID pierwszej kontroli')]).toBe('a');
+      expect(lines[2][headers.indexOf('Rodzaj próby')]).toBe('RETEST');
+      const workbook = new ExcelJS.Workbook();
+      const xlsx = await service.exportAnalytics(filters, 'xlsx');
+      await workbook.xlsx.load(xlsx.buffer as never);
+      const sheet = workbook.getWorksheet('Inspekcje')!;
+      expect(sheet.columnCount).toBe(17);
+      expect(sheet.getRow(1).values).toContain('Czas inspekcji [s]');
+      expect(sheet.autoFilter).toBe('A1:Q1');
+    });
   });
 
   it.each([
