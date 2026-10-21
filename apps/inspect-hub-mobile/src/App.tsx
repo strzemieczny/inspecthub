@@ -26,7 +26,12 @@ import type {
   Station,
   MobileStationPairing,
 } from "@inspect-hub/types";
-import { dataWedge, type Scan } from "../modules/zebra-datawedge/src";
+import {
+  dataWedge,
+  resolveScannerResult,
+  type Scan,
+  type ScannerResult,
+} from "../modules/zebra-datawedge/src";
 import { operatorDisplay } from "../modules/operator-display/src";
 import { api, ApiError, setApiSession, setApiDevice } from "./api";
 import {
@@ -490,13 +495,14 @@ function OperatorApp() {
       void run(() => handleStartInspection(scan.data));
     }
   });
-  const onScannerResult = useEffectEvent(({ result }: { result: string }) => {
+  const onScannerResult = useEffectEvent((event: ScannerResult) => {
+    const { result, details } = resolveScannerResult(event);
     message(
       result === "SUCCESS"
         ? t("Skaner gotowy.")
         : t(
             "Nie udało się skonfigurować skanera. Skontaktuj się z administratorem.",
-          ),
+          ) + (details ? `\n${details}` : `\n${result}`),
       result !== "SUCCESS",
     );
   });

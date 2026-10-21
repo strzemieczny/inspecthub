@@ -134,8 +134,16 @@ Przycisk **Skonfiguruj skaner** wysyła `SET_CONFIG` dla profilu `InspectHubMobi
 - Keystroke Output wyłączone, aby skan nie trafiał równolegle do pola tekstowego.
 
 Konfiguracja wymaga wersji DataWedge obsługującej wiele pluginów w `SET_CONFIG`
-i `SEND_RESULT=COMPLETE_RESULT` (DataWedge 7.1+). Aplikacja pokazuje potwierdzenie
-otrzymane od DataWedge. Przy braku odpowiedzi sprawdź profil ręcznie w DataWedge.
+i `SEND_RESULT=COMPLETE_RESULT` (DataWedge 7.1+). Po odpowiedzi `SET_CONFIG`
+aplikacja odczytuje profil przez `GET_CONFIG` i sprawdza jego włączenie,
+powiązanie z aplikacją oraz ustawienia Barcode, Intent i Keystroke.
+Pokazuje sukces dopiero po potwierdzeniu zapisanych ustawień, również gdy
+`SET_CONFIG` zgłasza błąd przy już poprawnym profilu. Nie ignoruje konfliktów
+powiązania z innym profilem. Aktualizacja nie resetuje pozostałych ustawień pluginów.
+Brak odpowiedzi w ciągu 10 sekund jest zgłaszany jako `DATAWEDGE_RESPONSE_TIMEOUT`.
+Przy błędzie wyświetla również niezgodne ustawienia, moduł i kody przyczyny
+z `RESULT_LIST` lub `RESULT_INFO`, np. `APP_ALREADY_ASSOCIATED` oznacza
+powiązanie aplikacji z innym profilem. Przy braku odpowiedzi sprawdź profil ręcznie w DataWedge.
 Konfiguracja jest jawna: aplikacja nie nadpisuje profili przy każdym uruchomieniu.
 
 Moduł odbiera `com.symbol.datawedge.data_string`, `label_type` i `source`.
