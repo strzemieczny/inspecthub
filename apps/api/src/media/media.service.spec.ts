@@ -42,7 +42,7 @@ describe('MediaService', () => {
     } as Express.Multer.File);
 
     expect(result.objectName).toMatch(
-      /^\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}\.jpg$/,
+      /^inspections\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}\.jpg$/,
     );
     expect(putObject).toHaveBeenCalledWith(
       'inspection-media',
@@ -59,6 +59,29 @@ describe('MediaService', () => {
       width: 2560,
       height: 1280,
     });
+  });
+
+  it('stores form images separately from inspection uploads', async () => {
+    const buffer = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: '#c06030' },
+    })
+      .png()
+      .toBuffer();
+    const result = await service.upload(
+      { buffer, mimetype: 'image/png' } as Express.Multer.File,
+      'forms',
+    );
+    expect(result.objectName).toMatch(
+      /^forms\/\d{4}-\d{2}-\d{2}\/[0-9a-f-]{36}\.png$/,
+    );
+    expect(putObject.mock.calls[0][1]).toBe(result.objectName);
+  });
+
+  it('rejects unknown upload purposes before writing', async () => {
+    await expect(
+      service.upload({} as Express.Multer.File, '../private' as 'forms'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(putObject).not.toHaveBeenCalled();
   });
 
   it('applies EXIF orientation before removing metadata', async () => {
@@ -152,16 +175,19 @@ describe('MediaService', () => {
     expect(statObject).not.toHaveBeenCalled();
   });
 
-  it('continues to serve legacy generated names and extensions', async () => {
-    statObject.mockResolvedValue({
-      metaData: { 'content-type': 'image/jpeg' },
-    });
-    getObject.mockResolvedValue(Readable.from(Buffer.from('image')));
+  it.each(['', 'forms/', 'inspections/'])(
+    'serves legacy and categorized paths (%s)',
+    async (prefix) => {
+      statObject.mockResolvedValue({
+        metaData: { 'content-type': 'image/jpeg' },
+      });
+      getObject.mockResolvedValue(Readable.from(Buffer.from('image')));
 
-    const result = await service.getObject(
-      '2026-08-10/123e4567-e89b-42d3-a456-426614174000.jpeg',
-    );
+      const result = await service.getObject(
+        `${prefix}2026-08-10/123e4567-e89b-42d3-a456-426614174000.jpeg`,
+      );
 
-    expect(result.contentType).toBe('image/jpeg');
-  });
+      expect(result.contentType).toBe('image/jpeg');
+    },
+  );
 });

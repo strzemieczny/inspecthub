@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Post,
@@ -12,6 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { MediaService } from './media.service';
+import type { MediaPurpose } from './media-paths';
 
 @Controller('media')
 export class MediaController {
@@ -37,12 +39,13 @@ export class MediaController {
   async upload(
     @Req() request: Request,
     @UploadedFile() file?: Express.Multer.File,
+    @Body('purpose') purpose: MediaPurpose = 'inspections',
   ) {
     if (!file)
       throw new BadRequestException(
         'Wymagany jest obraz JPEG, PNG, WebP, HEIC lub HEIF',
       );
-    const { objectName } = await this.media.upload(file);
+    const { objectName } = await this.media.upload(file, purpose);
     const url = `${request.protocol}://${request.get('host')}/api/media/object?name=${encodeURIComponent(objectName)}`;
     return { objectName, url };
   }

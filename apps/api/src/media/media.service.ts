@@ -4,6 +4,7 @@ import { Client } from 'minio';
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';
+import { isMediaObjectName, type MediaPurpose } from './media-paths';
 
 const MAX_IMAGE_DIMENSION = 2560;
 const IMAGE_QUALITY = 82;
@@ -21,9 +22,6 @@ const MEDIA_TYPES: Record<
   'image/heic': { extension: '.heic', signatures: [] },
   'image/heif': { extension: '.heif', signatures: [] },
 };
-
-const OBJECT_NAME_PATTERN =
-  /^\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\.[a-z0-9]{1,10})?$/i;
 
 @Injectable()
 export class MediaService implements OnModuleInit {
@@ -47,7 +45,13 @@ export class MediaService implements OnModuleInit {
     }
   }
 
-  async upload(file: Express.Multer.File): Promise<{ objectName: string }> {
+  async upload(
+    file: Express.Multer.File,
+    purpose: MediaPurpose = 'inspections',
+  ): Promise<{ objectName: string }> {
+    if (purpose !== 'forms' && purpose !== 'inspections') {
+      throw new BadRequestException('Nieprawidłowy rodzaj zdjęcia');
+    }
     const mediaType = MEDIA_TYPES[file.mimetype];
     if (!mediaType || !this.hasValidSignature(file.buffer, file.mimetype)) {
       throw new BadRequestException(
@@ -55,7 +59,7 @@ export class MediaService implements OnModuleInit {
       );
     }
     const buffer = await this.compressImage(file.buffer, file.mimetype);
-    const objectName = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}${mediaType.extension}`;
+    const objectName = `${purpose}/${new Date().toISOString().slice(0, 10)}/${randomUUID()}${mediaType.extension}`;
     await this.client.putObject(
       this.bucket,
       objectName,
@@ -101,7 +105,7 @@ export class MediaService implements OnModuleInit {
   async getObject(
     objectName: string,
   ): Promise<{ stream: Readable; contentType: string }> {
-    if (!OBJECT_NAME_PATTERN.test(objectName)) {
+    if (!isMediaObjectName(objectName)) {
       throw new BadRequestException('Nieprawidłowa nazwa pliku');
     }
     const stat = await this.client.statObject(this.bucket, objectName);

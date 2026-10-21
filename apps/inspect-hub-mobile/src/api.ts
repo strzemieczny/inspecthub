@@ -109,6 +109,7 @@ export async function uploadPhoto(uri: string): Promise<string> {
   const data = new FormData();
   // Expo 57 fetch reads file bytes; React Native's { uri } parts are unsupported.
   data.append("file", new File(uri));
+  data.append("purpose", "inspections");
   const result = await api<{ objectName: string }>("/media/upload", {
     method: "POST",
     body: data,

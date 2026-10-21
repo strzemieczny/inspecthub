@@ -84,3 +84,53 @@ oraz procesem.
 
 Sprawdź ustawienia, DNS/TLS, timeout, `ScadaDelivery.lastError` oraz status
 kolejki. Potwierdź, że odpowiedź endpointu wyniku zawiera `{ "accepted": true }`.
+
+## Rozdzielenie zdjęć formularzy i wyników inspekcji
+
+Nowe zdjęcia w buckecie `inspection-media` mają prefiksy:
+
+- `forms/YYYY-MM-DD/UUID.ext` — instrukcje i wzorce OK/NOK formularzy,
+- `inspections/YYYY-MM-DD/UUID.ext` — zdjęcia z odpowiedzi inspekcji.
+
+API nadal odczytuje wcześniejsze ścieżki `YYYY-MM-DD/UUID.ext`. Wysyłanie
+zdjęcia przez `POST /api/media/upload` przyjmuje pole multipart `purpose`:
+`forms` lub `inspections`. Brak pola oznacza `inspections`, dla zgodności
+z wcześniej zainstalowaną aplikacją mobilną.
+
+Wdrożenie uruchamia migrację po wykonaniu backupu PostgreSQL i uruchomieniu
+nowego API. Migracja przegląda wszystkie wersje formularzy (również archiwalne)
+oraz odpowiedzi typu `PHOTO_UPLOAD` w wynikach inspekcji. Kopiuje pliki do nowych
+prefiksów, porównuje SHA-256 rzeczywistych bajtów, rozmiar i typ zawartości,
+a dopiero potem aktualizuje odnośniki w danym rekordzie bazy. Zdjęcie używane
+w obu kontekstach ma dwie kopie. Pola tekstowe i dziennik audytowy pozostają
+bez zmian. Niepowiązane pliki pozostają w dotychczasowych lokalizacjach.
+
+**Migracja nie usuwa starych plików ani folderów i nie nadpisuje istniejących
+kopii.** Dotychczasowe adresy pozostają sprawne, także dla otwartych sesji
+operatorów i raportów. Backup bazy jest zapisywany przez wdrożenie w
+`.git/deploy-backups/`. Oryginalne obiekty MinIO pozostają zachowane.
+
+Podgląd bez zapisu (na serwerze, z katalogu `/opt/inspect-hub`, po wdrożeniu):
+
+```bash
+docker compose -p inspect-hub-production --env-file .env.production -f docker-compose.production.yaml exec -T api node dist/media/migrate-media.js --dry-run
+```
+
+Ręczne ponowienie migracji:
+
+```bash
+docker compose -p inspect-hub-production --env-file .env.production -f docker-compose.production.yaml exec -T api node dist/media/migrate-media.js --apply
+```
+
+Tryb `--dry-run` sprawdza istnienie źródeł i zgodność już istniejących kopii,
+ale nie tworzy brakujących kopii i nie zmienia bazy. Licznik `verified` oznacza
+w tym trybie sprawdzone źródła/kopie, a `forms` i `inspections` liczbę rekordów
+do aktualizacji. W trybie `--apply` licznik `verified` obejmuje wyłącznie kopie
+sprawdzone przed zmianą odnośników.
+
+Ponowienie jest bezpieczne: już przepisane adresy są pomijane, a istniejące
+kopie weryfikowane przed użyciem. Brak źródła, niezgodna kopia lub równoległa
+zmiana rekordu przerywa polecenie z błędem. Wcześniej ukończone rekordy mogą
+być już przepisane; obie lokalizacje nadal działają. Należy sprawdzić błąd
+i ponowić migrację. Starsze otwarte sesje mogą ponownie zapisać stary adres;
+kolejne uruchomienie migracji obejmie taki rekord.

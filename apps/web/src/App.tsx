@@ -2117,7 +2117,6 @@ function Login({ onLogin }: { onLogin: (session: Session) => void }) {
   );
 }
 
-
 function AdminPanel({ role }: { role: SessionUser["role"] }) {
   const canManageScada = role === "ADMIN";
   const { locale, t } = useI18n();
@@ -2400,7 +2399,9 @@ function AdminPanel({ role }: { role: SessionUser["role"] }) {
     setBusy(true);
     setUploadingImage(`${id}:instruction`);
     try {
-      updateQuestion(id, { instructionImageUrl: await uploadImage(file) });
+      updateQuestion(id, {
+        instructionImageUrl: await uploadImage(file, "forms"),
+      });
       setNotice(t("notice.instructionUploaded"));
     } catch (reason) {
       setNotice(
@@ -2421,7 +2422,7 @@ function AdminPanel({ role }: { role: SessionUser["role"] }) {
     setBusy(true);
     setUploadingImage(`${id}:${answer}`);
     try {
-      const imageUrl = await uploadImage(file);
+      const imageUrl = await uploadImage(file, "forms");
       updateQuestion(
         id,
         answer === "ok" ? { okImageUrl: imageUrl } : { nokImageUrl: imageUrl },
@@ -4027,7 +4028,7 @@ function OperatorPanel({
     if (!file) return;
     setUploadingPhotoId(questionId);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, "inspections");
       updateAnswer(questionId, url);
     } catch (error) {
       setNotice(

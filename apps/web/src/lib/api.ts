@@ -154,10 +154,14 @@ export async function downloadFile(path: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-export async function uploadImage(file: File): Promise<string> {
+export async function uploadImage(
+  file: File,
+  purpose: "forms" | "inspections",
+): Promise<string> {
   const uploadFile = await prepareImageForUpload(file);
   const body = new FormData();
   body.append("file", uploadFile);
+  body.append("purpose", purpose);
   const result = await api<{ objectName: string }>("/media/upload", {
     method: "POST",
     body,

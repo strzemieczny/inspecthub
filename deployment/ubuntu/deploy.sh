@@ -64,6 +64,9 @@ compose run --rm --no-deps api pnpm --filter @inspect-hub/database db:migrate:de
 # Dependencies were checked above; do not wait for the completed createbuckets job.
 step 'Start API and web and wait for health checks'
 compose up -d --no-deps --no-build --wait --wait-timeout 300 api web
+# The new API accepts both legacy and categorized paths throughout migration.
+step 'Copy and verify media into forms and inspections folders (keep originals)'
+compose run --rm --no-deps api node dist/media/migrate-media.js --apply
 step 'Check web admin route'
 compose exec -T web wget -q -O /dev/null http://127.0.0.1/pl/admin
 printf '%s\n' "$sha" > .git/inspect-hub-last-successful-deploy
