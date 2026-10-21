@@ -173,6 +173,135 @@ describe('InspectionsService public reports', () => {
     },
   );
 
+  describe('completeness filters', () => {
+    const row = (
+      id: string,
+      durationSeconds: number | null,
+      answerCorrections = 0,
+      value: unknown = true,
+      questionCount = 1,
+    ) => ({
+      publicReportId: id,
+      vinOrSerialNumber: id,
+      formId: 'form-1',
+      status: 'PASSED',
+      stationId: 'ST-01',
+      mesSynced: true,
+      createdAt: new Date('2026-10-20T12:00:00Z'),
+      durationSeconds,
+      answerCorrections,
+      answers: [{ questionId: 'q1', value }],
+      form: {
+        code: 'QC-01',
+        title: 'Kontrola',
+        version: 1,
+        questions: Array.from({ length: questionCount }, (_, index) => ({
+          id: `q${index + 1}`,
+          label: 'Pytanie',
+          type: 'BOOLEAN',
+        })),
+      },
+    });
+    const rows = () => [
+      row('fast', 9),
+      row('threshold', 10),
+      row('unknown-duration', null),
+      row('corrections', 60, 3),
+      row('two-corrections', 60, 2),
+      row('skipped', 60, 0, null),
+      row('false-answer', 60, 0, false),
+      row('zero-answer', 60, 0, 0),
+      row('long-form-fast', 19, 0, true, 10),
+      row('long-form-threshold', 20, 0, true, 10),
+    ];
+    const filters = {
+      from: '2026-10-20T00:00:00Z',
+      to: '2026-10-20T23:59:59Z',
+    };
+
+    it.each([
+      ['unusuallyFast', ['fast', 'long-form-fast']],
+      ['frequentCorrections', ['corrections']],
+      ['skippedQuestions', ['skipped']],
+      ['', rows().map((item) => item.publicReportId)],
+    ])(
+      'filters dashboard, comparison and exports consistently: %s',
+      async (completeness, expected) => {
+        findManyStations.mockResolvedValue([]);
+        findManyForms.mockResolvedValue([]);
+        countStations.mockResolvedValue(0);
+        findManyResults.mockResolvedValue(rows());
+
+        const dashboard = await service.getPublicDashboard({
+          ...filters,
+          completeness,
+        });
+        expect(dashboard.recent.map((item) => item.publicReportId)).toEqual(
+          expected,
+        );
+        expect(dashboard.summary.completedToday).toBe(expected.length);
+        expect(dashboard.summary.completedTrend).toBe(0);
+        const csv = await service.exportAnalytics(
+          { ...filters, completeness },
+          'csv',
+        );
+        const lines = csv.buffer.toString('utf8').split('\r\n').slice(1);
+        expect(lines).toHaveLength(expected.length);
+        expected.forEach((id) =>
+          expect(lines.some((line) => line.includes(`"${id}"`))).toBe(true),
+        );
+      },
+    );
+
+    it('finds matching reports before limiting the most recent reports', async () => {
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+      findManyResults
+        .mockResolvedValueOnce([
+          ...Array.from({ length: 100 }, (_, index) =>
+            row(`normal-${index}`, 60),
+          ),
+          row('older-fast', 5),
+        ])
+        .mockResolvedValueOnce([]);
+      const dashboard = await service.getPublicDashboard({
+        ...filters,
+        completeness: 'unusuallyFast',
+      });
+      expect(dashboard.recent.map((item) => item.publicReportId)).toEqual([
+        'older-fast',
+      ]);
+    });
+
+    it('combines completeness with the result filter', async () => {
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+      findManyResults.mockResolvedValue([
+        row('fast-pass', 5),
+        { ...row('fast-fail', 5), status: 'FAILED' },
+      ]);
+      const dashboard = await service.getPublicDashboard({
+        ...filters,
+        completeness: 'unusuallyFast',
+        result: 'fail',
+      });
+      expect(dashboard.recent.map((item) => item.publicReportId)).toEqual([
+        'fast-fail',
+      ]);
+    });
+
+    it('rejects unsupported filters', async () => {
+      await expect(
+        service.getPublicDashboard({ completeness: 'invalid' }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.exportAnalytics({ completeness: 'invalid' }, 'csv'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   it('returns a minimal public report based on the stored form revision', async () => {
     findUniqueReport.mockResolvedValue({
       id: 'result-original',

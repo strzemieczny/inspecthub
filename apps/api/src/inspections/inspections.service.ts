@@ -178,8 +178,10 @@ export class InspectionsService {
       result?: string;
       search?: string;
       timeZone?: string;
+      completeness?: string;
     } = {},
   ) {
+    this.validateCompletenessFilter(filters.completeness);
     const now = new Date();
     const defaultFrom = new Date(now);
     defaultFrom.setDate(defaultFrom.getDate() - 6);
@@ -284,25 +286,35 @@ export class InspectionsService {
         }),
         this.database.inspectionResult.findMany({
           where: previousWhere,
-          select: { status: true },
+          select: {
+            status: true,
+            answers: true,
+            durationSeconds: true,
+            answerCorrections: true,
+            form: { select: { questions: true } },
+          },
         }),
         this.database.station.count({ where: { active: true } }),
         this.database.station.count(),
       ]);
-    const results = rawResults.filter((item) =>
-      filters.result === 'pass'
-        ? isPassed(item.status)
-        : filters.result === 'fail'
-          ? !isPassed(item.status)
-          : true,
-    );
-    const previous = rawPrevious.filter((item) =>
-      filters.result === 'pass'
-        ? isPassed(item.status)
-        : filters.result === 'fail'
-          ? !isPassed(item.status)
-          : true,
-    );
+    const results = rawResults
+      .filter((item) => this.matchesCompleteness(item, filters.completeness))
+      .filter((item) =>
+        filters.result === 'pass'
+          ? isPassed(item.status)
+          : filters.result === 'fail'
+            ? !isPassed(item.status)
+            : true,
+      );
+    const previous = rawPrevious
+      .filter((item) => this.matchesCompleteness(item, filters.completeness))
+      .filter((item) =>
+        filters.result === 'pass'
+          ? isPassed(item.status)
+          : filters.result === 'fail'
+            ? !isPassed(item.status)
+            : true,
+      );
     const passed = results.filter((item) => isPassed(item.status)).length;
     const previousPassed = previous.filter((item) =>
       isPassed(item.status),
@@ -350,10 +362,9 @@ export class InspectionsService {
         total + answers.filter((answer) => !this.hasValue(answer.value)).length
       );
     }, 0);
-    const unusuallyFast = inspectionsWithDuration.filter((item) => {
-      const questions = item.form.questions as unknown as InspectionQuestion[];
-      return item.durationSeconds! < Math.max(10, questions.length * 2);
-    }).length;
+    const unusuallyFast = results.filter((item) =>
+      this.matchesCompleteness(item, 'unusuallyFast'),
+    ).length;
     const totalQuestions = results.reduce(
       (total, item) =>
         total + (item.form.questions as unknown as InspectionQuestion[]).length,
@@ -678,9 +689,11 @@ export class InspectionsService {
       result?: string;
       search?: string;
       timeZone?: string;
+      completeness?: string;
     },
     format: 'csv' | 'xlsx' | 'pdf',
   ) {
+    this.validateCompletenessFilter(filters.completeness);
     const now = new Date();
     const defaultFrom = new Date(now);
     defaultFrom.setDate(defaultFrom.getDate() - 6);
@@ -734,6 +747,8 @@ export class InspectionsService {
         productFamily: true,
         createdAt: true,
         answers: true,
+        durationSeconds: true,
+        answerCorrections: true,
         form: {
           select: { code: true, title: true, version: true, questions: true },
         },
@@ -743,13 +758,15 @@ export class InspectionsService {
     });
     const passedStatus = (status: string) =>
       ['PASSED', 'PASS', 'OK', 'ZDAŁ', 'ZDAL'].includes(status.toUpperCase());
-    const filteredRows = rows.filter((row) =>
-      filters.result === 'pass'
-        ? passedStatus(row.status)
-        : filters.result === 'fail'
-          ? !passedStatus(row.status)
-          : true,
-    );
+    const filteredRows = rows
+      .filter((item) => this.matchesCompleteness(item, filters.completeness))
+      .filter((row) =>
+        filters.result === 'pass'
+          ? passedStatus(row.status)
+          : filters.result === 'fail'
+            ? !passedStatus(row.status)
+            : true,
+      );
     const exportRows = filteredRows.map((row) => {
       const answers = row.answers as unknown as InspectionAnswer[];
       const answerMap = new Map(
@@ -1278,6 +1295,43 @@ export class InspectionsService {
     } catch {
       return null;
     }
+  }
+
+  private validateCompletenessFilter(filter?: string) {
+    if (
+      filter &&
+      !['unusuallyFast', 'frequentCorrections', 'skippedQuestions'].includes(
+        filter,
+      )
+    ) {
+      throw new BadRequestException(
+        'Nieprawidłowy filtr kompletności inspekcji',
+      );
+    }
+  }
+
+  private matchesCompleteness(
+    item: {
+      durationSeconds: number | null;
+      answerCorrections: number;
+      answers: Prisma.JsonValue;
+      form: { questions: Prisma.JsonValue };
+    },
+    filter?: string,
+  ): boolean {
+    if (filter === 'unusuallyFast') {
+      const questions = item.form.questions as unknown as InspectionQuestion[];
+      return (
+        item.durationSeconds !== null &&
+        item.durationSeconds < Math.max(10, questions.length * 2)
+      );
+    }
+    if (filter === 'frequentCorrections') return item.answerCorrections >= 3;
+    if (filter === 'skippedQuestions') {
+      const answers = item.answers as unknown as InspectionAnswer[];
+      return answers.some((answer) => !this.hasValue(answer.value));
+    }
+    return true;
   }
 
   private hasValue(value: unknown): boolean {

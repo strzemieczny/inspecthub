@@ -334,6 +334,7 @@ export default function Dashboard() {
     formIds: [] as string[],
     result: "",
     search: "",
+    completeness: "",
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
   const [heatmapType, setHeatmapType] = useState<
@@ -341,6 +342,15 @@ export default function Dashboard() {
   >("questionStation");
   const [exportBusy, setExportBusy] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState("");
+
+  const completenessOptions = [
+    { value: "skippedQuestions", label: t("dashboard.skippedQuestions") },
+    { value: "unusuallyFast", label: t("dashboard.unusuallyFast") },
+    { value: "frequentCorrections", label: t("dashboard.frequentCorrections") },
+  ];
+  const activeCompletenessLabel = completenessOptions.find(
+    (option) => option.value === appliedFilters.completeness,
+  )?.label;
 
   const dateRangeValid = validDashboardRange(filters.from, filters.to);
 
@@ -377,6 +387,7 @@ export default function Dashboard() {
     }
   }
   const reportsRef = useRef<HTMLElement>(null);
+  const pendingReportsScroll = useRef(false);
 
   const drillDown = (
     patch: Partial<typeof filters>,
@@ -385,16 +396,7 @@ export default function Dashboard() {
     const next = { ...appliedFilters, ...patch };
     setFilters(next);
     setAppliedFilters(next);
-    if (options.scroll !== false) {
-      window.setTimeout(
-        () =>
-          reportsRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          }),
-        0,
-      );
-    }
+    pendingReportsScroll.current = options.scroll !== false;
   };
 
   useEffect(() => {
@@ -416,6 +418,16 @@ export default function Dashboard() {
       active = false;
     };
   }, [appliedFilters]);
+
+  useEffect(() => {
+    if (connection === "live" && pendingReportsScroll.current) {
+      reportsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      pendingReportsScroll.current = false;
+    }
+  }, [connection, data]);
 
   const maxTotal = Math.max(...data.daily.map((item) => item.total), 1);
   const standards = Array.from(
@@ -656,6 +668,15 @@ export default function Dashboard() {
               ]}
               onChange={(result) => setFilters({ ...filters, result })}
             />
+            <DashboardFilterSelect
+              label={t("dashboard.completeness")}
+              placeholder={t("dashboard.allInspections")}
+              value={filters.completeness}
+              options={completenessOptions}
+              onChange={(completeness) =>
+                setFilters({ ...filters, completeness })
+              }
+            />
             <label className="search-filter">
               Produkt
               <input
@@ -680,6 +701,7 @@ export default function Dashboard() {
                     formIds: [],
                     result: "",
                     search: "",
+                    completeness: "",
                   };
                   setFilters(next);
                   setAppliedFilters(next);
@@ -953,30 +975,73 @@ export default function Dashboard() {
                     </strong>
                   </div>
                 </article>
-                <article>
+                <button
+                  type="button"
+                  className="completeness-filter"
+                  aria-pressed={
+                    appliedFilters.completeness === "skippedQuestions"
+                  }
+                  title={t("dashboard.filterReports")}
+                  onClick={() =>
+                    drillDown({
+                      completeness:
+                        appliedFilters.completeness === "skippedQuestions"
+                          ? ""
+                          : "skippedQuestions",
+                    })
+                  }
+                >
                   <span className="completeness-icon skipped">○</span>
                   <div>
                     <small>{t("dashboard.skippedQuestions")}</small>
                     <strong>{data.completeness.skippedQuestions}</strong>
                     <em>{data.completeness.skippedRate.toFixed(1)}%</em>
                   </div>
-                </article>
-                <article>
+                </button>
+                <button
+                  type="button"
+                  className="completeness-filter"
+                  aria-pressed={appliedFilters.completeness === "unusuallyFast"}
+                  title={t("dashboard.filterReports")}
+                  onClick={() =>
+                    drillDown({
+                      completeness:
+                        appliedFilters.completeness === "unusuallyFast"
+                          ? ""
+                          : "unusuallyFast",
+                    })
+                  }
+                >
                   <span className="completeness-icon fast">⚡</span>
                   <div>
                     <small>{t("dashboard.unusuallyFast")}</small>
                     <strong>{data.completeness.unusuallyFast}</strong>
                     <em>{t("dashboard.fastThreshold")}</em>
                   </div>
-                </article>
-                <article>
+                </button>
+                <button
+                  type="button"
+                  className="completeness-filter"
+                  aria-pressed={
+                    appliedFilters.completeness === "frequentCorrections"
+                  }
+                  title={t("dashboard.filterReports")}
+                  onClick={() =>
+                    drillDown({
+                      completeness:
+                        appliedFilters.completeness === "frequentCorrections"
+                          ? ""
+                          : "frequentCorrections",
+                    })
+                  }
+                >
                   <span className="completeness-icon corrections">↻</span>
                   <div>
                     <small>{t("dashboard.frequentCorrections")}</small>
                     <strong>{data.completeness.frequentCorrections}</strong>
                     <em>{t("dashboard.correctionsThreshold")}</em>
                   </div>
-                </article>
+                </button>
               </div>
               {data.completeness.durationByForm.length > 0 && (
                 <div className="duration-by-form">
@@ -1189,6 +1254,22 @@ export default function Dashboard() {
                   {t("dashboard.reportCount", { count: data.recent.length })}
                 </span>
               </div>
+              {activeCompletenessLabel && (
+                <div className="completeness-active-filter" role="status">
+                  <span>
+                    {t("dashboard.completeness")}:{" "}
+                    <strong>{activeCompletenessLabel}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      drillDown({ completeness: "" }, { scroll: false })
+                    }
+                  >
+                    {t("dashboard.clearCompleteness")}
+                  </button>
+                </div>
+              )}
               <div className="table-scroll">
                 <table>
                   <thead>
