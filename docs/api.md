@@ -117,6 +117,23 @@ Authorization: Bearer <token>
 }
 ```
 
+### Czyszczenie treści pytań i odpowiedzi
+
+Przy tworzeniu, kopiowaniu i zapisie nowej rewizji formularza API normalizuje
+pytania, opisy, opcje wyboru, tekstowe wartości oczekiwane i tłumaczenia. Usuwa
+odstępy na brzegach, zamienia wielokrotne i nierozdzielające spacje na pojedyncze,
+usuwając także niewidoczne artefakty kopiowania i znaki sterujące. Zachowuje
+wielkość liter, interpunkcję i znaki narodowe; opisy zachowują podział na akapity.
+Kolejność opcji i ich tłumaczeń pozostaje zachowana. Puste po czyszczeniu pytania
+oraz opcje wyboru powodują błąd 400.
+
+Odpowiedzi tekstowe i wybrane opcje są czyszczone przed walidacją wymaganych
+odpowiedzi, oceną OK/NOK i zapisem inspekcji. Tekstowe wartości oczekiwane są
+porównywane po tej samej normalizacji, także dla starszych formularzy. Pusta
+po czyszczeniu odpowiedź nie spełnia wymagania obowiązkowego pytania. Czyszczenie
+nie dotyczy identyfikatorów, adresów zdjęć ani wartości liczbowych i logicznych.
+Zapisane wcześniej rewizje formularzy i inspekcje nie są nadpisywane.
+
 ### Upload obrazu
 
 ```sh

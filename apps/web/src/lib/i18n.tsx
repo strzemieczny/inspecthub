@@ -56,6 +56,17 @@ const translations = {
     "common.qualityOperations": "OPERACJE JAKOŚCIOWE",
     "nav.home": "Strona główna",
     "nav.openStation": "Otwórz stanowisko",
+    "form.questionOrder": "Kolejność pytań",
+    "form.questionOrderHelp":
+      "Przeciągnij pytanie za uchwyt, użyj strzałek lub wybierz pozycję. Kliknij treść, aby przejść do edycji.",
+    "form.questionMoved":
+      "Przeniesiono pytanie „{{label}}” na pozycję {{position}} z {{total}}.",
+    "form.untitledQuestion": "Pytanie bez treści",
+    "form.dragQuestion": "Przeciągnij pytanie: {{label}}",
+    "form.editOrderedQuestion": "Edytuj pytanie: {{label}}",
+    "form.questionPosition": "Pozycja pytania: {{label}}",
+    "form.moveQuestionUp": "Przenieś wyżej: {{label}}",
+    "form.moveQuestionDown": "Przenieś niżej: {{label}}",
     "form.translations": "Tłumaczenia pytania",
     "form.translationsHelp": "Puste pola użyją polskiej wersji bazowej.",
     "form.translatedLabel": "Treść pytania",
@@ -558,6 +569,17 @@ const translations = {
     "common.qualityOperations": "QUALITY OPERATIONS",
     "nav.home": "Home",
     "nav.openStation": "Open inspection station",
+    "form.questionOrder": "Question order",
+    "form.questionOrderHelp":
+      "Drag a question by its handle, use the arrows or select a position. Click the text to edit.",
+    "form.questionMoved":
+      "Moved “{{label}}” to position {{position}} of {{total}}.",
+    "form.untitledQuestion": "Untitled question",
+    "form.dragQuestion": "Drag question: {{label}}",
+    "form.editOrderedQuestion": "Edit question: {{label}}",
+    "form.questionPosition": "Question position: {{label}}",
+    "form.moveQuestionUp": "Move up: {{label}}",
+    "form.moveQuestionDown": "Move down: {{label}}",
     "form.translations": "Question translations",
     "form.translationsHelp": "Empty fields fall back to the Polish source.",
     "form.translatedLabel": "Question text",
@@ -1052,6 +1074,17 @@ const translations = {
     "common.qualityOperations": "ОПЕРАЦІЇ З ЯКОСТІ",
     "nav.home": "Головна",
     "nav.openStation": "Відкрити станцію контролю",
+    "form.questionOrder": "Порядок запитань",
+    "form.questionOrderHelp":
+      "Перетягніть запитання за ручку, скористайтеся стрілками або виберіть позицію. Натисніть текст, щоб редагувати.",
+    "form.questionMoved":
+      "Запитання «{{label}}» переміщено на позицію {{position}} з {{total}}.",
+    "form.untitledQuestion": "Запитання без тексту",
+    "form.dragQuestion": "Перетягнути запитання: {{label}}",
+    "form.editOrderedQuestion": "Редагувати запитання: {{label}}",
+    "form.questionPosition": "Позиція запитання: {{label}}",
+    "form.moveQuestionUp": "Перемістити вище: {{label}}",
+    "form.moveQuestionDown": "Перемістити нижче: {{label}}",
     "form.translations": "Переклади питання",
     "form.translationsHelp":
       "Для порожніх полів буде використано базову польську версію.",

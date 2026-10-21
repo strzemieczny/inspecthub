@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@inspect-hub/database';
 import { DatabaseService } from '../database/database.service';
 import { FormsService } from './forms.service';
@@ -102,6 +102,89 @@ describe('form revision authors', () => {
     );
   });
 
+  it('cleans questions, expected answers and translations on create, revision and copy', async () => {
+    const dirtyQuestion = {
+      id: 'q1',
+      type: 'SELECT',
+      isRequired: true,
+      label: ' \ufeffCzy  część jest\u00a0OK?\u200b ',
+      description: '  Krok  1. \r\n  Krok  2.  ',
+      options: ['  Tak  ', ' Nie\u00a0  dotyczy  '],
+      expectedValue: '  Nie  dotyczy\ufeff ',
+      translations: {
+        en: {
+          label: ' Is  it OK? ',
+          description: ' First  step.\n Next  step. ',
+          options: [' Yes ', ' Not  applicable '],
+        },
+        uk: { label: '  ', options: [' Так ', ' Не  стосується '] },
+      },
+      okImageUrl: 'https://example.com/a%20b.png?token=a+b',
+    };
+    const legacy = { ...stored, questions: [dirtyQuestion] };
+    database.form.findUnique
+      .mockResolvedValueOnce(legacy)
+      .mockResolvedValueOnce(legacy);
+    database.form.findFirst.mockResolvedValueOnce(legacy);
+    await service.create(
+      {
+        ...stored,
+        questions: [dirtyQuestion],
+        processIds: ['process-1'],
+      } as CreateFormDto,
+      'author-1',
+    );
+    await service.update(stored.id, { title: 'Rewizja' }, 'author-1');
+    await service.duplicate(
+      stored.id,
+      { title: 'Kopia', code: 'COPY' },
+      'author-1',
+    );
+    for (const [input] of create.mock.calls) {
+      expect(input.data.questions).toEqual([
+        expect.objectContaining({
+          id: 'q1',
+          label: 'Czy część jest OK?',
+          description: 'Krok 1.\nKrok 2.',
+          options: ['Tak', 'Nie dotyczy'],
+          expectedValue: 'Nie dotyczy',
+          translations: {
+            en: {
+              label: 'Is it OK?',
+              description: 'First step.\nNext step.',
+              options: ['Yes', 'Not applicable'],
+            },
+            uk: {
+              label: undefined,
+              description: undefined,
+              options: ['Так', 'Не стосується'],
+            },
+          },
+          okImageUrl: dirtyQuestion.okImageUrl,
+        }),
+      ]);
+    }
+    expect(dirtyQuestion.label).toContain('  ');
+    expect(dirtyQuestion.options).toEqual(['  Tak  ', ' Nie\u00a0  dotyczy  ']);
+  });
+
+  it.each([
+    { label: ' \u200b  ', type: 'TEXT' },
+    { label: 'Wybór', type: 'SELECT', options: ['Tak', ' \ufeff '] },
+  ])('rejects text that is empty after cleaning: %j', async (question) => {
+    await expect(
+      service.create(
+        {
+          ...stored,
+          processIds: ['process-1'],
+          questions: [{ id: 'q1', isRequired: true, ...question }],
+        } as CreateFormDto,
+        'author-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('returns immutable author snapshots and explicitly marks missing historical authors', async () => {
     database.form.findMany.mockResolvedValue([
       stored,
@@ -122,10 +205,13 @@ describe('form revision authors', () => {
 
   it('rejects deleting a form referenced by existing inspections with 409 Conflict', async () => {
     remove.mockRejectedValueOnce(
-      new Prisma.PrismaClientKnownRequestError('Foreign key constraint failed', {
-        code: 'P2003',
-        clientVersion: '6.19.3',
-      }),
+      new Prisma.PrismaClientKnownRequestError(
+        'Foreign key constraint failed',
+        {
+          code: 'P2003',
+          clientVersion: '6.19.3',
+        },
+      ),
     );
     await expect(service.remove(stored.id)).rejects.toThrow(ConflictException);
   });

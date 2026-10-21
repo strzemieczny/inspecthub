@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@inspect-hub/database';
 import type { InspectionForm, InspectionQuestion } from '@inspect-hub/types';
+import { normalizeText } from '../common/normalize-text';
 import { DatabaseService } from '../database/database.service';
 import { CreateFormDto, DuplicateFormDto, UpdateFormDto } from './dto/form.dto';
 
@@ -79,7 +81,9 @@ export class FormsService {
         requiresLogin: source.requiresLogin,
         nokStreakThreshold: source.nokStreakThreshold,
         allowedStatuses: source.allowedStatuses as Prisma.InputJsonValue,
-        questions: source.questions as Prisma.InputJsonValue,
+        questions: this.portableQuestions(
+          source.questions as unknown as InspectionQuestion[],
+        ),
         processes: {
           connect: source.processes.map((process) => ({ id: process.id })),
         },
@@ -129,9 +133,10 @@ export class FormsService {
         allowedStatuses:
           (dto.allowedStatuses as Prisma.InputJsonValue | undefined) ??
           (latest.allowedStatuses as Prisma.InputJsonValue),
-        questions:
-          (dto.questions ? this.portableQuestions(dto.questions) : undefined) ??
-          (latest.questions as Prisma.InputJsonValue),
+        questions: this.portableQuestions(
+          dto.questions ??
+            (latest.questions as unknown as InspectionQuestion[]),
+        ),
         processes: {
           connect: (
             dto.processIds ?? latest.processes.map((process) => process.id)
@@ -238,14 +243,63 @@ export class FormsService {
   private portableQuestions(
     questions: InspectionQuestion[],
   ): Prisma.InputJsonValue {
-    return questions.map((question) => ({
-      ...question,
-      expectedValue:
-        question.type === 'PHOTO_UPLOAD' ? undefined : question.expectedValue,
-      instructionImageUrl: this.portableMediaUrl(question.instructionImageUrl),
-      okImageUrl: this.portableMediaUrl(question.okImageUrl),
-      nokImageUrl: this.portableMediaUrl(question.nokImageUrl),
-    })) as unknown as Prisma.InputJsonValue;
+    return questions.map((question) => {
+      const label = normalizeText(question.label);
+      if (!label) {
+        throw new BadRequestException('Treść pytania nie może być pusta');
+      }
+      const options = question.options?.map((option) => normalizeText(option));
+      if (question.type === 'SELECT' && options?.some((option) => !option)) {
+        throw new BadRequestException(
+          `Pytanie „${label}” zawiera pustą opcję odpowiedzi`,
+        );
+      }
+      return {
+        ...question,
+        label,
+        description:
+          typeof question.description === 'string'
+            ? normalizeText(question.description, true)
+            : undefined,
+        options,
+        expectedValue:
+          question.type === 'PHOTO_UPLOAD'
+            ? undefined
+            : typeof question.expectedValue === 'string'
+              ? normalizeText(question.expectedValue)
+              : question.expectedValue,
+        // Preserve option order: clients map translated choices by their index.
+        translations: question.translations
+          ? Object.fromEntries(
+              Object.entries(question.translations)
+                .filter(([, translation]) => translation != null)
+                .map(([language, translation]) => [
+                  language,
+                  {
+                    ...translation,
+                    label:
+                      typeof translation.label === 'string'
+                        ? normalizeText(translation.label) || undefined
+                        : undefined,
+                    description:
+                      typeof translation.description === 'string'
+                        ? normalizeText(translation.description, true) ||
+                          undefined
+                        : undefined,
+                    options: translation.options?.map((option) =>
+                      normalizeText(option),
+                    ),
+                  },
+                ]),
+            )
+          : undefined,
+        instructionImageUrl: this.portableMediaUrl(
+          question.instructionImageUrl,
+        ),
+        okImageUrl: this.portableMediaUrl(question.okImageUrl),
+        nokImageUrl: this.portableMediaUrl(question.nokImageUrl),
+      };
+    }) as unknown as Prisma.InputJsonValue;
   }
 
   private portableMediaUrl(url?: string): string | undefined {

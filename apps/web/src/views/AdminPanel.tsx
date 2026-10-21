@@ -1,3 +1,5 @@
+import { QuestionOrderEditor } from "../components/QuestionOrderEditor";
+import { moveQuestion } from "../lib/question-order";
 import { AdminSidebar } from "../components/AdminSidebar";
 import { SkeletonImage } from "../components/SkeletonImage";
 import { ViewSkeleton } from "../components/ViewSkeleton";
@@ -868,9 +870,22 @@ export default function AdminPanel({ role }: { role: SessionUser["role"] }) {
                     <div className="tip">{t("form.processTip")}</div>
                   </section>
                   <section className="questions-column">
+                    {questions.length > 1 && (
+                      <QuestionOrderEditor
+                        key={editingForm?.id ?? "new-form"}
+                        questions={questions}
+                        disabled={busy}
+                        onMove={(id, targetIndex) =>
+                          setQuestions((current) =>
+                            moveQuestion(current, id, targetIndex),
+                          )
+                        }
+                      />
+                    )}
                     {questions.map((question, index) => (
                       <article
                         className="panel question-card"
+                        id={`question-editor-${question.id}`}
                         key={question.id}
                       >
                         <div className="question-head">

@@ -804,6 +804,115 @@ describe('InspectionsService public reports', () => {
     });
   });
 
+  describe('answer text cleanup', () => {
+    beforeEach(() => {
+      (database.form.findUnique as jest.Mock).mockResolvedValue({
+        id: 'form-1',
+        code: 'QC-01',
+        allowedStatuses: ['PASSED', 'FAILED'],
+        processes: [{ id: 'process-1' }],
+        questions: [
+          {
+            id: 'text',
+            label: 'Odpowiedź',
+            type: 'TEXT',
+            isRequired: true,
+            expectedValue: '  Część  OK\u00a0 ',
+          },
+          {
+            id: 'select',
+            label: 'Wybór',
+            type: 'SELECT',
+            isRequired: false,
+            expectedValue: 'Nie  dotyczy ',
+          },
+          {
+            id: 'photo',
+            label: 'Zdjęcie',
+            type: 'PHOTO_UPLOAD',
+            isRequired: false,
+          },
+          {
+            id: 'check',
+            label: 'Kontrola',
+            type: 'CHECKBOX',
+            isRequired: false,
+          },
+          {
+            id: 'number',
+            label: 'Pomiar',
+            type: 'NUMBER_RANGE',
+            isRequired: false,
+          },
+        ],
+      });
+      findUniqueStation.mockResolvedValue({
+        active: true,
+        processId: 'process-1',
+        process: { id: 'process-1' },
+      });
+      createResult.mockImplementation(({ data }) =>
+        Promise.resolve({ id: 'result-clean', ...data }),
+      );
+    });
+    const dto = {
+      formId: 'form-1',
+      vinOrSerialNumber: 'SN-100',
+      stationId: 'ST-01',
+      routeCheckId: 'route-check-1',
+      status: 'FAILED',
+    };
+
+    it('saves cleaned text and assesses it consistently with legacy expected values', async () => {
+      const photoUrl = '/api/media/object?name=image%20test.png&token=a+b';
+      const answers = [
+        { questionId: 'text', value: ' \ufeffCzęść\u00a0   OK\u200b ' },
+        { questionId: 'select', value: ' Nie\t dotyczy\n' },
+        { questionId: 'photo', value: photoUrl },
+        { questionId: 'check', value: false },
+        { questionId: 'number', value: 0 },
+      ];
+      await service.create({ ...dto, answers }, 'operator-1');
+      expect(createResult).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'PASSED',
+          answers: [
+            { questionId: 'text', value: 'Część OK' },
+            { questionId: 'select', value: 'Nie dotyczy' },
+            ...answers.slice(2),
+          ],
+        }),
+      });
+      expect(answers[0].value).toContain('   ');
+    });
+
+    it('rejects required answers containing only whitespace and invisible artifacts', async () => {
+      await expect(
+        service.create(
+          {
+            ...dto,
+            answers: [{ questionId: 'text', value: ' \u200b\ufeff\t ' }],
+          },
+          'operator-1',
+        ),
+      ).rejects.toThrow('Brak odpowiedzi');
+      expect(createResult).not.toHaveBeenCalled();
+    });
+
+    it('keeps meaningful differences NOK after cleaning', async () => {
+      await service.create(
+        { ...dto, answers: [{ questionId: 'text', value: '  Część NOK  ' }] },
+        'operator-1',
+      );
+      expect(createResult).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'FAILED',
+          answers: [{ questionId: 'text', value: 'Część NOK' }],
+        }),
+      });
+    });
+  });
+
   it('determines the final status from answers when every expected value is configured', async () => {
     (database.form.findUnique as jest.Mock).mockResolvedValue({
       id: 'form-1',

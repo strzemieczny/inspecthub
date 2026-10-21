@@ -5,6 +5,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { normalizeText } from '../common/normalize-text';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@inspect-hub/database';
 import type {
@@ -1076,8 +1077,19 @@ export class InspectionsService {
       throw new BadRequestException('Zgoda SCADA została już wykorzystana');
 
     const questions = form.questions as unknown as InspectionQuestion[];
+    const questionTypes = new Map(
+      questions.map((question) => [question.id, question.type]),
+    );
+    const answers = dto.answers.map((answer) => ({
+      ...answer,
+      value:
+        typeof answer.value === 'string' &&
+        ['TEXT', 'SELECT'].includes(questionTypes.get(answer.questionId) ?? '')
+          ? normalizeText(answer.value)
+          : answer.value,
+    }));
     const answerMap = new Map(
-      dto.answers.map((answer) => [answer.questionId, answer.value]),
+      answers.map((answer) => [answer.questionId, answer.value]),
     );
     const missing = questions.filter(
       (question) =>
@@ -1135,7 +1147,7 @@ export class InspectionsService {
           stationId,
           operatorId,
           status,
-          answers: dto.answers as unknown as Prisma.InputJsonValue,
+          answers: answers as unknown as Prisma.InputJsonValue,
           durationSeconds: dto.durationSeconds,
           answerCorrections: dto.answerCorrections ?? 0,
           originalInspectionId,
@@ -1320,7 +1332,12 @@ export class InspectionsService {
   ): PublicAnswerAssessment {
     if (question.type === 'PHOTO_UPLOAD') return null;
     if (question.expectedValue !== undefined && value !== null) {
-      return value === question.expectedValue ? 'OK' : 'NOK';
+      const actual = typeof value === 'string' ? normalizeText(value) : value;
+      const expected =
+        typeof question.expectedValue === 'string'
+          ? normalizeText(question.expectedValue)
+          : question.expectedValue;
+      return actual === expected ? 'OK' : 'NOK';
     }
     if (
       question.type === 'NUMBER_RANGE' &&
