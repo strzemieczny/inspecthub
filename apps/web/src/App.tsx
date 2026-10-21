@@ -1385,7 +1385,7 @@ function Dashboard() {
               <button
                 className="filter-apply"
                 disabled={connection === "loading" || !dateRangeValid}
-                onClick={() => setAppliedFilters(filters)}
+                onClick={() => setAppliedFilters({ ...filters })}
               >
                 {connection === "loading" ? "Analizuję…" : "Analizuj"}
               </button>
