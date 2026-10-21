@@ -1,0 +1,342 @@
+/* Keep the paper layout independent of the viewport and selected theme. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  :root {
+    color-scheme: light;
+    font-size: 10pt;
+  }
+
+  html,
+  body,
+  #root,
+  .public-report-shell {
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #root,
+  .public-report-shell {
+    width: auto;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .public-report-shell,
+  .public-report-shell * {
+    box-sizing: border-box;
+  }
+
+  .print-hidden,
+  nav,
+  .report-photo-trigger-hint {
+    display: none !important;
+  }
+
+  .public-report-shell {
+    --dark-text: #202c28;
+    --dark-muted: #58645f;
+    --dark-border: #d4dcd7;
+    --dark-surface: #fff;
+    --dark-surface-raised: #fff;
+    color: #202c28 !important;
+    line-height: 1.35;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .public-report-shell .public-report {
+    /* Keep content clear of the print viewport's right edge, including
+       fractional pixel rounding and narrower printer page settings. */
+    width: calc(100% - 6mm);
+    max-width: 180mm;
+    margin: 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+    font-size: 9pt;
+  }
+
+  .public-report .report-heading {
+    flex-direction: row;
+    align-items: center;
+    gap: 6mm;
+    padding-bottom: 3mm;
+    border-bottom: 0.5mm solid #254e3d;
+    break-inside: avoid;
+  }
+
+  .public-report .report-heading > div,
+  .public-report .report-answer > div {
+    min-width: 0;
+  }
+
+  .public-report .report-heading > div {
+    flex: 1;
+  }
+
+  .public-report .report-heading p {
+    overflow-wrap: anywhere;
+  }
+
+  .public-report .report-heading .eyebrow {
+    margin: 0 0 1mm;
+    color: #456352;
+    font-size: 8pt;
+    letter-spacing: 0.04em;
+  }
+
+  .public-report .report-heading h1 {
+    margin: 0 0 1mm;
+    font-size: 20pt;
+    line-height: 1.15;
+  }
+
+  .public-report .report-heading p:last-child {
+    font-size: 8pt;
+  }
+
+  .public-report .report-result {
+    padding: 2mm 3mm;
+    border: 0.25mm solid currentColor;
+    border-radius: 1.5mm;
+    font-size: 10pt;
+    letter-spacing: 0;
+  }
+
+  .public-report .report-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 3mm 0;
+    padding: 2mm 0;
+    border-bottom: 0.25mm solid #d4dcd7;
+    break-inside: avoid;
+  }
+
+  .public-report .report-summary-grid div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2mm;
+    padding: 0 4mm;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .public-report .report-summary-grid div:first-child {
+    padding-left: 0;
+  }
+  .public-report .report-summary-grid div:last-child {
+    padding-right: 0;
+  }
+  .public-report .report-summary-grid div + div {
+    border-left: 0.25mm solid #d4dcd7;
+  }
+
+  .public-report .report-summary-grid span,
+  .public-report .report-details dt {
+    font-size: 7pt;
+    line-height: 1.4;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .public-report .report-summary-grid strong {
+    margin: 0;
+    font-size: 14pt;
+    line-height: 1;
+  }
+
+  /* A section can span pages; only its individual records stay together. */
+  .public-report .report-section {
+    margin-top: 4mm;
+    break-inside: auto;
+  }
+
+  .public-report .report-section h2 {
+    margin: 0 0 1.5mm;
+    font-size: 10pt;
+    line-height: 1.3;
+    break-after: avoid;
+  }
+
+  .public-report .report-details {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 0;
+    border-top: 0.25mm solid #d4dcd7;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .public-report .report-details div {
+    min-width: 0;
+    padding: 1.5mm 2mm 1.5mm 0;
+    border-right: 0;
+    border-bottom: 0.25mm solid #e2e7e4;
+    break-inside: avoid;
+  }
+
+  .public-report .report-details dd {
+    margin: 0.5mm 0 0;
+    font-size: 8.5pt;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .public-report .sync-status {
+    padding: 0;
+    background: transparent;
+    font-size: 8pt;
+    border-radius: 0;
+  }
+
+  .public-report .report-answer {
+    grid-template-columns: 7mm minmax(0, 1fr) 15mm;
+    gap: 2mm;
+    padding: 2mm 0;
+    border-color: #d4dcd7;
+    break-inside: avoid;
+  }
+
+  .public-report .answer-index {
+    padding-top: 0.2mm;
+    font-size: 8pt;
+  }
+
+  .public-report .report-answer h3 {
+    margin: 0 0 0.7mm;
+    font-size: 9pt;
+    line-height: 1.35;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .public-report .report-answer p {
+    font-size: 8.5pt;
+    line-height: 1.35;
+    orphans: 2;
+    widows: 2;
+    overflow-wrap: anywhere;
+  }
+
+  .public-report .answer-assessment {
+    grid-column: 3;
+    justify-self: end;
+    min-width: 13mm;
+    padding: 0.6mm 1mm;
+    border: 0.2mm solid currentColor;
+    border-radius: 1mm;
+    font-size: 7.5pt;
+    line-height: 1.3;
+  }
+
+  .public-report .question-severity {
+    margin: 0 0 1mm;
+    font-size: 6.5pt;
+  }
+
+  .public-report .report-photo-trigger {
+    min-width: 0;
+    max-width: 100%;
+    border-radius: 1mm;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .public-report .report-answer img {
+    width: auto;
+    height: auto;
+    max-width: min(100%, 100mm);
+    max-height: 42mm;
+    border: 0.2mm solid #d4dcd7;
+    border-radius: 1mm;
+    object-fit: contain;
+    opacity: 1;
+  }
+
+  .public-report .image-skeleton {
+    display: none;
+  }
+  .public-report .image-skeleton-frame {
+    overflow: visible;
+  }
+
+  .public-report .report-tree-section {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .public-report .report-tree ul {
+    gap: 1mm;
+    margin: 1mm 0 0 2mm;
+    padding-left: 3mm;
+  }
+
+  .public-report .report-tree ul::before {
+    top: -1mm;
+    bottom: 4mm;
+  }
+  .public-report .report-tree ul > li::before {
+    left: -3mm;
+    width: 3mm;
+  }
+
+  .public-report .report-tree-node {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2mm;
+    padding: 1.5mm 2mm;
+    border-radius: 1mm;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .public-report .report-tree-node-copy {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.5mm 2mm;
+  }
+
+  .public-report .report-tree-node-copy strong,
+  .public-report .report-tree-node-copy small {
+    font-size: 7.5pt;
+  }
+  .public-report .report-tree-node-copy code {
+    grid-column: 1 / -1;
+    font-size: 6.5pt;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+  .public-report .report-tree-action {
+    display: none;
+  }
+  .public-report .report-tree-result {
+    padding: 0.5mm 1.5mm;
+    font-size: 7pt;
+  }
+
+  .public-report .report-footer {
+    margin-top: 3mm;
+    padding-top: 2mm;
+    border-color: #d4dcd7;
+    font-size: 7pt;
+    break-inside: avoid;
+  }
+}

@@ -9,6 +9,7 @@ import { SettingsMenu, useI18n } from "../lib/i18n";
 import { appPath, appRoute } from "../lib/routing";
 
 import { ReportSearch } from "../components/ReportSearch";
+import "./PublicReport.print.css";
 export default function PublicReport({
   publicReportId,
 }: {
@@ -358,6 +359,7 @@ export default function PublicReport({
                   >
                     <SkeletonImage
                       src={answer.imageUrl}
+                      loading="eager"
                       alt={t("report.photo", { label: photoLabel(answer) })}
                     />
                     <span

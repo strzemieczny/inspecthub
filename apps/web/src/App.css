@@ -5351,89 +5351,6 @@ label.check {
   }
 }
 
-@media print {
-  @page {
-    margin: 10mm;
-  }
-  :root {
-    font-size: 12px;
-  }
-  :root,
-  body,
-  .public-report-shell {
-    background: #fff;
-  }
-  .print-hidden,
-  nav {
-    display: none !important;
-  }
-  .public-report {
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-  }
-  .report-heading {
-    gap: 1.2rem;
-    padding-bottom: 0.75rem;
-  }
-  .report-heading h1 {
-    font-size: 2rem;
-  }
-  .report-result {
-    padding: 0.55rem 0.8rem;
-  }
-  .report-summary-grid {
-    gap: 0.7rem;
-    margin: 0.75rem 0;
-  }
-  .report-summary-grid div {
-    padding: 0.8rem;
-  }
-  .report-summary-grid strong {
-    font-size: 1.5rem;
-  }
-  .report-section {
-    margin-top: 0.9rem;
-  }
-  .report-section h2 {
-    margin-bottom: 0.65rem;
-    font-size: 1.1rem;
-  }
-  .report-details div {
-    padding: 0.65rem 0.8rem;
-  }
-  .report-answer {
-    grid-template-columns: 30px minmax(0, 1fr) auto;
-    gap: 0.7rem;
-    padding: 0.75rem 0;
-  }
-  .report-answer h3 {
-    margin-bottom: 0.3rem;
-    font-size: 0.9rem;
-  }
-  .report-answer img {
-    max-width: 120mm;
-    max-height: 55mm;
-  }
-  .answer-assessment {
-    min-width: 52px;
-    padding: 0.25rem 0.45rem;
-  }
-  .report-footer {
-    margin-top: 1.25rem;
-    padding-top: 0.65rem;
-  }
-  .report-result,
-  .answer-assessment,
-  .sync-status {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-}
-
 /* Dark theme visual finish: cool depth with restrained mint accents. */
 :root[data-theme="dark"] {
   --dark-bg: #0b0e14;
@@ -6935,14 +6852,6 @@ label.check {
 :root[data-theme="dark"] .form-preview-overlay,
 :root[data-theme="dark"] .operator-login-backdrop {
   background: rgba(0, 0, 0, 0.82);
-}
-
-@media print {
-  :root[data-theme="dark"] .public-report-shell,
-  :root[data-theme="dark"] .public-report {
-    color: #182021;
-    background: #fff;
-  }
 }
 
 /* Use the tightly framed transparent mark; render the wordmark as live text. */
