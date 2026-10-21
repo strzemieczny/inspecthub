@@ -1,6 +1,7 @@
 import { ViewSkeleton } from "../components/ViewSkeleton";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { absoluteApiUrl, api, downloadFile } from "../lib/api";
+import { copyText } from "../lib/clipboard";
 
 import { DashboardFilterSelect } from "../components/DashboardFilterSelect";
 import {
@@ -367,8 +368,13 @@ export default function Dashboard() {
 
   async function copyAnalyticsApi() {
     const url = absoluteApiUrl(`/inspections/analytics/v1?${analyticsQuery()}`);
-    await navigator.clipboard.writeText(url);
-    setExportNotice("Skopiowano adres API z aktywnymi filtrami.");
+    setExportNotice("");
+    try {
+      await copyText(url);
+      setExportNotice("Skopiowano adres API z aktywnymi filtrami.");
+    } catch {
+      setExportNotice(`Nie udało się skopiować. Skopiuj adres ręcznie: ${url}`);
+    }
   }
   const reportsRef = useRef<HTMLElement>(null);
 
@@ -727,7 +733,9 @@ export default function Dashboard() {
               </button>
             </div>
             {exportNotice && (
-              <small className="export-notice">{exportNotice}</small>
+              <small className="export-notice" role="status">
+                {exportNotice}
+              </small>
             )}
           </div>
         </section>
