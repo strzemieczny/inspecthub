@@ -87,6 +87,12 @@ export interface MobileStationPairing {
   deviceToken: string;
 }
 
+export interface ShiftSummary {
+  total: number;
+  passed: number;
+  failed: number;
+}
+
 export interface MesTraceabilityPayload {
   vinOrSerialNumber: string;
   stationId: string;

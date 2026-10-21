@@ -20,6 +20,15 @@ import { InspectionsService } from './inspections.service';
 export class InspectionsController {
   constructor(private readonly inspections: InspectionsService) {}
 
+  @Get('shift-summary')
+  shiftSummary(
+    @Query('stationCode') stationCode?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.inspections.getShiftSummary(stationCode, from, to);
+  }
+
   @Get('public-dashboard')
   dashboard(
     @Query('from') from?: string,

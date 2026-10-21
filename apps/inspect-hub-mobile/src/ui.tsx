@@ -17,6 +17,9 @@ export const colors = {
   background: "#f3f5f2",
   line: "#d9e2dc",
   green: "#087f45",
+  header: "#075e3b",
+  headerMuted: "#c5e5d5",
+  headerHighlight: "#247653",
   pale: "#dff5e8",
   greenSelected: "#bceccd",
   red: "#c62832",
@@ -30,12 +33,14 @@ export function IconButton({
   onPress,
   disabled,
   selected = false,
+  inverse = false,
 }: {
   icon: "settings" | "x";
   label: string;
   onPress: () => void;
   disabled?: boolean;
   selected?: boolean;
+  inverse?: boolean;
 }) {
   return (
     <Pressable
@@ -46,7 +51,7 @@ export function IconButton({
       onPress={onPress}
       style={({ pressed }) => [
         s.iconButton,
-        selected && s.selected,
+        selected && (inverse ? s.headerToolSelected : s.selected),
         disabled && s.dim,
         pressed && s.pressed,
       ]}
@@ -54,7 +59,7 @@ export function IconButton({
       <Feather
         name={icon}
         size={21}
-        color={selected ? colors.green : colors.muted}
+        color={inverse ? colors.white : selected ? colors.green : colors.muted}
         accessible={false}
         importantForAccessibility="no"
       />
@@ -220,83 +225,123 @@ export function Photo({
 export const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderColor: colors.line,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: colors.header,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 24,
   },
-  headerBrand: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexShrink: 0,
-  },
-  brandMark: {
-    width: 42,
-    height: 42,
-    resizeMode: "contain",
-  },
-  brand: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.ink,
-  },
-  headerInfo: {
+  headerCompact: { flexDirection: "column", alignItems: "stretch", gap: 8 },
+  headerContext: {
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
+  headerContextCompact: { flex: 0, minHeight: 44 },
+  headerBrand: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  brandMark: {
+    width: 32,
+    height: 32,
+    resizeMode: "contain",
+  },
+  headerInfo: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
   headerTitle: {
     flexShrink: 1,
-    fontSize: 16,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "600",
-    color: colors.ink,
+    color: colors.white,
   },
-  headerMeta: { flexShrink: 2, fontSize: 13, color: colors.muted },
+  headerMeta: { fontSize: 12, lineHeight: 16, color: colors.headerMuted },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
+    gap: 12,
+    flexShrink: 1,
+    minWidth: 0,
   },
-  headerOperator: {
-    minHeight: 48,
-    minWidth: 44,
-    maxWidth: 200,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    borderRadius: 12,
+  headerActionsCompact: { width: "100%", flexShrink: 0 },
+  headerTools: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    flexShrink: 0,
+    gap: 12,
+  },
+  headerToolSelected: { backgroundColor: colors.headerHighlight },
+  headerSession: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flexShrink: 1,
+    maxWidth: 360,
+    minWidth: 0,
+  },
+  headerSessionCompact: { flex: 1, maxWidth: "100%" },
+  headerFinishWork: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    minWidth: 44,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    flexShrink: 0,
+  },
+  headerFinishWorkPressed: { backgroundColor: colors.headerHighlight },
+  headerFinishWorkText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: colors.white,
+  },
+  headerOperator: {
+    minHeight: 44,
+    minWidth: 44,
+    flexGrow: 1,
+    flexShrink: 1,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderRadius: 9,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "flex-start",
   },
   headerOperatorText: {
     flexShrink: 1,
     fontSize: 14,
     fontWeight: "500",
-    color: colors.ink,
+    color: colors.white,
   },
   headerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.background,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    flexShrink: 0,
+    backgroundColor: colors.headerHighlight,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerAvatarActive: { backgroundColor: colors.pale },
-  headerInitials: { fontSize: 12, fontWeight: "700", color: colors.green },
+  headerInitials: { fontSize: 14, fontWeight: "700", color: colors.white },
   iconButton: {
     flexShrink: 0,
     width: 44,
-    height: 48,
+    height: 44,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
@@ -310,6 +355,7 @@ export const s = StyleSheet.create({
     flexGrow: 1,
   },
   inspectionBody: { flex: 1 },
+  shiftSummaryBottom: { marginTop: "auto" },
   inspectionScroll: { flex: 1 },
   noticeOverlay: {
     position: "absolute",

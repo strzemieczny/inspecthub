@@ -49,6 +49,7 @@ import { Question } from "./Question";
 import { useInspectionProgress } from "./useInspectionProgress";
 import { FloatingNotice } from "./FloatingNotice";
 import { NumericKeypad } from "./NumericKeypad";
+import { ShiftSummary } from "./ShiftSummary";
 import { Button, colors, Field, IconButton, Photo, s } from "./ui";
 
 export default function App() {
@@ -67,7 +68,7 @@ function OperatorApp() {
     return () => operatorDisplay?.deactivate();
   }, []);
   const { width, height } = useWindowDimensions();
-  const wideHeader = width >= 600;
+  const wideHeader = width >= 720;
   const [languageOpen, setLanguageOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<
@@ -91,6 +92,7 @@ function OperatorApp() {
   const [error, setError] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [finishWorkOpen, setFinishWorkOpen] = useState(false);
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginCardCode, setLoginCardCode] = useState("");
   const [pairingRequired, setPairingRequired] = useState(false);
@@ -106,8 +108,9 @@ function OperatorApp() {
     setApiSession(null);
     setSession(null);
     void storage.saveSession(null).catch(() => {});
+    setFinishWorkOpen(false);
     closeOperatorLogin();
-    message(t("Wylogowano po ponad 30 minutach bez aktywności."));
+    message(t("Wylogowano po ponad 5 minutach bez aktywności."));
   });
 
   useEffect(() => {
@@ -117,6 +120,7 @@ function OperatorApp() {
       draft ||
       busy ||
       loginOpen ||
+      finishWorkOpen ||
       stationSettingsOpen ||
       languageOpen ||
       formChoice
@@ -132,6 +136,7 @@ function OperatorApp() {
     draft,
     busy,
     loginOpen,
+    finishWorkOpen,
     stationSettingsOpen,
     languageOpen,
     formChoice,
@@ -156,6 +161,25 @@ function OperatorApp() {
     setLoginIdentifier("");
     setLoginCardCode("");
     setPairingRequired(false);
+  }
+  async function finishWork() {
+    // Flush pending answers before leaving a draft locked to its operator.
+    await writes.current;
+    await storage.saveSession(null);
+    setApiSession(null);
+    setSession(null);
+    setFinishWorkOpen(false);
+    setFormChoice(null);
+    if (!draftRef.current) setSerial("");
+    closeOperatorLogin();
+    message(t("Zakończono pracę. Operator został wylogowany."));
+  }
+  function requestFinishWork() {
+    Keyboard.dismiss();
+    if (draftRef.current) {
+      closeOperatorLogin();
+      setFinishWorkOpen(true);
+    } else void run(finishWork);
   }
   useEffect(() => {
     if (!loginOpen) return;
@@ -289,7 +313,7 @@ function OperatorApp() {
         if (expired) {
           message(
             translateRestored(
-              "Wylogowano po ponad 30 minutach bez aktywności.",
+              "Wylogowano po ponad 5 minutach bez aktywności.",
             ),
           );
         }
@@ -476,7 +500,14 @@ function OperatorApp() {
   }
   const onScan = useEffectEvent((scan: Scan) => {
     if (!recordActivity()) return;
-    if (!ready || running.current || discardOpen || languageOpen) return;
+    if (
+      !ready ||
+      running.current ||
+      discardOpen ||
+      finishWorkOpen ||
+      languageOpen
+    )
+      return;
     if (loginOpen) {
       if (!pairingRequired) {
         const identifier = scan.data.trim().toUpperCase();
@@ -609,103 +640,144 @@ function OperatorApp() {
       onTouchMove={recordActivity}
     >
       <StatusBar hidden />
-      <View style={s.header}>
-        <View style={s.headerBrand} accessible accessibilityLabel="Inspect Hub">
-          <Image
-            // Metro resolves bundled images through a static require.
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            source={require("../assets/brand-symbol.png")}
-            style={s.brandMark}
-            accessibilityIgnoresInvertColors
-            accessible={false}
-          />
-          {width >= 900 ? <Text style={s.brand}>Inspect Hub</Text> : null}
-        </View>
-        <View style={s.headerInfo}>
-          <Text
-            style={s.headerTitle}
-            numberOfLines={1}
-            accessibilityLabel={
-              station
-                ? `${station.name}, ${station.code}, ${station.process?.name ?? t("Brak procesu")}`
-                : t("Połącz urządzenie ze stanowiskiem")
-            }
+      <View style={[s.header, !wideHeader && s.headerCompact]}>
+        <View style={[s.headerContext, !wideHeader && s.headerContextCompact]}>
+          <View
+            style={s.headerBrand}
+            accessible
+            accessibilityLabel="Inspect Hub"
           >
-            {station?.name ?? t("Stanowisko inspekcji")}
-          </Text>
-          {wideHeader && station ? (
-            <Text style={s.headerMeta} numberOfLines={1}>
-              {station.code} · {station.process?.name ?? t("Brak procesu")}
+            <Image
+              // Metro resolves bundled images through a static require.
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              source={require("../assets/brand-symbol.png")}
+              style={s.brandMark}
+              accessibilityIgnoresInvertColors
+              accessible={false}
+            />
+          </View>
+          <View style={s.headerInfo}>
+            <Text
+              style={s.headerTitle}
+              numberOfLines={1}
+              accessibilityLabel={
+                station
+                  ? `${station.name}, ${station.code}, ${station.process?.name ?? t("Brak procesu")}`
+                  : t("Połącz urządzenie ze stanowiskiem")
+              }
+            >
+              {station?.name ?? t("Stanowisko inspekcji")}
             </Text>
-          ) : null}
+            {station ? (
+              <Text style={s.headerMeta} numberOfLines={1}>
+                {station.code} / {station.process?.name ?? t("Brak procesu")}
+              </Text>
+            ) : null}
+          </View>
         </View>
-        <View style={s.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              session
-                ? t("Operator: {name}", { name: session.user.name })
-                : t("Zaloguj operatora")
-            }
-            accessibilityState={{ disabled: busy || !ready }}
-            disabled={busy || !ready}
-            onPress={openOperatorLogin}
-            style={({ pressed }) => [
-              s.headerOperator,
-              (busy || !ready) && s.dim,
-              pressed && s.pressed,
-            ]}
+        <View style={[s.headerActions, !wideHeader && s.headerActionsCompact]}>
+          <View
+            style={[s.headerSession, !wideHeader && s.headerSessionCompact]}
           >
-            <View style={[s.headerAvatar, session && s.headerAvatarActive]}>
-              {session ? (
-                <Text style={s.headerInitials}>
-                  {session.user.name
-                    .trim()
-                    .split(/\s+/)
-                    .slice(0, 2)
-                    .map((part) => part[0])
-                    .join("")
-                    .toUpperCase()}
-                </Text>
-              ) : (
-                <Feather
-                  name="user"
-                  size={19}
-                  color={colors.muted}
-                  accessible={false}
-                  importantForAccessibility="no"
-                />
-              )}
-            </View>
-            {wideHeader ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                session
+                  ? t("Operator: {name}", { name: session.user.name })
+                  : t("Zaloguj operatora")
+              }
+              accessibilityState={{ disabled: busy || !ready }}
+              disabled={busy || !ready}
+              onPress={openOperatorLogin}
+              style={({ pressed }) => [
+                s.headerOperator,
+                (busy || !ready) && s.dim,
+                pressed && s.pressed,
+              ]}
+            >
+              <View style={s.headerAvatar}>
+                {session ? (
+                  <Text style={s.headerInitials}>
+                    {session.user.name
+                      .trim()
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")
+                      .toUpperCase()}
+                  </Text>
+                ) : (
+                  <Feather
+                    name="user"
+                    size={19}
+                    color={colors.white}
+                    accessible={false}
+                    importantForAccessibility="no"
+                  />
+                )}
+              </View>
               <Text style={s.headerOperatorText} numberOfLines={1}>
                 {session?.user.name ?? t("Zaloguj operatora")}
               </Text>
+            </Pressable>
+            {ready && session ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Zakończ pracę")}
+                  accessibilityState={{ disabled: busy }}
+                  disabled={busy}
+                  onPress={requestFinishWork}
+                  style={({ pressed }) => [
+                    s.headerFinishWork,
+                    busy && s.dim,
+                    pressed && s.headerFinishWorkPressed,
+                  ]}
+                >
+                  <Feather
+                    name="log-out"
+                    size={19}
+                    color={colors.white}
+                    accessible={false}
+                    importantForAccessibility="no"
+                  />
+                  {width >= 1000 ? (
+                    <Text style={s.headerFinishWorkText}>
+                      {t("Zakończ pracę")}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              </>
             ) : null}
-          </Pressable>
-          <LanguagePicker
-            onOpenChange={setLanguageOpen}
-            onActivity={recordActivity}
-            disabled={busy || !ready || loginOpen || discardOpen}
-          />
-          {station && !draft ? (
-            <IconButton
-              icon={stationSettingsOpen ? "x" : "settings"}
-              label={
-                stationSettingsOpen
-                  ? t("Wróć do inspekcji")
-                  : t("Ustawienia stanowiska")
+          </View>
+          <View style={s.headerTools}>
+            <LanguagePicker
+              onOpenChange={setLanguageOpen}
+              onActivity={recordActivity}
+              disabled={
+                busy || !ready || loginOpen || discardOpen || finishWorkOpen
               }
-              selected={stationSettingsOpen}
-              disabled={busy || !ready || !!formChoice}
-              onPress={() => {
-                setStationCode(station.code);
-                setStationName("");
-                setStationProcessName("");
-                setStationSettingsOpen((open) => !open);
-              }}
             />
-          ) : null}
+            {station && !draft ? (
+              <IconButton
+                inverse
+                icon={stationSettingsOpen ? "x" : "settings"}
+                label={
+                  stationSettingsOpen
+                    ? t("Wróć do inspekcji")
+                    : t("Ustawienia stanowiska")
+                }
+                selected={stationSettingsOpen}
+                disabled={busy || !ready || !!formChoice}
+                onPress={() => {
+                  setStationCode(station.code);
+                  setStationName("");
+                  setStationProcessName("");
+                  setStationSettingsOpen((open) => !open);
+                }}
+              />
+            ) : null}
+          </View>
         </View>
       </View>
       <View style={s.inspectionBody}>
@@ -887,6 +959,14 @@ function OperatorApp() {
                   <Text selectable style={s.muted}>
                     {t("Ostatni skan: {scan}", { scan: lastScan })}
                   </Text>
+                ) : null}
+                {station && !stationSettingsOpen && !formChoice ? (
+                  <View style={s.shiftSummaryBottom}>
+                    <ShiftSummary
+                      key={station.code}
+                      stationCode={station.code}
+                    />
+                  </View>
                 ) : null}
               </>
             ) : (
@@ -1197,6 +1277,47 @@ function OperatorApp() {
         </View>
       ) : null}
       <Modal
+        visible={finishWorkOpen && !!session}
+        transparent
+        animationType="fade"
+        onShow={() => Keyboard.dismiss()}
+        onRequestClose={() => {
+          if (!busy) setFinishWorkOpen(false);
+        }}
+      >
+        <View
+          style={s.modal}
+          onTouchStart={recordActivity}
+          onTouchMove={recordActivity}
+        >
+          <ScrollView
+            style={s.dialog}
+            contentContainerStyle={[s.panel, s.loginPanel]}
+            keyboardShouldPersistTaps="handled"
+            accessibilityViewIsModal
+          >
+            <Text style={s.loginTitle} accessibilityRole="header">
+              {t("Zakończyć pracę?")}
+            </Text>
+            <Text style={s.body}>
+              {t(
+                "Zostaniesz wylogowany. Szkic inspekcji pozostanie zapisany. Aby go kontynuować, ten sam operator musi zalogować się ponownie.",
+              )}
+            </Text>
+            <Button disabled={busy} onPress={() => void run(finishWork)}>
+              {t("Zakończ pracę")}
+            </Button>
+            <Button
+              secondary
+              disabled={busy}
+              onPress={() => setFinishWorkOpen(false)}
+            >
+              {t("Wróć")}
+            </Button>
+          </ScrollView>
+        </View>
+      </Modal>
+      <Modal
         visible={discardOpen && !!draft && !loginOpen}
         transparent
         animationType="fade"
@@ -1380,19 +1501,8 @@ function OperatorApp() {
               </Button>
             ) : null}
             {session ? (
-              <Button
-                secondary
-                disabled={busy || !!draft}
-                onPress={() =>
-                  void run(async () => {
-                    await storage.saveSession(null);
-                    setApiSession(null);
-                    setSession(null);
-                    closeOperatorLogin();
-                  })
-                }
-              >
-                {t("Wyloguj operatora")}
+              <Button secondary disabled={busy} onPress={requestFinishWork}>
+                {t("Zakończ pracę")}
               </Button>
             ) : null}
             {draft ? (

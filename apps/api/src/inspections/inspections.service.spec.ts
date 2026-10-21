@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ScadaConnectorService } from '../scada-connector/scada-connector.service';
 import { InspectionsService } from './inspections.service';
@@ -8,6 +8,7 @@ describe('InspectionsService public reports', () => {
   const publicReportId = '9f466df4-ffbc-47ad-96c2-4b633f06a334';
   const findUniqueReport = jest.fn();
   const findManyResults = jest.fn();
+  const groupResults = jest.fn();
   const findUniqueStation = jest.fn();
   const findManyStations = jest.fn();
   const findManyForms = jest.fn();
@@ -25,6 +26,7 @@ describe('InspectionsService public reports', () => {
   ) => callback(transactionClient);
   const database = {
     inspectionResult: {
+      groupBy: groupResults,
       findUnique: findUniqueReport,
       findMany: findManyResults,
       create: createResult,
@@ -62,6 +64,50 @@ describe('InspectionsService public reports', () => {
       stationCode: 'ST-01',
     });
   });
+
+  it('summarizes saved results for only the requested station and half-open shift window', async () => {
+    groupResults.mockResolvedValue([
+      { status: 'PASSED', _count: { _all: 5 } },
+      { status: 'ok', _count: { _all: 2 } },
+      { status: 'NOK', _count: { _all: 3 } },
+    ]);
+    const from = '2026-10-21T04:15:00.000Z';
+    const to = '2026-10-21T12:15:00.000Z';
+    expect(await service.getShiftSummary('ST-01', from, to)).toEqual({
+      total: 10,
+      passed: 7,
+      failed: 3,
+    });
+    expect(groupResults).toHaveBeenCalledWith({
+      by: ['status'],
+      where: {
+        stationId: 'ST-01',
+        createdAt: { gte: new Date(from), lt: new Date(to) },
+      },
+      _count: { _all: true },
+    });
+    groupResults.mockResolvedValue([]);
+    expect(await service.getShiftSummary('ST-01', from, to)).toEqual({
+      total: 0,
+      passed: 0,
+      failed: 0,
+    });
+  });
+
+  it.each([
+    [undefined, undefined, undefined],
+    ['ST-01', 'invalid', '2026-10-21T12:15:00Z'],
+    ['ST-01', '2026-10-21T12:15:00Z', '2026-10-21T04:15:00Z'],
+    ['ST-01', '2026-10-20T04:15:00Z', '2026-10-22T04:15:00Z'],
+  ])(
+    'rejects invalid shift summaries: %s, %s, %s',
+    async (station, from, to) => {
+      await expect(service.getShiftSummary(station, from, to)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(groupResults).not.toHaveBeenCalled();
+    },
+  );
 
   it('counts active stations from station configuration', async () => {
     findManyResults.mockResolvedValue([]);

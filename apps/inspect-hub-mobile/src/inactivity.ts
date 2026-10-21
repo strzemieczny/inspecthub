@@ -1,4 +1,4 @@
-export const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+export const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Use wall-clock time so suspension in the background counts as inactivity.
 export function monitorInactivity({

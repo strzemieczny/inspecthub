@@ -15,7 +15,7 @@ function setup(t: TestContext, lastActiveAt = 1000) {
   return { monitor, activities, expirations: () => expirations };
 }
 
-test("logout happens only after more than 30 minutes and only once", (t) => {
+test("logout happens only after more than 5 minutes and only once", (t) => {
   const state = setup(t);
   t.mock.timers.tick(INACTIVITY_TIMEOUT_MS);
   assert.equal(state.expirations(), 0);

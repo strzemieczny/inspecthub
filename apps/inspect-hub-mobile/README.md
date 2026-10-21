@@ -107,7 +107,16 @@ Hasło nie jest zapisywane. Stanowisko oraz szkic są zapisywane w AsyncStorage,
 w prywatnych danych aplikacji. Kopia zapasowa Androida jest wyłączona.
 Dane są rozdzielone według adresu API.
 
-Po ponad 30 minutach bez aktywności operator jest automatycznie wylogowywany.
+Po ponad 5 minutach bez aktywności operator jest automatycznie wylogowywany.
+Zalogowany operator może też użyć widocznego w nagłówku przycisku
+„Zakończ pracę”, dostępnego na ekranie startowym, podczas inspekcji i w jej
+podsumowaniu. Wyjście jest częścią wspólnego pola z awatarem i nazwiskiem operatora;
+na ekranach poniżej 1000 px ma postać ikony. Nagłówek pokazuje nazwę stanowiska
+nad jego kodem i procesem. Poniżej 720 px pole operatora, język i ustawienia
+przechodzą do drugiego wiersza, aby nazwisko pozostawało widoczne.
+Przycisk wylogowuje operatora bez odłączania stanowiska.
+Jeśli trwa inspekcja, aplikacja prosi o potwierdzenie i zachowuje szkic;
+jego kontynuacja wymaga ponownego zalogowania tego samego operatora.
 Dotyk ekranu, wpisywanie danych i skany czytnika odnawiają czas aktywności.
 Czas spędzony w tle i przy zamkniętej aplikacji również jest wliczany;
 powrót do aplikacji nie odnawia wygasłej sesji. Wylogowanie nie otwiera okna

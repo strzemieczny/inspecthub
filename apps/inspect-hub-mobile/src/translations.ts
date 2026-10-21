@@ -1,7 +1,68 @@
 export const translations = {
-  "Wylogowano po ponad 30 minutach bez aktywności.": {
-    en: "Logged out after more than 30 minutes of inactivity.",
-    uk: "Вихід після понад 30 хвилин бездіяльності.",
+  "Zakończ pracę": {
+    en: "Finish work",
+    uk: "Завершити роботу",
+  },
+  "Zakończyć pracę?": {
+    en: "Finish work?",
+    uk: "Завершити роботу?",
+  },
+  "Zakończono pracę. Operator został wylogowany.": {
+    en: "Work finished. The operator has been logged out.",
+    uk: "Роботу завершено. Оператора виведено з облікового запису.",
+  },
+  "Zostaniesz wylogowany. Szkic inspekcji pozostanie zapisany. Aby go kontynuować, ten sam operator musi zalogować się ponownie.":
+    {
+      en: "You will be logged out. The inspection draft will be kept. The same operator must log in again to continue it.",
+      uk: "Ви вийдете з облікового запису. Чернетку інспекції буде збережено. Щоб продовжити її, той самий оператор має увійти знову.",
+    },
+  "Aktualny czas polski: {time}": {
+    en: "Current Polish time: {time}",
+    uk: "Поточний польський час: {time}",
+  },
+  "Podsumowanie zmiany": {
+    en: "Shift summary",
+    uk: "Підсумок зміни",
+  },
+  "Zmiana {number}": {
+    en: "Shift {number}",
+    uk: "Зміна {number}",
+  },
+  "Stanowisko {code} · czas polski": {
+    en: "Station {code} · Polish time",
+    uk: "Станція {code} · польський час",
+  },
+  Inspekcje: {
+    en: "Inspections",
+    uk: "Інспекції",
+  },
+  "Wyniki: {passed} OK, {failed} NOK": {
+    en: "Results: {passed} OK, {failed} NOK",
+    uk: "Результати: {passed} OK, {failed} NOK",
+  },
+  "Zapisane inspekcje wszystkich operatorów.": {
+    en: "Saved inspections from all operators.",
+    uk: "Збережені інспекції всіх операторів.",
+  },
+  "Pierwsza inspekcja tej zmiany przed Tobą.": {
+    en: "Ready for the first inspection of this shift.",
+    uk: "Попереду перша інспекція цієї зміни.",
+  },
+  "Nie udało się pobrać podsumowania.": {
+    en: "Could not load the summary.",
+    uk: "Не вдалося завантажити підсумок.",
+  },
+  "Odśwież podsumowanie": {
+    en: "Refresh summary",
+    uk: "Оновити підсумок",
+  },
+  "Ładowanie podsumowania zmiany": {
+    en: "Loading shift summary",
+    uk: "Завантаження підсумку зміни",
+  },
+  "Wylogowano po ponad 5 minutach bez aktywności.": {
+    en: "Logged out after more than 5 minutes of inactivity.",
+    uk: "Вихід після понад 5 хвилин бездіяльності.",
   },
   "Nie udało się zapisać szkicu w pamięci urządzenia. Nie zamykaj aplikacji.": {
     en: "Could not save the draft on this device. Keep the app open.",

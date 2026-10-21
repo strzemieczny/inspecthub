@@ -31,6 +31,36 @@ export class InspectionsService {
     @Optional() private readonly qualityLive?: QualityLiveGateway,
   ) {}
 
+  async getShiftSummary(
+    stationCode?: string,
+    fromValue?: string,
+    toValue?: string,
+  ) {
+    const from = new Date(fromValue ?? '');
+    const to = new Date(toValue ?? '');
+    if (
+      !stationCode?.trim() ||
+      Number.isNaN(from.getTime()) ||
+      Number.isNaN(to.getTime()) ||
+      from >= to ||
+      to.getTime() - from.getTime() > 26 * 60 * 60 * 1000
+    ) {
+      throw new BadRequestException('Nieprawidłowy zakres podsumowania zmiany');
+    }
+    const groups = await this.database.inspectionResult.groupBy({
+      by: ['status'],
+      where: { stationId: stationCode, createdAt: { gte: from, lt: to } },
+      _count: { _all: true },
+    });
+    let total = 0;
+    let passed = 0;
+    for (const group of groups) {
+      total += group._count._all;
+      if (this.isPassed(group.status)) passed += group._count._all;
+    }
+    return { total, passed, failed: total - passed };
+  }
+
   async getQualityDashboard() {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const raw = await this.database.inspectionResult.findMany({
