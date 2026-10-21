@@ -35,7 +35,14 @@ async function main() {
     console.log(
       `[media migration] ${args[0]}; original objects are never deleted or overwritten`,
     );
-    console.log('[media migration]', await migration.run());
+    const counts = await migration.run();
+    for (const objectName of migration.missingObjects) {
+      console.warn(
+        '[media migration] missing source object; original references retained:',
+        objectName,
+      );
+    }
+    console.log('[media migration]', counts);
   } finally {
     await database.$disconnect();
   }

@@ -46,7 +46,14 @@ export function legacyMediaReference(value: unknown, bucket: string) {
 
 export class MediaMigration {
   private readonly verified = new Set<string>();
-  readonly counts = { copied: 0, verified: 0, forms: 0, inspections: 0 };
+  readonly missingObjects = new Set<string>();
+  readonly counts = {
+    copied: 0,
+    verified: 0,
+    forms: 0,
+    inspections: 0,
+    missing: 0,
+  };
 
   constructor(
     private readonly database: PrismaClient,
@@ -58,13 +65,33 @@ export class MediaMigration {
   private async checksum(name: string): Promise<string> {
     const stream = await this.client.getObject(this.bucket, name);
     const hash = createHash('sha256');
-    for await (const chunk of stream) hash.update(chunk);
+    for await (const chunk of stream as AsyncIterable<Buffer>)
+      hash.update(chunk);
     return hash.digest('hex');
   }
 
-  private async copyAndVerify(source: string, target: string): Promise<void> {
-    if (this.verified.has(target)) return;
-    const original = await this.client.statObject(this.bucket, source);
+  private async copyAndVerify(
+    source: string,
+    target: string,
+  ): Promise<boolean> {
+    if (this.verified.has(target)) return true;
+    if (this.missingObjects.has(source)) return false;
+    let original: Awaited<ReturnType<Client['statObject']>>;
+    try {
+      original = await this.client.statObject(this.bucket, source);
+    } catch (error) {
+      if (
+        !['NotFound', 'NoSuchKey'].includes(
+          (error as { code?: string }).code ?? '',
+        )
+      )
+        throw error;
+      // A historical broken reference must not block unrelated media or be
+      // rewritten to an unverified copy. Only a missing source is recoverable.
+      this.missingObjects.add(source);
+      this.counts.missing++;
+      return false;
+    }
     let existing = false;
     try {
       await this.client.statObject(this.bucket, target);
@@ -108,13 +135,14 @@ export class MediaMigration {
     }
     this.verified.add(target);
     this.counts.verified++;
+    return true;
   }
 
   private async reference(value: unknown, purpose: MediaPurpose) {
     const reference = legacyMediaReference(value, this.bucket);
     if (!reference) return value;
     const target = `${purpose}/${reference.name}`;
-    await this.copyAndVerify(reference.name, target);
+    if (!(await this.copyAndVerify(reference.name, target))) return value;
     return reference.rewrite(target);
   }
 
@@ -180,6 +208,11 @@ export class MediaMigration {
   }
 
   async run() {
+    // MinIO can return a generic NotFound for an absent bucket as well. Verify
+    // storage before treating individual missing source objects as warnings.
+    if (!(await this.client.bucketExists(this.bucket))) {
+      throw new Error(`Media bucket does not exist: ${this.bucket}`);
+    }
     // Keyset pagination covers archived forms and every historical version.
     let cursor: string | undefined;
     for (;;) {
@@ -211,7 +244,11 @@ export class MediaMigration {
     }
     cursor = undefined;
     for (;;) {
-      const rows = await this.database.inspectionResult.findMany({
+      const rows: {
+        id: string;
+        answers: Prisma.JsonValue;
+        form: { questions: Prisma.JsonValue };
+      }[] = await this.database.inspectionResult.findMany({
         take: 100,
         orderBy: { id: 'asc' },
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

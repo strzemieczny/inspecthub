@@ -42,6 +42,15 @@ produkcji. Migracja `20260810320000_add_inspection_query_indexes` dodaje indeksy
 dashboardów. Tworzenie zwykłych indeksów może blokować operacje tabeli na czas
 budowy — zaplanuj okno odpowiednie do rozmiaru `InspectionResult`.
 
+Deploy uruchamia też `node dist/media/migrate-media.js --apply`, który kopiuje
+stare media do katalogów `forms/` i `inspections/`. Oryginały pozostają na miejscu,
+a adresy w bazie zmieniają się dopiero po weryfikacji kopii. Brakujące pliki
+źródłowe są pomijane: migracja wypisuje ich nazwy i licznik `missing`, zachowując
+dotychczasowe odwołania. Takie pliki wymagają osobnego odtworzenia z backupu;
+ponowne uruchomienie migracji po ich przywróceniu dokończy kopiowanie.
+Brak bucketu, błędy dostępu i błędy weryfikacji nadal przerywają deploy.
+Wariant `--dry-run` sprawdza media bez zapisu obiektów i rekordów bazy.
+
 ## Kolejność wdrożenia
 
 1. Backup PostgreSQL i weryfikacja MinIO.
