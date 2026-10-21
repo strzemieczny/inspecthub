@@ -42,6 +42,8 @@ export class InspectionsController {
     @Query('timeZone') timeZone?: string,
     @Query('completeness') completeness?: string,
     @Query('partNumber') partNumber?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -55,6 +57,8 @@ export class InspectionsController {
       timeZone,
       completeness,
       partNumber,
+      page,
+      pageSize,
     });
   }
 
@@ -71,6 +75,8 @@ export class InspectionsController {
     @Query('timeZone') timeZone?: string,
     @Query('completeness') completeness?: string,
     @Query('partNumber') partNumber?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -84,6 +90,8 @@ export class InspectionsController {
       timeZone,
       completeness,
       partNumber,
+      page,
+      pageSize,
     });
   }
 

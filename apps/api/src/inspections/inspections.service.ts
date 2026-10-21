@@ -180,9 +180,22 @@ export class InspectionsService {
       partNumber?: string;
       timeZone?: string;
       completeness?: string;
+      page?: string;
+      pageSize?: string;
     } = {},
   ) {
     this.validateCompletenessFilter(filters.completeness);
+    const requestedPage = Number(filters.page ?? 1);
+    const pageSize = Number(filters.pageSize ?? 100);
+    if (
+      !Number.isSafeInteger(requestedPage) ||
+      requestedPage < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100
+    ) {
+      throw new BadRequestException('Nieprawidłowe parametry paginacji');
+    }
     const now = new Date();
     const defaultFrom = new Date(now);
     defaultFrom.setDate(defaultFrom.getDate() - 6);
@@ -291,7 +304,7 @@ export class InspectionsService {
               },
             },
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { publicReportId: 'desc' }],
         }),
         this.database.inspectionResult.findMany({
           where: previousWhere,
@@ -315,6 +328,9 @@ export class InspectionsService {
             ? !isPassed(item.status)
             : true,
       );
+    const totalPages = Math.max(1, Math.ceil(results.length / pageSize));
+    const page = Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * pageSize;
     const previous = rawPrevious
       .filter((item) => this.matchesCompleteness(item, filters.completeness))
       .filter((item) =>
@@ -683,7 +699,8 @@ export class InspectionsService {
         })),
         forms,
       },
-      recent: results.slice(0, 100),
+      pagination: { page, pageSize, total: results.length, totalPages },
+      recent: results.slice(offset, offset + pageSize),
     };
   }
 

@@ -12,6 +12,7 @@ import {
 import { SettingsMenu, useI18n } from "../lib/i18n";
 import { appPath, appRoute } from "../lib/routing";
 
+import { CompactSelect } from "../components/CompactSelect";
 import { ReportSearch } from "../components/ReportSearch";
 interface DashboardData {
   generatedAt: string;
@@ -92,6 +93,12 @@ interface DashboardData {
     }[];
     forms: { id: string; title: string; code: string; version: number }[];
   };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
   recent: {
     publicReportId: string;
     vinOrSerialNumber: string;
@@ -140,6 +147,7 @@ const emptyDashboard: DashboardData = {
     formProduct: { rows: [], columns: [], cells: [] },
   },
   filters: { processes: [], stations: [], forms: [] },
+  pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
   recent: [],
 };
 
@@ -339,6 +347,13 @@ export default function Dashboard() {
     completeness: "",
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [reportPage, setReportPage] = useState({
+    filters: appliedFilters,
+    page: 1,
+  });
+  const [reportPageSize, setReportPageSize] = useState(20);
+  const requestedReportPage =
+    reportPage.filters === appliedFilters ? reportPage.page : 1;
   const [heatmapType, setHeatmapType] = useState<
     "questionStation" | "time" | "formProduct"
   >("questionStation");
@@ -407,6 +422,8 @@ export default function Dashboard() {
       if (active) setConnection("loading");
     });
     const query = dashboardQuery(appliedFilters);
+    query.set("page", String(requestedReportPage));
+    query.set("pageSize", String(reportPageSize));
     void api<DashboardData>(`/inspections/public-dashboard?${query}`)
       .then((result) => {
         if (!active) return;
@@ -420,7 +437,7 @@ export default function Dashboard() {
     return () => {
       active = false;
     };
-  }, [appliedFilters]);
+  }, [appliedFilters, requestedReportPage, reportPageSize]);
 
   useEffect(() => {
     if (connection === "live" && pendingReportsScroll.current) {
@@ -780,7 +797,10 @@ export default function Dashboard() {
         {!hasData && connection === "loading" ? (
           <ViewSkeleton variant="dashboard" />
         ) : (
-          <div className="dashboard-results" aria-busy={connection === "loading"}>
+          <div
+            className="dashboard-results"
+            aria-busy={connection === "loading"}
+          >
             <section className="metric-grid">
               <article className="metric-card featured">
                 <div className="metric-icon">✓</div>
@@ -1266,7 +1286,7 @@ export default function Dashboard() {
                   <p>{t("dashboard.reportsSubtitle")}</p>
                 </div>
                 <span className="table-count">
-                  {t("dashboard.reportCount", { count: data.recent.length })}
+                  {t("dashboard.reportCount", { count: data.pagination.total })}
                 </span>
               </div>
               {activeCompletenessLabel && (
@@ -1361,6 +1381,76 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+              <div className="reports-pagination">
+                <span aria-live="polite">
+                  {t("stations.range", {
+                    from: data.pagination.total
+                      ? (data.pagination.page - 1) * data.pagination.pageSize +
+                        1
+                      : 0,
+                    to: Math.min(
+                      data.pagination.page * data.pagination.pageSize,
+                      data.pagination.total,
+                    ),
+                    count: data.pagination.total,
+                  })}
+                </span>
+                <div className="reports-page-size">
+                  <span>{t("stations.perPage")}</span>
+                  <CompactSelect
+                    label={t("stations.perPage")}
+                    value={String(reportPageSize)}
+                    placement="top"
+                    options={[20, 50, 100].map((size) => ({
+                      value: String(size),
+                      label: String(size),
+                    }))}
+                    onChange={(value) => {
+                      setReportPageSize(Number(value));
+                      setReportPage({ filters: appliedFilters, page: 1 });
+                    }}
+                  />
+                </div>
+                <div className="reports-page-buttons">
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={
+                      connection === "loading" || data.pagination.page === 1
+                    }
+                    onClick={() =>
+                      setReportPage({
+                        filters: appliedFilters,
+                        page: data.pagination.page - 1,
+                      })
+                    }
+                  >
+                    {t("stations.previous")}
+                  </button>
+                  <span>
+                    {data.pagination.page} / {data.pagination.totalPages}
+                  </span>
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={
+                      connection === "loading" ||
+                      data.pagination.page === data.pagination.totalPages
+                    }
+                    onClick={() =>
+                      setReportPage({
+                        filters: appliedFilters,
+                        page: data.pagination.page + 1,
+                      })
+                    }
+                  >
+                    {t("stations.next")}
+                  </button>
+                </div>
+              </div>
+              {connection === "error" && (
+                <p role="alert">{t("dashboard.apiError")}</p>
+              )}
             </section>
           </div>
         )}

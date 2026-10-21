@@ -288,6 +288,99 @@ describe('InspectionsService public reports', () => {
       },
     );
 
+    it('paginates every matching report beyond 100 without changing the summary', async () => {
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+      const matching = Array.from({ length: 125 }, (_, index) =>
+        row(`report-${index}`, 5),
+      );
+      findManyResults.mockImplementation(({ where }) =>
+        Promise.resolve(
+          where.createdAt.gte.getTime() === new Date(filters.from).getTime()
+            ? [
+                ...Array.from({ length: 30 }, (_, index) =>
+                  row(`normal-${index}`, 60),
+                ),
+                ...matching,
+              ]
+            : [],
+        ),
+      );
+      const reportIds: string[] = [];
+      for (let page = 1; page <= 3; page++) {
+        const dashboard = await service.getPublicDashboard({
+          ...filters,
+          completeness: 'unusuallyFast',
+          page: String(page),
+          pageSize: '50',
+        });
+        expect(dashboard.pagination).toEqual({
+          page,
+          pageSize: 50,
+          total: 125,
+          totalPages: 3,
+        });
+        expect(dashboard.summary.completedToday).toBe(125);
+        expect(dashboard.recent).toHaveLength(page === 3 ? 25 : 50);
+        reportIds.push(...dashboard.recent.map((item) => item.publicReportId));
+      }
+      expect(reportIds).toEqual(matching.map((item) => item.publicReportId));
+      expect(new Set(reportIds).size).toBe(125);
+      expect(findManyResults).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: 'desc' }, { publicReportId: 'desc' }],
+        }),
+      );
+    });
+
+    it('clamps pages after filtering and returns an empty first page for no matches', async () => {
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+      findManyResults.mockResolvedValue([row('only-report', 5)]);
+      const lastPage = await service.getPublicDashboard({
+        ...filters,
+        page: '999',
+        pageSize: '20',
+      });
+      expect(lastPage.pagination).toEqual({
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        totalPages: 1,
+      });
+      expect(lastPage.recent).toHaveLength(1);
+      findManyResults.mockResolvedValue([]);
+      const empty = await service.getPublicDashboard({
+        ...filters,
+        page: '999',
+      });
+      expect(empty.pagination).toEqual({
+        page: 1,
+        pageSize: 100,
+        total: 0,
+        totalPages: 1,
+      });
+      expect(empty.recent).toEqual([]);
+    });
+
+    it.each([
+      { page: '0' },
+      { page: '-1' },
+      { page: '1.5' },
+      { page: 'abc' },
+      { pageSize: '0' },
+      { pageSize: '101' },
+      { pageSize: '1.5' },
+      { pageSize: 'abc' },
+    ])('rejects invalid report pagination: %o', async (pagination) => {
+      await expect(
+        service.getPublicDashboard({ ...filters, ...pagination }),
+      ).rejects.toThrow(BadRequestException);
+      expect(findManyResults).not.toHaveBeenCalled();
+    });
+
     it('finds matching reports before limiting the most recent reports', async () => {
       findManyStations.mockResolvedValue([]);
       findManyForms.mockResolvedValue([]);
