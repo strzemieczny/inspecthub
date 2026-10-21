@@ -1,3 +1,4 @@
+import { ReportPhotoViewer } from "../components/ReportPhotoViewer";
 import { SkeletonImage } from "../components/SkeletonImage";
 import { ViewSkeleton } from "../components/ViewSkeleton";
 import type { PublicInspectionReport } from "@inspect-hub/types";
@@ -14,6 +15,7 @@ export default function PublicReport({
   publicReportId: string;
 }) {
   const { language, locale, t } = useI18n();
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [report, setReport] = useState<PublicInspectionReport | null>(null);
   const [state, setState] = useState<"loading" | "not-found" | "error">(
     "loading",
@@ -80,6 +82,24 @@ export default function PublicReport({
     );
   }
 
+  const photoLabel = (answer: PublicInspectionReport["answers"][number]) =>
+    language === "pl"
+      ? answer.label
+      : answer.translations?.[language]?.label || answer.label;
+  const photos = report.answers.flatMap((answer) =>
+    answer.imageUrl
+      ? [
+          {
+            id: answer.questionId,
+            src: answer.imageUrl,
+            label: photoLabel(answer),
+          },
+        ]
+      : [],
+  );
+  const selectedPhotoIndex = photos.findIndex(
+    (photo) => photo.id === selectedPhoto,
+  );
   const passed = ["PASSED", "PASS", "OK", "ZDAŁ", "ZDAL"].includes(
     report.result.toUpperCase(),
   );
@@ -327,10 +347,35 @@ export default function PublicReport({
                   </span>
                 )}
                 {answer.imageUrl ? (
-                  <SkeletonImage
-                    src={answer.imageUrl}
-                    alt={t("report.photo", { label: answer.label })}
-                  />
+                  <button
+                    type="button"
+                    className="report-photo-trigger"
+                    aria-label={t("report.enlargePhoto", {
+                      label: photoLabel(answer),
+                    })}
+                    aria-haspopup="dialog"
+                    onClick={() => setSelectedPhoto(answer.questionId)}
+                  >
+                    <SkeletonImage
+                      src={answer.imageUrl}
+                      alt={t("report.photo", { label: photoLabel(answer) })}
+                    />
+                    <span
+                      className="report-photo-trigger-hint"
+                      aria-hidden="true"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                      >
+                        <circle cx="10" cy="10" r="6" />
+                        <path d="m15 15 5 5M10 7v6M7 10h6" />
+                      </svg>
+                      {t("inspection.zoomIn")}
+                    </span>
+                  </button>
                 ) : (
                   <p>{formatValue(answer)}</p>
                 )}
@@ -349,6 +394,13 @@ export default function PublicReport({
           {t("report.footer", { id: report.publicReportId })}
         </footer>
       </article>
+      {selectedPhotoIndex >= 0 && (
+        <ReportPhotoViewer
+          photos={photos}
+          initialIndex={selectedPhotoIndex}
+          onClose={() => setSelectedPhoto(null)}
+        />
+      )}
     </main>
   );
 }

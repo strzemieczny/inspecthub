@@ -441,6 +441,20 @@ const translations = {
     "report.openHistory": "Otwórz historię w SCADA ↗",
     "report.synced": "Zsynchronizowano",
     "report.pending": "Oczekuje",
+    "report.photoViewer": "Przeglądarka zdjęć",
+    "report.enlargePhoto": "Powiększ zdjęcie: {{label}}",
+    "report.photoPosition": "Zdjęcie {{current}} z {{total}}",
+    "report.photoZoom": "Powiększenie zdjęcia",
+    "report.previousPhoto": "Poprzednie zdjęcie",
+    "report.nextPhoto": "Następne zdjęcie",
+    "report.photoError":
+      "Nie udało się wczytać zdjęcia. Zamknij podgląd i spróbuj ponownie.",
+    "report.photoSingleHint":
+      "Kliknij zdjęcie, aby powiększyć. Esc zamyka podgląd.",
+    "report.photoHint":
+      "Przełączaj zdjęcia strzałkami lub przesuń palcem. Esc zamyka podgląd.",
+    "report.photoPanHint":
+      "Przeciągnij zdjęcie, aby zobaczyć szczegóły. Kliknij zdjęcie, aby dopasować.",
     "report.photo": "Zdjęcie: {{label}}",
     "report.footer": "Inspect Hub · Raport {{id}}",
     "form.draft": "Kopia robocza",
@@ -922,6 +936,20 @@ const translations = {
     "report.openHistory": "Open history in SCADA ↗",
     "report.synced": "Synchronized",
     "report.pending": "Pending",
+    "report.photoViewer": "Photo viewer",
+    "report.enlargePhoto": "Enlarge photo: {{label}}",
+    "report.photoPosition": "Photo {{current}} of {{total}}",
+    "report.photoZoom": "Photo zoom",
+    "report.previousPhoto": "Previous photo",
+    "report.nextPhoto": "Next photo",
+    "report.photoError":
+      "The photo could not be loaded. Close the viewer and try again.",
+    "report.photoSingleHint":
+      "Click the photo to zoom in. Esc closes the viewer.",
+    "report.photoHint":
+      "Use arrow keys or swipe to browse. Esc closes the viewer.",
+    "report.photoPanHint":
+      "Drag to explore details. Click the photo to fit it.",
     "report.photo": "Photo: {{label}}",
     "report.footer": "Inspect Hub · Report {{id}}",
     "form.draft": "Draft",
@@ -1401,6 +1429,20 @@ const translations = {
     "report.openHistory": "Відкрити історію в SCADA ↗",
     "report.synced": "Синхронізовано",
     "report.pending": "Очікує",
+    "report.photoViewer": "Перегляд фотографій",
+    "report.enlargePhoto": "Збільшити фото: {{label}}",
+    "report.photoPosition": "Фото {{current}} з {{total}}",
+    "report.photoZoom": "Масштаб фото",
+    "report.previousPhoto": "Попереднє фото",
+    "report.nextPhoto": "Наступне фото",
+    "report.photoError":
+      "Не вдалося завантажити фото. Закрийте перегляд і спробуйте ще раз.",
+    "report.photoSingleHint":
+      "Натисніть фото, щоб збільшити. Esc закриває перегляд.",
+    "report.photoHint":
+      "Гортайте стрілками або свайпом. Esc закриває перегляд.",
+    "report.photoPanHint":
+      "Перетягуйте фото, щоб побачити деталі. Натисніть фото, щоб умістити його.",
     "report.photo": "Фото: {{label}}",
     "report.footer": "Inspect Hub · Звіт {{id}}",
     "form.draft": "Чернетка",
