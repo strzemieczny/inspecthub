@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { Client } from 'minio';
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
+import sharp from 'sharp';
+
+const MAX_IMAGE_DIMENSION = 2560;
+const IMAGE_QUALITY = 82;
 
 const MEDIA_TYPES: Record<
   string,
@@ -50,17 +54,48 @@ export class MediaService implements OnModuleInit {
         'Zawartość pliku nie pasuje do typu obrazu',
       );
     }
+    const buffer = await this.compressImage(file.buffer, file.mimetype);
     const objectName = `${new Date().toISOString().slice(0, 10)}/${randomUUID()}${mediaType.extension}`;
     await this.client.putObject(
       this.bucket,
       objectName,
-      file.buffer,
-      file.size,
+      buffer,
+      buffer.length,
       {
         'Content-Type': file.mimetype,
       },
     );
     return { objectName };
+  }
+
+  private async compressImage(
+    buffer: Buffer,
+    mimetype: string,
+  ): Promise<Buffer> {
+    // Standard sharp binaries cannot decode HEIC/HEIF with HEVC compression.
+    if (mimetype === 'image/heic' || mimetype === 'image/heif') return buffer;
+
+    try {
+      const image = sharp(buffer, { limitInputPixels: 50_000_000 });
+      const metadata = await image.metadata();
+      // Preserve animated uploads rather than silently keeping only one frame.
+      if ((metadata.pages ?? 1) > 1) return buffer;
+
+      image.rotate().resize({
+        width: MAX_IMAGE_DIMENSION,
+        height: MAX_IMAGE_DIMENSION,
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+      if (mimetype === 'image/jpeg') image.jpeg({ quality: IMAGE_QUALITY });
+      if (mimetype === 'image/webp') image.webp({ quality: IMAGE_QUALITY });
+      if (mimetype === 'image/png') image.png({ compressionLevel: 9 });
+
+      const compressed = await image.toBuffer();
+      return compressed.length < buffer.length ? compressed : buffer;
+    } catch {
+      throw new BadRequestException('Nie można odczytać przesłanego obrazu');
+    }
   }
 
   async getObject(

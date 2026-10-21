@@ -104,6 +104,16 @@ Metadane `Content-Type` są zapisywane razem z obiektem. Publiczny URL wskazuje
 na proxy API `/api/media/object?name=...`, dzięki czemu bucket może pozostać
 prywatny i nie trzeba utrwalać hosta MinIO w danych formularza.
 
+Przed zapisem nowych zdjęć backend używa `sharp`: JPEG, PNG i WebP są obracane
+zgodnie z EXIF i skalowane proporcjonalnie do maksymalnie 2560 px na dłuższym
+boku, bez powiększania. JPEG i WebP mają jakość 82; PNG zachowuje przezroczystość
+i używa bezstratnej kompresji (samo zmniejszenie wymiarów usuwa część szczegółów).
+Format pozostaje bez zmian. Wynik zastępuje oryginał tylko wtedy, gdy jest mniejszy.
+HEIC/HEIF i obrazy animowane są zapisywane bez zmian. Standardowe binaria `sharp`
+nie obsługują dekodowania HEIC/HEVC. Limit uploadu nadal wynosi 20 MiB, a dekodowanie
+JPEG/PNG/WebP jest ograniczone do 50 mln pikseli. Istniejące obiekty w MinIO nie
+są ponownie przetwarzane.
+
 ## WebSocket
 
 API używa adaptera `ws`. Gateway jakości emituje sygnał po zakończeniu
