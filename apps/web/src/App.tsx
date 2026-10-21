@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useSyncExternalStore,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import "./App.css";
 import { AUTH_UNAUTHORIZED_EVENT, type Session } from "./lib/api";
 import { SettingsMenu, useI18n } from "./lib/i18n";
@@ -18,6 +25,20 @@ const AdminPanel = lazy(() => import("./views/AdminPanel"));
 const OperatorPanel = lazy(() => import("./views/OperatorPanel"));
 const PublicReport = lazy(() => import("./views/PublicReport"));
 const QualityDashboard = lazy(() => import("./views/QualityDashboard"));
+
+function LazyView({
+  variant,
+  children,
+}: {
+  variant: ComponentProps<typeof ViewSkeleton>["variant"];
+  children: ReactNode;
+}) {
+  return (
+    <Suspense fallback={<ViewSkeleton variant={variant} page />}>
+      {children}
+    </Suspense>
+  );
+}
 
 function AppRoutes() {
   const { language, t } = useI18n();
@@ -62,29 +83,49 @@ function AppRoutes() {
       window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
   }, [language]);
 
-  if (path === "/") return <Dashboard />;
-  if (path === "/quality") return <QualityDashboard />;
+  if (path === "/")
+    return (
+      <LazyView variant="dashboard">
+        <Dashboard />
+      </LazyView>
+    );
+  if (path === "/quality")
+    return (
+      <LazyView variant="quality">
+        <QualityDashboard />
+      </LazyView>
+    );
   const publicReportMatch = path.match(/^\/reports\/([^/]+)\/?$/);
   if (publicReportMatch) {
     return (
-      <PublicReport publicReportId={decodeURIComponent(publicReportMatch[1])} />
+      <LazyView variant="report">
+        <PublicReport
+          publicReportId={decodeURIComponent(publicReportMatch[1])}
+        />
+      </LazyView>
     );
   }
   if (path === "/inspection") {
     return (
-      <OperatorPanel
-        key={user?.id ?? "anonymous"}
-        user={user}
-        onLogin={loginUser}
-        onLogout={user ? logoutUser : undefined}
-      />
+      <LazyView variant="inspection">
+        <OperatorPanel
+          key={user?.id ?? "anonymous"}
+          user={user}
+          onLogin={loginUser}
+          onLogout={user ? logoutUser : undefined}
+        />
+      </LazyView>
     );
   }
   if (!user) {
     if (path !== "/login") {
       window.history.replaceState({}, "", route("/login"));
     }
-    return <Login onLogin={loginUser} />;
+    return (
+      <LazyView variant="login">
+        <Login onLogin={loginUser} />
+      </LazyView>
+    );
   }
 
   function loginUser(session: Session) {
@@ -104,12 +145,14 @@ function AppRoutes() {
   if (user.role === "OPERATOR" && path !== "/inspection") {
     window.history.replaceState({}, "", route("/inspection"));
     return (
-      <OperatorPanel
-        key={user.id}
-        user={user}
-        onLogin={loginUser}
-        onLogout={logoutUser}
-      />
+      <LazyView variant="inspection">
+        <OperatorPanel
+          key={user.id}
+          user={user}
+          onLogin={loginUser}
+          onLogout={logoutUser}
+        />
+      </LazyView>
     );
   } else if (path === "/login") {
     window.history.replaceState({}, "", route("/admin"));
@@ -163,28 +206,13 @@ function AppRoutes() {
           <SettingsMenu />
         </div>
       </nav>
-      <AdminPanel key={`${user.id}-${user.role}`} role={user.role} />
+      <LazyView variant="admin">
+        <AdminPanel key={`${user.id}-${user.role}`} role={user.role} />
+      </LazyView>
     </>
   );
 }
 
 export default function App() {
-  const path = currentAppPath().replace(/^\/(pl|en|ua)(?=\/|$)/, "") || "/";
-  const variant =
-    path === "/"
-      ? "dashboard"
-      : path === "/quality"
-        ? "quality"
-        : path.startsWith("/reports/")
-          ? "report"
-          : path === "/inspection"
-            ? "inspection"
-            : path === "/login"
-              ? "login"
-              : "form";
-  return (
-    <Suspense fallback={<ViewSkeleton variant={variant} page />}>
-      <AppRoutes />
-    </Suspense>
-  );
+  return <AppRoutes />;
 }

@@ -322,6 +322,7 @@ export default function Dashboard() {
   const { language, locale, t } = useI18n();
   const route = (path: string) => appRoute(language, path);
   const [data, setData] = useState<DashboardData>(emptyDashboard);
+  const [hasData, setHasData] = useState(false);
   const [connection, setConnection] = useState<"loading" | "live" | "error">(
     "loading",
   );
@@ -410,6 +411,7 @@ export default function Dashboard() {
       .then((result) => {
         if (!active) return;
         setData(result);
+        setHasData(true);
         setConnection("live");
       })
       .catch(() => {
@@ -775,10 +777,10 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {connection === "loading" ? (
+        {!hasData && connection === "loading" ? (
           <ViewSkeleton variant="dashboard" />
         ) : (
-          <>
+          <div className="dashboard-results" aria-busy={connection === "loading"}>
             <section className="metric-grid">
               <article className="metric-card featured">
                 <div className="metric-icon">✓</div>
@@ -1360,7 +1362,7 @@ export default function Dashboard() {
                 )}
               </div>
             </section>
-          </>
+          </div>
         )}
         <footer className="dashboard-footer">
           <span>Inspect Hub · Quality Operations</span>

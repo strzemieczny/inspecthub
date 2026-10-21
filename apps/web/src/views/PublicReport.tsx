@@ -41,6 +41,9 @@ export default function PublicReport({
     }
   }, [report]);
 
+  if (!report && state === "loading")
+    return <ViewSkeleton variant="report" page />;
+
   if (!report) {
     return (
       <main className="public-report-state">
@@ -57,26 +60,22 @@ export default function PublicReport({
           Inspect Hub
         </a>
         <SettingsMenu />
-        {state === "loading" ? (
-          <ViewSkeleton variant="report" />
-        ) : (
-          <section className="panel">
-            {state === "not-found" ? (
-              <>
-                <span className="report-state-icon">?</span>
-                <h1>{t("report.notFound")}</h1>
-                <p>{t("report.checkAddress")}</p>
-                <ReportSearch />
-              </>
-            ) : (
-              <>
-                <span className="report-state-icon">!</span>
-                <h1>{t("report.error")}</h1>
-                <p>{t("report.tryLater")}</p>
-              </>
-            )}
-          </section>
-        )}
+        <section className="panel">
+          {state === "not-found" ? (
+            <>
+              <span className="report-state-icon">?</span>
+              <h1>{t("report.notFound")}</h1>
+              <p>{t("report.checkAddress")}</p>
+              <ReportSearch />
+            </>
+          ) : (
+            <>
+              <span className="report-state-icon">!</span>
+              <h1>{t("report.error")}</h1>
+              <p>{t("report.tryLater")}</p>
+            </>
+          )}
+        </section>
       </main>
     );
   }

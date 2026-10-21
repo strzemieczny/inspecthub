@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from "./ViewSkeleton";
 import { Fragment, useState, type FormEvent } from "react";
 import type { Station } from "@inspect-hub/types";
 import { CompactSelect } from "./CompactSelect";
@@ -8,8 +9,10 @@ import { useI18n } from "../lib/i18n";
 export function StationsManager({
   stations,
   onChange,
+  loading = false,
 }: {
   stations: Station[];
+  loading?: boolean;
   onChange: () => Promise<void>;
 }) {
   const { t, locale } = useI18n();
@@ -36,7 +39,7 @@ export function StationsManager({
     );
   });
   useUpdateGuard(
-    Boolean(busyId || code || name || processName || unsavedDraft),
+    Boolean(loading || busyId || code || name || processName || unsavedDraft),
   );
   const query = search.trim().toLocaleLowerCase();
   const filtered = stations.filter(
@@ -242,7 +245,7 @@ export function StationsManager({
         aria-label={t("admin.stations")}
         tabIndex={0}
       >
-        <table className="stations-table">
+        <table className="stations-table" aria-busy={loading}>
           <colgroup>
             <col className="station-col-code" />
             <col />
@@ -262,208 +265,212 @@ export function StationsManager({
             </tr>
           </thead>
           <tbody>
-            {visibleStations.map((station) => {
-              const draft = drafts[station.id] ?? {
-                code: station.code,
-                name: station.name,
-                processName: station.process?.name ?? "",
-              };
-              const expanded = expandedId === station.id;
-              return (
-                <Fragment key={station.id}>
-                  <tr
-                    className={
-                      expanded ? "station-summary expanded" : "station-summary"
-                    }
-                  >
-                    <td title={station.code}>
-                      <strong>{station.code}</strong>
-                    </td>
-                    <td title={station.name}>{station.name}</td>
-                    <td title={station.process?.name}>
-                      {station.process?.name || "—"}
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          station.active
-                            ? "station-state active"
-                            : "station-state"
-                        }
-                      >
-                        {station.active
-                          ? t("stations.active")
-                          : t("stations.inactive")}
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          station.mobileDeviceId ? "station-paired" : "muted"
-                        }
-                      >
-                        {station.mobileDeviceId ? t("stations.paired") : "—"}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="station-edit-button"
-                        aria-expanded={expanded}
-                        aria-controls={`station-editor-${station.id}`}
-                        aria-label={`${t("stations.details")}: ${station.code}`}
-                        disabled={busyId !== ""}
-                        onClick={() => {
-                          closeEditor();
-                          if (!expanded) setExpandedId(station.id);
-                        }}
-                      >
-                        {expanded ? t("common.close") : t("stations.details")}
-                      </button>
-                    </td>
-                  </tr>
-                  {expanded && (
+            {loading && <TableSkeletonRows columns={6} />}
+            {!loading &&
+              visibleStations.map((station) => {
+                const draft = drafts[station.id] ?? {
+                  code: station.code,
+                  name: station.name,
+                  processName: station.process?.name ?? "",
+                };
+                const expanded = expandedId === station.id;
+                return (
+                  <Fragment key={station.id}>
                     <tr
-                      className="station-editor-row"
-                      id={`station-editor-${station.id}`}
+                      className={
+                        expanded
+                          ? "station-summary expanded"
+                          : "station-summary"
+                      }
                     >
-                      <td colSpan={6}>
-                        <form
-                          className="station-editor"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void updateStation(station);
+                      <td title={station.code}>
+                        <strong>{station.code}</strong>
+                      </td>
+                      <td title={station.name}>{station.name}</td>
+                      <td title={station.process?.name}>
+                        {station.process?.name || "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            station.active
+                              ? "station-state active"
+                              : "station-state"
+                          }
+                        >
+                          {station.active
+                            ? t("stations.active")
+                            : t("stations.inactive")}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            station.mobileDeviceId ? "station-paired" : "muted"
+                          }
+                        >
+                          {station.mobileDeviceId ? t("stations.paired") : "—"}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="station-edit-button"
+                          aria-expanded={expanded}
+                          aria-controls={`station-editor-${station.id}`}
+                          aria-label={`${t("stations.details")}: ${station.code}`}
+                          disabled={busyId !== ""}
+                          onClick={() => {
+                            closeEditor();
+                            if (!expanded) setExpandedId(station.id);
                           }}
                         >
-                          <div className="station-editor-fields">
-                            <label>
-                              {t("stations.code")}
-                              <input
-                                required
-                                value={draft.code}
-                                onChange={(event) =>
-                                  setDrafts((current) => ({
-                                    ...current,
-                                    [station.id]: {
-                                      ...draft,
-                                      code: event.target.value.toUpperCase(),
-                                    },
-                                  }))
-                                }
-                              />
-                            </label>
-                            <label>
-                              {t("stations.name")}
-                              <input
-                                required
-                                value={draft.name}
-                                onChange={(event) =>
-                                  setDrafts((current) => ({
-                                    ...current,
-                                    [station.id]: {
-                                      ...draft,
-                                      name: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </label>
-                            <label>
-                              {t("stations.process")}
-                              <input
-                                required
-                                value={draft.processName}
-                                onChange={(event) =>
-                                  setDrafts((current) => ({
-                                    ...current,
-                                    [station.id]: {
-                                      ...draft,
-                                      processName: event.target.value,
-                                    },
-                                  }))
-                                }
-                              />
-                            </label>
-                          </div>
-                          <dl className="station-device-details">
-                            <div>
-                              <dt>IP</dt>
-                              <dd>{station.ipAddress ?? "—"}</dd>
+                          {expanded ? t("common.close") : t("stations.details")}
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr
+                        className="station-editor-row"
+                        id={`station-editor-${station.id}`}
+                      >
+                        <td colSpan={6}>
+                          <form
+                            className="station-editor"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void updateStation(station);
+                            }}
+                          >
+                            <div className="station-editor-fields">
+                              <label>
+                                {t("stations.code")}
+                                <input
+                                  required
+                                  value={draft.code}
+                                  onChange={(event) =>
+                                    setDrafts((current) => ({
+                                      ...current,
+                                      [station.id]: {
+                                        ...draft,
+                                        code: event.target.value.toUpperCase(),
+                                      },
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                {t("stations.name")}
+                                <input
+                                  required
+                                  value={draft.name}
+                                  onChange={(event) =>
+                                    setDrafts((current) => ({
+                                      ...current,
+                                      [station.id]: {
+                                        ...draft,
+                                        name: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                />
+                              </label>
+                              <label>
+                                {t("stations.process")}
+                                <input
+                                  required
+                                  value={draft.processName}
+                                  onChange={(event) =>
+                                    setDrafts((current) => ({
+                                      ...current,
+                                      [station.id]: {
+                                        ...draft,
+                                        processName: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                />
+                              </label>
                             </div>
-                            <div>
-                              <dt>{t("stations.tablet")}</dt>
-                              <dd>
-                                {station.mobileDeviceId ??
-                                  t("stations.unpaired")}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>{t("stations.lastSeen")}</dt>
-                              <dd>
-                                {station.mobileLastSeenAt
-                                  ? new Date(
-                                      station.mobileLastSeenAt,
-                                    ).toLocaleString(locale)
-                                  : "—"}
-                              </dd>
-                            </div>
-                          </dl>
-                          <div className="station-editor-actions">
-                            <button
-                              className="primary"
-                              disabled={busyId !== ""}
-                            >
-                              {t("common.save")}
-                            </button>
-                            <button
-                              className="secondary"
-                              type="button"
-                              disabled={busyId !== ""}
-                              onClick={closeEditor}
-                            >
-                              {t("common.close")}
-                            </button>
-                            <button
-                              className="secondary"
-                              type="button"
-                              disabled={busyId !== ""}
-                              onClick={() =>
-                                void updateStation(station, {
-                                  active: !station.active,
-                                })
-                              }
-                            >
-                              {station.active
-                                ? t("stations.deactivate")
-                                : t("stations.activate")}
-                            </button>
-                            {station.mobileDeviceId && (
+                            <dl className="station-device-details">
+                              <div>
+                                <dt>IP</dt>
+                                <dd>{station.ipAddress ?? "—"}</dd>
+                              </div>
+                              <div>
+                                <dt>{t("stations.tablet")}</dt>
+                                <dd>
+                                  {station.mobileDeviceId ??
+                                    t("stations.unpaired")}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>{t("stations.lastSeen")}</dt>
+                                <dd>
+                                  {station.mobileLastSeenAt
+                                    ? new Date(
+                                        station.mobileLastSeenAt,
+                                      ).toLocaleString(locale)
+                                    : "—"}
+                                </dd>
+                              </div>
+                            </dl>
+                            <div className="station-editor-actions">
+                              <button
+                                className="primary"
+                                disabled={busyId !== ""}
+                              >
+                                {t("common.save")}
+                              </button>
                               <button
                                 className="secondary"
                                 type="button"
                                 disabled={busyId !== ""}
-                                onClick={() => void unpairTablet(station)}
+                                onClick={closeEditor}
                               >
-                                {t("stations.unpairTablet")}
+                                {t("common.close")}
                               </button>
-                            )}
-                            <button
-                              className="icon-button danger"
-                              type="button"
-                              disabled={busyId !== ""}
-                              onClick={() => void removeStation(station)}
-                            >
-                              {t("common.delete")}
-                            </button>
-                          </div>
-                        </form>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-            {filtered.length === 0 && (
+                              <button
+                                className="secondary"
+                                type="button"
+                                disabled={busyId !== ""}
+                                onClick={() =>
+                                  void updateStation(station, {
+                                    active: !station.active,
+                                  })
+                                }
+                              >
+                                {station.active
+                                  ? t("stations.deactivate")
+                                  : t("stations.activate")}
+                              </button>
+                              {station.mobileDeviceId && (
+                                <button
+                                  className="secondary"
+                                  type="button"
+                                  disabled={busyId !== ""}
+                                  onClick={() => void unpairTablet(station)}
+                                >
+                                  {t("stations.unpairTablet")}
+                                </button>
+                              )}
+                              <button
+                                className="icon-button danger"
+                                type="button"
+                                disabled={busyId !== ""}
+                                onClick={() => void removeStation(station)}
+                              >
+                                {t("common.delete")}
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="stations-empty">
                   {t(stations.length ? "stations.noMatches" : "stations.empty")}

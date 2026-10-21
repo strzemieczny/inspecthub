@@ -51,7 +51,7 @@ export default function ScadaSettingsPanel() {
         {notice}
       </section>
     ) : (
-      <ViewSkeleton variant="form" />
+      <ViewSkeleton variant="scada" />
     );
   const update = <K extends keyof ScadaSettings>(
     key: K,
