@@ -73,3 +73,38 @@ usuwać podczas rollbacku aplikacji.
 
 Nie przywracaj starego schematu przez `prisma db push`. Przy zmianach
 destrukcyjnych przygotuj osobny, przetestowany runbook i backup point-in-time.
+
+
+## Aktualizacja otwartych przeglądarek
+
+Build web generuje wspólny, unikalny identyfikator dla kodu aplikacji,
+`version.json` i cache service workera. Te pliki należy publikować razem;
+`version.json` oraz `sw.js` nie mogą trafiać do cache reverse proxy bez
+odpowiedniej rewalidacji. Nginx wysyła dla nich odpowiednio `no-store` i
+`no-cache`. Pliki JS/CSS z hashem nadal mają długi cache `immutable`.
+
+Widoczna aplikacja sprawdza wersję co minutę, po powrocie do karty i po
+odzyskaniu połączenia (powtarzające się zdarzenia są ograniczane). Service
+worker pomija plik wersji. Przed aktualizacją pobiera komplet plików buildu,
+w tym moduły ładowane na żądanie, i pyta wszystkie otwarte karty aplikacji,
+czy można go aktywować. Brak odpowiedzi albo niezapisana praca odracza
+aktualizację. Zamrożoną kartę może być konieczne otworzyć lub zamknąć.
+
+Odświeżenie czeka na zakończenie inspekcji, zapisy i uploady, edycję formularzy,
+stanowisk i ustawień SCADA oraz rozpoczęte logowanie. Komunikat informuje
+o oczekującej aktualizacji. Ukryte karty i aplikacja offline nie są automatycznie
+przeładowywane. Zachowuj zgodność API z poprzednim frontendem podczas wdrożeń,
+ponieważ aktywna inspekcja może opóźnić przejście na nową wersję.
+
+Przy pierwszym wdrożeniu tego mechanizmu dotychczas otwarte karty nie mają
+jeszcze kodu wykrywania wersji ani odpowiedzi na pytanie workera. Trzeba je
+jednorazowo odświeżyć, a jeśli nowy worker nadal oczekuje — zamknąć wszystkie
+karty aplikacji i otworzyć ją ponownie. Kolejne wydania obsługują aktualizację
+automatycznie.
+
+Weryfikacja: `pnpm --filter web test:updates`, `pnpm --filter web lint` i
+`pnpm --filter web build`. Smoke test na HTTPS: zostaw dashboard i rozpoczętą
+inspekcję w dwóch kartach, opublikuj kolejny build, sprawdź komunikat i brak
+przeładowania przed zapisem; po zapisaniu inspekcji obie karty powinny przejść
+na nową wersję (ukryta po jej otwarciu). Sprawdź też pracę offline oraz
+odpowiedzi `version.json` i `sw.js` przez publiczny reverse proxy.

@@ -3,17 +3,25 @@ import type { ScadaSettings } from "@inspect-hub/types";
 import { useEffect, useState, type FormEvent } from "react";
 import { api } from "../lib/api";
 
+import { useUpdateGuard } from "../lib/use-update-guard";
 import { useI18n } from "../lib/i18n";
 
 export default function ScadaSettingsPanel() {
   const { t } = useI18n();
   const [settings, setSettings] = useState<ScadaSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState("");
+  useUpdateGuard(!settings || JSON.stringify(settings) !== savedSettings);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useUpdateGuard(busy);
+
   useEffect(() => {
     void api<ScadaSettings>("/scada/settings")
-      .then(setSettings)
+      .then((value) => {
+        setSettings(value);
+        setSavedSettings(JSON.stringify(value));
+      })
       .catch((error: Error) => setNotice(error.message));
   }, []);
 
@@ -23,12 +31,12 @@ export default function ScadaSettingsPanel() {
     setBusy(true);
     setNotice("");
     try {
-      setSettings(
-        await api<ScadaSettings>("/scada/settings", {
-          method: "PATCH",
-          body: JSON.stringify(settings),
-        }),
-      );
+      const saved = await api<ScadaSettings>("/scada/settings", {
+        method: "PATCH",
+        body: JSON.stringify(settings),
+      });
+      setSettings(saved);
+      setSavedSettings(JSON.stringify(saved));
       setNotice(t("notice.scadaSaved"));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : t("notice.saveError"));

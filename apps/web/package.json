@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "check-types": "tsc -b --pretty false",
     "lint": "eslint .",
+    "test:updates": "node --experimental-vm-modules --test tests/app-updates.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

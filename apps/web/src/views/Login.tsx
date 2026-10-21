@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { api, type CardLoginResult, type Session } from "../lib/api";
 
 import { SettingsMenu, useI18n } from "../lib/i18n";
+import { useUpdateGuard } from "../lib/use-update-guard";
 import { appPath } from "../lib/routing";
 
 export default function Login({
@@ -18,6 +19,10 @@ export default function Login({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useUpdateGuard(
+    Boolean(busy || identifier || cardCode || username || password),
+  );
 
   async function submitCard(event: FormEvent) {
     event.preventDefault();

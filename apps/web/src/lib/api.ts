@@ -1,3 +1,5 @@
+import { blockUpdates } from "./update-guard";
+
 const API_URL =
   import.meta.env.VITE_API_URL ??
   `${window.location.protocol}//${window.location.hostname}:3000/api`;
@@ -93,34 +95,39 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = localStorage.getItem("inspect-hub-token");
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...(options.body instanceof FormData
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  const release = blockUpdates();
+  try {
+    const token = localStorage.getItem("inspect-hub-token");
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(options.body instanceof FormData
+          ? {}
+          : { "Content-Type": "application/json" }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
 
-  if (!response.ok) {
-    notifyUnauthorized(path, response.status, token);
-    const body = (await response.json().catch(() => null)) as {
-      message?: string | string[];
-    } | null;
-    const message = Array.isArray(body?.message)
-      ? body.message.join(", ")
-      : body?.message;
-    throw new ApiError(
-      message ?? `Błąd HTTP ${response.status}`,
-      response.status,
-    );
+    if (!response.ok) {
+      notifyUnauthorized(path, response.status, token);
+      const body = (await response.json().catch(() => null)) as {
+        message?: string | string[];
+      } | null;
+      const message = Array.isArray(body?.message)
+        ? body.message.join(", ")
+        : body?.message;
+      throw new ApiError(
+        message ?? `Błąd HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    if (response.status === 204) return undefined as T;
+    return normalizeMediaUrls((await response.json()) as T);
+  } finally {
+    release();
   }
-  if (response.status === 204) return undefined as T;
-  return normalizeMediaUrls((await response.json()) as T);
 }
 
 export function absoluteApiUrl(path: string): string {
@@ -128,45 +135,55 @@ export function absoluteApiUrl(path: string): string {
 }
 
 export async function downloadFile(path: string): Promise<void> {
-  const token = localStorage.getItem("inspect-hub-token");
-  const response = await fetch(absoluteApiUrl(path), {
-    credentials: "include",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!response.ok) {
-    notifyUnauthorized(path, response.status, token);
-    throw new ApiError(
-      `Błąd eksportu HTTP ${response.status}`,
-      response.status,
-    );
+  const release = blockUpdates();
+  try {
+    const token = localStorage.getItem("inspect-hub-token");
+    const response = await fetch(absoluteApiUrl(path), {
+      credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      notifyUnauthorized(path, response.status, token);
+      throw new ApiError(
+        `Błąd eksportu HTTP ${response.status}`,
+        response.status,
+      );
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename =
+      disposition.match(/filename="([^"]+)"/)?.[1] ?? "inspect-hub-export";
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    release();
   }
-  const blob = await response.blob();
-  const disposition = response.headers.get("Content-Disposition") ?? "";
-  const filename =
-    disposition.match(/filename="([^"]+)"/)?.[1] ?? "inspect-hub-export";
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 export async function uploadImage(
   file: File,
   purpose: "forms" | "inspections",
 ): Promise<string> {
-  const uploadFile = await prepareImageForUpload(file);
-  const body = new FormData();
-  body.append("file", uploadFile);
-  body.append("purpose", purpose);
-  const result = await api<{ objectName: string }>("/media/upload", {
-    method: "POST",
-    body,
-  });
-  return `${API_URL}/media/object?name=${encodeURIComponent(result.objectName)}`;
+  const release = blockUpdates();
+  try {
+    const uploadFile = await prepareImageForUpload(file);
+    const body = new FormData();
+    body.append("file", uploadFile);
+    body.append("purpose", purpose);
+    const result = await api<{ objectName: string }>("/media/upload", {
+      method: "POST",
+      body,
+    });
+    return `${API_URL}/media/object?name=${encodeURIComponent(result.objectName)}`;
+  } finally {
+    release();
+  }
 }
 
 const MAX_IMAGE_DIMENSION = 2560;

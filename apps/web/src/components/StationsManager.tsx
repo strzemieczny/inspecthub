@@ -2,6 +2,7 @@ import { Fragment, useState, type FormEvent } from "react";
 import type { Station } from "@inspect-hub/types";
 import { CompactSelect } from "./CompactSelect";
 import { api } from "../lib/api";
+import { useUpdateGuard } from "../lib/use-update-guard";
 import { useI18n } from "../lib/i18n";
 
 export function StationsManager({
@@ -25,6 +26,18 @@ export function StationsManager({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const unsavedDraft = Object.entries(drafts).some(([id, draft]) => {
+    const station = stations.find((item) => item.id === id);
+    return (
+      !station ||
+      draft.code !== station.code ||
+      draft.name !== station.name ||
+      draft.processName !== (station.process?.name ?? "")
+    );
+  });
+  useUpdateGuard(
+    Boolean(busyId || code || name || processName || unsavedDraft),
+  );
   const query = search.trim().toLocaleLowerCase();
   const filtered = stations.filter(
     (station) =>

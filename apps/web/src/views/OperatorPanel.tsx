@@ -17,6 +17,7 @@ import {
 } from "../lib/api";
 
 import { SettingsMenu, useI18n } from "../lib/i18n";
+import { useUpdateGuard } from "../lib/use-update-guard";
 import { appPath, appRoute } from "../lib/routing";
 
 import {
@@ -158,6 +159,24 @@ export default function OperatorPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+  useUpdateGuard(
+    Boolean(
+      loading ||
+      busy ||
+      uploadingPhotoId ||
+      serialPhotoBusy ||
+      serialScannerOpen ||
+      productIdentified ||
+      vin ||
+      Object.keys(answers).length ||
+      loginOpen ||
+      loginBusy ||
+      identifying ||
+      (stationId && !stationName) ||
+      newStationName ||
+      newStationProcessName,
+    ),
+  );
   const [questionIndex, setQuestionIndex] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<{

@@ -18,6 +18,7 @@ import {
 } from "react";
 import { api, uploadImage, type SessionUser } from "../lib/api";
 
+import { useUpdateGuard } from "../lib/use-update-guard";
 import { useI18n } from "../lib/i18n";
 
 import {
@@ -142,6 +143,30 @@ export default function AdminPanel({ role }: { role: SessionUser["role"] }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [revisions, setRevisions] = useState<InspectionForm[]>([]);
+  const formContent = {
+    title,
+    code,
+    statuses,
+    nokStreakThreshold,
+    requiresLogin,
+    processIds,
+    partNumbers: normalizePartNumbers([...partNumbers, partNumberInput]),
+    questions,
+  };
+  const unsavedForm = editingForm
+    ? JSON.stringify(formContent) !==
+      JSON.stringify({
+        title: editingForm.title,
+        code: editingForm.code,
+        statuses: editingForm.allowedStatuses,
+        nokStreakThreshold: editingForm.nokStreakThreshold,
+        requiresLogin: editingForm.requiresLogin,
+        processIds: editingForm.processIds,
+        partNumbers: editingForm.partNumbers ?? [],
+        questions: editingForm.questions,
+      })
+    : hasNewFormDraftContent(formContent);
+  useUpdateGuard(Boolean(loading || busy || uploadingImage || unsavedForm));
   const revisionRequest = useRef(0);
   const processes = useMemo(
     () =>
