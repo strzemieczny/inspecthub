@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from "../components/ViewSkeleton";
 import { useEffect, useState } from "react";
 import { api, type SessionUser } from "../lib/api";
 import { useI18n } from "../lib/i18n";
@@ -100,67 +101,79 @@ export function UsersManager() {
             </tr>
           </thead>
           <tbody>
-            {visibleUsers.map((user) => (
-              <tr key={user.id}>
-                <td>
-                  <div className="users-directory-person">
-                    <span className="users-directory-avatar" aria-hidden="true">
-                      {user.name
-                        .trim()
-                        .split(/\s+/)
-                        .slice(0, 2)
-                        .map((part) => part[0])
-                        .join("")
-                        .toLocaleUpperCase()}
-                    </span>
-                    <div>
-                      <strong title={user.name}>{user.name}</strong>
-                      <span title={user.email}>{user.email}</span>
+            {loading && <TableSkeletonRows columns={4} />}
+            {!loading &&
+              visibleUsers.map((user) => (
+                <tr key={user.id}>
+                  <td>
+                    <div className="users-directory-person">
+                      <span
+                        className="users-directory-avatar"
+                        aria-hidden="true"
+                      >
+                        {user.name
+                          .trim()
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map((part) => part[0])
+                          .join("")
+                          .toLocaleUpperCase()}
+                      </span>
+                      <div>
+                        <strong title={user.name}>{user.name}</strong>
+                        <span title={user.email}>{user.email}</span>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <span
-                    className={`users-directory-role role-${user.role.toLowerCase()}`}
-                  >
-                    {t(
-                      user.role === "ADMIN"
-                        ? "users.admin"
-                        : user.role === "MANAGER"
-                          ? "users.manager"
-                          : "users.operator",
+                  </td>
+                  <td>
+                    <span
+                      className={`users-directory-role role-${user.role.toLowerCase()}`}
+                    >
+                      {t(
+                        user.role === "ADMIN"
+                          ? "users.admin"
+                          : user.role === "MANAGER"
+                            ? "users.manager"
+                            : "users.operator",
+                      )}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="users-directory-source">
+                      {user.externalProvider === "LDAP"
+                        ? "Active Directory"
+                        : user.externalProvider === "APACS"
+                          ? "APACS"
+                          : t("users.local")}
+                    </span>
+                    {!user.externalProvider && (
+                      <small>{t("users.signInDisabled")}</small>
                     )}
-                  </span>
-                </td>
-                <td>
-                  <span className="users-directory-source">
-                    {user.externalProvider === "LDAP"
-                      ? "Active Directory"
-                      : user.externalProvider === "APACS"
-                        ? "APACS"
-                        : t("users.local")}
-                  </span>
-                  {!user.externalProvider && <small>{t("users.signInDisabled")}</small>}
-                </td>
-                <td>
-                  <time dateTime={user.createdAt}>
-                    {new Intl.DateTimeFormat(locale).format(
-                      new Date(user.createdAt),
-                    )}
-                  </time>
-                </td>
-              </tr>
-            ))}
-            {!visibleUsers.length && (
+                  </td>
+                  <td>
+                    <time dateTime={user.createdAt}>
+                      {new Intl.DateTimeFormat(locale).format(
+                        new Date(user.createdAt),
+                      )}
+                    </time>
+                  </td>
+                </tr>
+              ))}
+            {!loading && !visibleUsers.length && (
               <tr>
                 <td colSpan={4} className="users-directory-empty">
-                  {loading ? t("common.loading") : notice || t("users.empty")}
+                  {notice || t("users.empty")}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      {loading && (
+        <span className="loading-sr-only" role="status">
+          {t("common.loading")}
+        </span>
+      )}
       <div className="users-directory-footer" aria-live="polite">
         {t("stations.range", {
           from: visibleUsers.length ? 1 : 0,
