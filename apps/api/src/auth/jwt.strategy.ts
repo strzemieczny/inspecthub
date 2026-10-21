@@ -14,7 +14,7 @@ interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    config: ConfigService,
+    private readonly config: ConfigService,
     private readonly database: DatabaseService,
   ) {
     super({
@@ -31,7 +31,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
     if (
       !user ||
-      !['LDAP', 'APACS'].includes(user.externalProvider ?? '') ||
+      !(
+        ['LDAP', 'APACS'].includes(user.externalProvider ?? '') ||
+        (user.externalProvider === 'DEV' &&
+          this.config.get<string>('NODE_ENV') === 'development')
+      ) ||
       payload.provider !== user.externalProvider
     )
       throw new UnauthorizedException();

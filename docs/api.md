@@ -75,7 +75,9 @@ Content-Type: application/json
 
 Odpowiedź zawiera `accessToken` i obiekt `user`. `username` przyjmuje krótki login,
 `DOMENA\login` lub pełny UPN. Lokalne konta i rejestracja są wyłączone.
-`GET /users` zwraca również `externalProvider` (`LDAP`, `APACS` lub `null` dla
+Wyjątkiem jest konto `admin` / `admin` z rolą `ADMIN` dostępne przy
+`NODE_ENV=development`. Jego sesje są akceptowane wyłącznie w development.
+`GET /users` zwraca również `externalProvider` (`LDAP`, `APACS`, `DEV` lub `null` dla
 starych kont). Dane kont i role są synchronizowane podczas logowania.
 
 ### Route check

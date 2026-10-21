@@ -67,6 +67,138 @@ describe('AuthService card login', () => {
       }),
     );
   });
+
+  it('logs in 0000 as Testowy User with the operator role in development', async () => {
+    const config = new ConfigService({ NODE_ENV: 'development' });
+    const devService = new AuthService(
+      database as never,
+      jwt as unknown as JwtService,
+      new AccessControlService(config),
+      config,
+      {} as LdapService,
+    );
+    const user = {
+      id: 'test-user',
+      email: 'apacs-dev-test-user@access-control.invalid',
+      name: 'Testowy User',
+      role: Role.OPERATOR,
+    };
+    database.user.upsert.mockResolvedValue(user);
+
+    await expect(devService.cardLogin({ identifier: '0000' })).resolves.toEqual(
+      {
+        accessToken: 'token',
+        user,
+      },
+    );
+    expect(database.user.upsert).toHaveBeenCalledWith({
+      where: {
+        externalProvider_externalId: {
+          externalProvider: 'APACS',
+          externalId: 'dev-test-user',
+        },
+      },
+      create: {
+        externalProvider: 'APACS',
+        externalId: 'dev-test-user',
+        email: user.email,
+        name: user.name,
+        role: Role.OPERATOR,
+      },
+      update: { email: user.email, name: user.name, role: Role.OPERATOR },
+      select: { id: true, email: true, name: true, role: true },
+    });
+  });
+});
+
+describe('AuthService development admin', () => {
+  const database = { user: { upsert: jest.fn() } };
+  const jwt = { signAsync: jest.fn().mockResolvedValue('admin-token') };
+  const ldap = { authenticate: jest.fn() };
+  const user = {
+    id: 'dev-admin',
+    email: 'admin@development.invalid',
+    name: 'Testowy Admin',
+    role: Role.ADMIN,
+  };
+  const createService = (nodeEnv?: string) =>
+    new AuthService(
+      database as never,
+      jwt as unknown as JwtService,
+      {} as AccessControlService,
+      {
+        get: (key: string) => (key === 'NODE_ENV' ? nodeEnv : undefined),
+      } as ConfigService,
+      ldap as unknown as LdapService,
+    );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    database.user.upsert.mockResolvedValue(user);
+    ldap.authenticate.mockRejectedValue(new UnauthorizedException());
+  });
+
+  it('creates or refreshes the local admin and issues a DEV session without LDAP', async () => {
+    const service = createService('development');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(
+        service.login({ username: 'admin', password: 'admin' }),
+      ).resolves.toEqual({ accessToken: 'admin-token', user });
+    }
+    expect(database.user.upsert).toHaveBeenCalledTimes(2);
+    expect(database.user.upsert).toHaveBeenCalledWith({
+      where: {
+        externalProvider_externalId: {
+          externalProvider: 'DEV',
+          externalId: 'admin',
+        },
+      },
+      create: {
+        externalProvider: 'DEV',
+        externalId: 'admin',
+        email: user.email,
+        name: user.name,
+        role: Role.ADMIN,
+        passwordHash: null,
+      },
+      update: {
+        email: user.email,
+        name: user.name,
+        role: Role.ADMIN,
+        passwordHash: null,
+      },
+      select: { id: true, email: true, name: true, role: true },
+    });
+    expect(jwt.signAsync).toHaveBeenCalledWith({
+      sub: user.id,
+      provider: 'DEV',
+      email: user.email,
+    });
+    expect(ldap.authenticate).not.toHaveBeenCalled();
+  });
+
+  it('rejects the wrong admin password in development', async () => {
+    await expect(
+      createService('development').login({
+        username: 'admin',
+        password: 'wrong',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(database.user.upsert).not.toHaveBeenCalled();
+    expect(jwt.signAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(['production', 'test', 'staging', undefined])(
+    'does not enable local admin when NODE_ENV=%s',
+    async (nodeEnv) => {
+      await expect(
+        createService(nodeEnv).login({ username: 'admin', password: 'admin' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(database.user.upsert).not.toHaveBeenCalled();
+      expect(jwt.signAsync).not.toHaveBeenCalled();
+      expect(ldap.authenticate).toHaveBeenCalledWith('admin', 'admin');
+    },
+  );
 });
 
 describe('AuthService LDAP sessions', () => {
@@ -87,7 +219,7 @@ describe('AuthService LDAP sessions', () => {
     database as never,
     jwt as unknown as JwtService,
     {} as AccessControlService,
-    {} as ConfigService,
+    { get: jest.fn() } as unknown as ConfigService,
     ldap as unknown as LdapService,
   );
 
@@ -116,13 +248,11 @@ describe('AuthService LDAP sessions', () => {
   });
 
   it('replaces a legacy password and role while preserving history', async () => {
-    database.user.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: 'legacy',
-        externalProvider: null,
-        role: Role.ADMIN,
-      });
+    database.user.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 'legacy',
+      externalProvider: null,
+      role: Role.ADMIN,
+    });
     await service.login({ username: 'alice', password: 'secret' });
     expect(database.user.update).toHaveBeenCalledWith({
       where: { id: 'legacy' },

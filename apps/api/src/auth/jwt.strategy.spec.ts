@@ -34,6 +34,46 @@ describe('JwtStrategy identity providers', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it.each(['development', 'production', 'test', 'staging', undefined])(
+    'only accepts DEV sessions in development, NODE_ENV=%s',
+    async (nodeEnv) => {
+      const devStrategy = new JwtStrategy(
+        {
+          getOrThrow: () => 'test-secret',
+          get: (key: string) => (key === 'NODE_ENV' ? nodeEnv : undefined),
+        } as unknown as ConfigService,
+        database as never,
+      );
+      database.user.findUnique.mockResolvedValue({
+        id: 'admin',
+        email: 'admin@development.invalid',
+        role: 'ADMIN',
+        externalProvider: 'DEV',
+      });
+      const result = devStrategy.validate({
+        sub: 'admin',
+        email: 'admin@development.invalid',
+        provider: 'DEV',
+      });
+      if (nodeEnv === 'development') {
+        await expect(result).resolves.toEqual({
+          userId: 'admin',
+          email: 'admin@development.invalid',
+          role: 'ADMIN',
+        });
+        await expect(
+          devStrategy.validate({
+            sub: 'admin',
+            email: 'admin@development.invalid',
+            provider: 'LDAP',
+          }),
+        ).rejects.toThrow(UnauthorizedException);
+      } else {
+        await expect(result).rejects.toThrow(UnauthorizedException);
+      }
+    },
+  );
+
   it('rejects a legacy local account', async () => {
     database.user.findUnique.mockResolvedValue({
       id: '1',

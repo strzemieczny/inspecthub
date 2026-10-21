@@ -8,10 +8,10 @@
   "scripts": {
     "build": "nest build",
     "check-types": "tsc --noEmit --pretty false",
-    "dev": "HOST=0.0.0.0 nest start --watch",
+    "dev": "NODE_ENV=development HOST=0.0.0.0 nest start --watch",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "HOST=0.0.0.0 nest start --watch",
+    "start:dev": "NODE_ENV=development HOST=0.0.0.0 nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --max-warnings 0",

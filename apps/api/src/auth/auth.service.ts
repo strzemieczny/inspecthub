@@ -25,6 +25,30 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
+    if (
+      this.config.get<string>('NODE_ENV') === 'development' &&
+      dto.username === 'admin'
+    ) {
+      if (dto.password !== 'admin') throw new UnauthorizedException();
+      const data = {
+        email: 'admin@development.invalid',
+        name: 'Testowy Admin',
+        role: Role.ADMIN,
+        passwordHash: null,
+      };
+      const user = await this.database.user.upsert({
+        where: {
+          externalProvider_externalId: {
+            externalProvider: 'DEV',
+            externalId: 'admin',
+          },
+        },
+        create: { ...data, externalProvider: 'DEV', externalId: 'admin' },
+        update: data,
+        select: { id: true, email: true, name: true, role: true },
+      });
+      return this.issueToken(user, 'DEV');
+    }
     const identity = await this.ldap.authenticate(dto.username, dto.password);
     const data = {
       ...identity,
@@ -163,7 +187,7 @@ export class AuthService {
       name: string;
       role: Role;
     },
-    provider: 'LDAP' | 'APACS',
+    provider: 'LDAP' | 'APACS' | 'DEV',
   ) {
     return {
       accessToken: await this.jwt.signAsync({

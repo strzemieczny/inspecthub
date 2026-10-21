@@ -22,6 +22,21 @@ pnpm dev
 schematu przeznaczone do współdzielenia muszą posiadać migrację w
 `packages/database/prisma/migrations`.
 
+## Testowy operator APACS
+
+Przy `NODE_ENV=development` numer `0000` loguje operatora „Testowy User” bez
+połączenia z bazą APACS. Konto z rolą `OPERATOR` jest tworzone lub aktualizowane
+przy logowaniu w lokalnej bazie aplikacji. Pozostałe numery są sprawdzane w APACS.
+Komendy API `dev` i `start:dev` ustawiają `NODE_ENV=development`.
+Logowanie testowe jest wyłączone dla pozostałych wartości `NODE_ENV`.
+
+## Testowy administrator
+
+Przy `NODE_ENV=development` login `admin` i hasło `admin` logują jako „Testowy
+Admin” z rolą `ADMIN`, bez połączenia z LDAP. Konto lokalne jest tworzone lub
+aktualizowane przy logowaniu. Zarówno logowanie, jak i sesje tego konta działają
+wyłącznie w środowisku development.
+
 ## Komendy jakościowe
 
 ```sh
@@ -62,6 +77,7 @@ włączony — komunikację z serwerem SCADA. Wybór działa niezależnie od `NO
 bez zmiany zmiennych środowiskowych i bez restartu API.
 
 W trybie symulacji:
+
 - numer zakończony `_OK` daje zgodę,
 - numer zakończony `_NOK` daje odmowę,
 - pozostałe numery są odrzucane.
