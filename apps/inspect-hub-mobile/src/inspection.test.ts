@@ -119,3 +119,45 @@ test("duration is bounded and optional answers are sent as null", () => {
   assert.equal(payload.durationSeconds, 86400);
   assert.equal(payload.answers[1]?.value, null);
 });
+
+for (const expectedValue of [undefined, "legacy expected photo"]) {
+  for (const isRequired of [true, false]) {
+    test(`photos do not affect status (required=${isRequired}, expected=${expectedValue})`, () => {
+      const withPhoto: InspectionForm = {
+        ...form,
+        questions: [
+          question,
+          {
+            id: "photo",
+            label: "Zdjęcie",
+            type: "PHOTO_UPLOAD",
+            isRequired,
+            expectedValue,
+          },
+        ],
+      };
+      assert.equal(
+        automaticStatus(withPhoto, { q1: 5, photo: "actual.jpg" }),
+        "PASS",
+      );
+      assert.equal(
+        automaticStatus(withPhoto, { q1: 11, photo: "actual.jpg" }),
+        "FAIL",
+      );
+      assert.equal(automaticStatus(withPhoto, { q1: 5 }), "PASS");
+      if (isRequired) {
+        assert.throws(
+          () => submissionFor({ ...draft(), form: withPhoto }, 2000),
+          /wymagane/,
+        );
+      }
+      assert.equal(
+        automaticStatus(
+          { ...withPhoto, questions: [withPhoto.questions[1]!] },
+          { photo: "actual.jpg" },
+        ),
+        null,
+      );
+    });
+  }
+}

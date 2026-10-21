@@ -94,6 +94,7 @@ function isPassedStatus(status: string): boolean {
 }
 
 function canAssessAutomatically(question: InspectionQuestion): boolean {
+  if (question.type === "PHOTO_UPLOAD") return false;
   return (
     question.expectedValue !== undefined ||
     (question.type === "NUMBER_RANGE" && question.range !== undefined)
@@ -3227,7 +3228,7 @@ function AdminPanel({ role }: { role: SessionUser["role"] }) {
                             ))}
                           </select>
                         </label>
-                      ) : (
+                      ) : question.type !== "PHOTO_UPLOAD" ? (
                         <label>
                           {t("form.expectedValue")}
                           <input
@@ -3250,7 +3251,7 @@ function AdminPanel({ role }: { role: SessionUser["role"] }) {
                             placeholder={t("form.expectedPlaceholder")}
                           />
                         </label>
-                      )}
+                      ) : null}
                       {question.type === "NUMBER_RANGE" && (
                         <div className="range-fields">
                           <label>
@@ -3670,7 +3671,10 @@ function OperatorPanel({
     if (
       assessedQuestions.length === 0 ||
       form.questions.some(
-        (question) => question.isRequired && !canAssessAutomatically(question),
+        (question) =>
+          question.type !== "PHOTO_UPLOAD" &&
+          question.isRequired &&
+          !canAssessAutomatically(question),
       )
     )
       return null;

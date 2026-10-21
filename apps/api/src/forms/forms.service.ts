@@ -240,6 +240,8 @@ export class FormsService {
   ): Prisma.InputJsonValue {
     return questions.map((question) => ({
       ...question,
+      expectedValue:
+        question.type === 'PHOTO_UPLOAD' ? undefined : question.expectedValue,
       instructionImageUrl: this.portableMediaUrl(question.instructionImageUrl),
       okImageUrl: this.portableMediaUrl(question.okImageUrl),
       nokImageUrl: this.portableMediaUrl(question.nokImageUrl),

@@ -954,7 +954,9 @@ export class InspectionsService {
       ) &&
       questions.every(
         (question) =>
-          !question.isRequired || this.canAssessAutomatically(question),
+          question.type === 'PHOTO_UPLOAD' ||
+          !question.isRequired ||
+          this.canAssessAutomatically(question),
       );
     const status = automaticallyEvaluated
       ? this.automaticStatus(questions, answerMap, statuses)
@@ -1172,6 +1174,7 @@ export class InspectionsService {
     question: InspectionQuestion,
     value: InspectionAnswer['value'],
   ): PublicAnswerAssessment {
+    if (question.type === 'PHOTO_UPLOAD') return null;
     if (question.expectedValue !== undefined && value !== null) {
       return value === question.expectedValue ? 'OK' : 'NOK';
     }
@@ -1213,6 +1216,7 @@ export class InspectionsService {
   }
 
   private canAssessAutomatically(question: InspectionQuestion): boolean {
+    if (question.type === 'PHOTO_UPLOAD') return false;
     return (
       question.expectedValue !== undefined ||
       (question.type === 'NUMBER_RANGE' && question.range !== undefined)

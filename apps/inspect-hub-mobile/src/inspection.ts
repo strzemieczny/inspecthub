@@ -47,6 +47,7 @@ export function hasValue(value: InspectionAnswerValue | undefined): boolean {
   );
 }
 export function canAssess(question: InspectionQuestion): boolean {
+  if (question.type === "PHOTO_UPLOAD") return false;
   return (
     question.expectedValue !== undefined ||
     (question.type === "NUMBER_RANGE" && question.range !== undefined)
@@ -66,7 +67,9 @@ export function automaticStatus(
   );
   if (
     !assessed.length ||
-    form.questions.some((q) => q.isRequired && !canAssess(q))
+    form.questions.some(
+      (q) => q.type !== "PHOTO_UPLOAD" && q.isRequired && !canAssess(q),
+    )
   )
     return null;
   const passed = assessed.every((q) => {

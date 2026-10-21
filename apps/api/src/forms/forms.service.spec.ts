@@ -66,6 +66,42 @@ describe('form revision authors', () => {
     expect(calls[1][0].data.version).toBe(2);
   });
 
+  it('removes legacy expected values from photo questions when saving', async () => {
+    await service.create(
+      {
+        ...stored,
+        processIds: ['process-1'],
+        questions: [
+          {
+            id: 'photo',
+            label: 'Zdjęcie',
+            type: 'PHOTO_UPLOAD',
+            isRequired: true,
+            expectedValue: 'legacy.jpg',
+          },
+          {
+            id: 'check',
+            label: 'Kontrola',
+            type: 'CHECKBOX',
+            isRequired: true,
+            expectedValue: true,
+          },
+        ],
+      } as CreateFormDto,
+      'author-1',
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          questions: [
+            expect.objectContaining({ id: 'photo', expectedValue: undefined }),
+            expect.objectContaining({ id: 'check', expectedValue: true }),
+          ],
+        }),
+      }),
+    );
+  });
+
   it('returns immutable author snapshots and explicitly marks missing historical authors', async () => {
     database.form.findMany.mockResolvedValue([
       stored,

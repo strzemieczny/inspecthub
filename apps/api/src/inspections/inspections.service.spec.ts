@@ -137,6 +137,7 @@ describe('InspectionsService public reports', () => {
       answers: [
         { questionId: 'q1', value: true },
         { questionId: 'q2', value: 11 },
+        { questionId: 'photo', value: 'actual.jpg' },
       ],
       mesSynced: true,
       scadaServerUrl: 'http://scada.local/unit/SN-100',
@@ -163,6 +164,13 @@ describe('InspectionsService public reports', () => {
             isRequired: true,
             range: { min: 10, max: 12 },
           },
+          {
+            id: 'photo',
+            label: 'Zdjęcie',
+            type: 'PHOTO_UPLOAD',
+            isRequired: true,
+            expectedValue: 'legacy.jpg',
+          },
         ],
       },
     });
@@ -187,7 +195,7 @@ describe('InspectionsService public reports', () => {
     expect(report).toMatchObject({
       serialNumber: 'SN-100',
       form: { code: 'QC-01', version: 3 },
-      summary: { total: 2, passed: 2, failed: 0 },
+      summary: { total: 3, passed: 2, failed: 0 },
       externalSyncStatus: 'SYNCED',
       retest: {
         reports: [
@@ -201,6 +209,10 @@ describe('InspectionsService public reports', () => {
       scadaUnitHistoryUrl:
         'http://scada.local/std_public/unithistory?unit=SN-100',
     });
+    expect(
+      report.answers.find((answer) => answer.questionId === 'photo')
+        ?.assessment,
+    ).toBeNull();
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain('operatorId');
     expect(serialized).not.toContain('email');
@@ -392,6 +404,68 @@ describe('InspectionsService public reports', () => {
     ];
     expect(createCall[0].data.status).toBe('FAILED');
   });
+
+  it.each([
+    [true, undefined, 'PASSED'],
+    [false, undefined, 'FAILED'],
+    [true, 'legacy.jpg', 'PASSED'],
+    [false, 'legacy.jpg', 'FAILED'],
+  ])(
+    'ignores required photos when assessing answer %s with photo expectation %s',
+    async (value, expectedValue, expectedStatus) => {
+      (database.form.findUnique as jest.Mock).mockResolvedValue({
+        id: 'form-1',
+        code: 'QC-01',
+        allowedStatuses: ['PASSED', 'FAILED'],
+        questions: [
+          {
+            id: 'q1',
+            label: 'Mocowanie',
+            type: 'CHECKBOX',
+            isRequired: true,
+            expectedValue: true,
+          },
+          {
+            id: 'photo',
+            label: 'Zdjęcie',
+            type: 'PHOTO_UPLOAD',
+            isRequired: true,
+            expectedValue,
+          },
+        ],
+        processes: [{ id: 'process-1' }],
+      });
+      findUniqueStation.mockResolvedValue({
+        active: true,
+        processId: 'process-1',
+        process: { id: 'process-1' },
+      });
+      createResult.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ id: 'result-1', ...data }),
+      );
+
+      await service.create(
+        {
+          formId: 'form-1',
+          vinOrSerialNumber: 'SN-100',
+          stationId: 'ST-01',
+          status: value ? 'FAILED' : 'PASSED',
+          answers: [
+            { questionId: 'q1', value },
+            { questionId: 'photo', value: 'actual.jpg' },
+          ],
+          routeCheckId: 'route-check-1',
+        },
+        'operator-1',
+      );
+
+      const [createCall] = createResult.mock.calls as [
+        [{ data: { status: string } }],
+      ];
+      expect(createCall[0].data.status).toBe(expectedStatus);
+    },
+  );
 
   it.each([true, false])(
     'rejects a form different from the route check with live SCADA=%s',

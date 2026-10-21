@@ -969,18 +969,19 @@ function OperatorApp() {
                   <View style={[s.panel, s.summaryPanel]}>
                     {draft.form.questions.map((q) => {
                       const value = draft.answers[q.id];
-                      const passed = !hasValue(value)
-                        ? null
-                        : q.expectedValue !== undefined
-                          ? value === q.expectedValue
-                          : q.type === "NUMBER_RANGE" && q.range
-                            ? typeof value === "number" &&
-                              value >= q.range.min &&
-                              value <= q.range.max
-                            : q.type === "CHECKBOX" &&
-                                typeof value === "boolean"
-                              ? value
-                              : null;
+                      const passed =
+                        q.type === "PHOTO_UPLOAD" || !hasValue(value)
+                          ? null
+                          : q.expectedValue !== undefined
+                            ? value === q.expectedValue
+                            : q.type === "NUMBER_RANGE" && q.range
+                              ? typeof value === "number" &&
+                                value >= q.range.min &&
+                                value <= q.range.max
+                              : q.type === "CHECKBOX" &&
+                                  typeof value === "boolean"
+                                ? value
+                                : null;
                       return (
                         <View key={q.id} style={s.answerRow}>
                           <View style={s.answerContent}>
