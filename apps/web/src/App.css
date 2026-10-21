@@ -410,9 +410,9 @@
   color: #72c9a8;
 }
 .dashboard-content {
-  max-width: 1380px;
+  width: min(94%, calc(100% - 2rem));
   margin: 0 auto;
-  padding: 3rem clamp(1.25rem, 4vw, 3rem) 1.5rem;
+  padding: 3rem 0 1.5rem;
 }
 .dashboard-title {
   display: flex;
