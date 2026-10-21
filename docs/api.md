@@ -129,7 +129,9 @@ pliku, a nie tylko nagłówek MIME. Limit wynosi 20 MiB.
 ### Analityka i eksport
 
 Wspólne parametry: `from`, `to`, `processId`, `stationId`, `formCode`,
-`formIds`, `result`, `search`. Zakres czasu nie może przekraczać 366 dni.
+`formIds`, `result`, `search`, `partNumber`.
+`search` filtruje po numerze seryjnym, a `partNumber` po numerze części produktu
+(dopasowanie fragmentu bez rozróżniania wielkości liter, z pominięciem spacji na początku i końcu). Zakres czasu nie może przekraczać 366 dni.
 
 ```http
 GET /api/inspections/analytics/v1/export?format=csv&from=2026-08-01&to=2026-08-10&stationId=ST-01

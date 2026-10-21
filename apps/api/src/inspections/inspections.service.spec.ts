@@ -173,6 +173,41 @@ describe('InspectionsService public reports', () => {
     },
   );
 
+  it.each(['  PN-123  ', '   ', undefined])(
+    'applies part number and serial filters consistently to dashboard, comparison and export: %s',
+    async (partNumber) => {
+      findManyResults.mockResolvedValue([]);
+      findManyStations.mockResolvedValue([]);
+      findManyForms.mockResolvedValue([]);
+      countStations.mockResolvedValue(0);
+      const filters = {
+        from: '2026-10-20T00:00:00Z',
+        to: '2026-10-20T23:59:59Z',
+        partNumber,
+        search: 'SN-100',
+      };
+
+      await service.getPublicDashboard(filters);
+      await service.exportAnalytics(filters, 'csv');
+
+      expect(findManyResults).toHaveBeenCalledTimes(3);
+      const queries = findManyResults.mock.calls as [
+        { where: Record<string, unknown> },
+      ][];
+      for (const [query] of queries) {
+        expect(query.where.vinOrSerialNumber).toEqual({
+          contains: 'SN-100',
+          mode: 'insensitive',
+        });
+        expect(query.where.partNumber).toEqual(
+          partNumber?.trim()
+            ? { contains: 'PN-123', mode: 'insensitive' }
+            : undefined,
+        );
+      }
+    },
+  );
+
   describe('completeness filters', () => {
     const row = (
       id: string,

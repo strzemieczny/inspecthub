@@ -177,6 +177,7 @@ export class InspectionsService {
       formIds?: string;
       result?: string;
       search?: string;
+      partNumber?: string;
       timeZone?: string;
       completeness?: string;
     } = {},
@@ -235,6 +236,14 @@ export class InspectionsService {
         : filters.formCode
           ? { form: { code: filters.formCode } }
           : {}),
+      ...(filters.partNumber?.trim()
+        ? {
+            partNumber: {
+              contains: filters.partNumber.trim(),
+              mode: 'insensitive',
+            },
+          }
+        : {}),
       ...(filters.search?.trim()
         ? {
             vinOrSerialNumber: {
@@ -688,6 +697,7 @@ export class InspectionsService {
       formIds?: string;
       result?: string;
       search?: string;
+      partNumber?: string;
       timeZone?: string;
       completeness?: string;
     },
@@ -727,6 +737,14 @@ export class InspectionsService {
           : filters.formCode
             ? { form: { code: filters.formCode } }
             : {}),
+        ...(filters.partNumber?.trim()
+          ? {
+              partNumber: {
+                contains: filters.partNumber.trim(),
+                mode: 'insensitive',
+              },
+            }
+          : {}),
         ...(filters.search?.trim()
           ? {
               vinOrSerialNumber: {

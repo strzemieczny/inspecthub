@@ -41,6 +41,7 @@ export class InspectionsController {
     @Query('search') search?: string,
     @Query('timeZone') timeZone?: string,
     @Query('completeness') completeness?: string,
+    @Query('partNumber') partNumber?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -53,6 +54,7 @@ export class InspectionsController {
       search,
       timeZone,
       completeness,
+      partNumber,
     });
   }
 
@@ -68,6 +70,7 @@ export class InspectionsController {
     @Query('search') search?: string,
     @Query('timeZone') timeZone?: string,
     @Query('completeness') completeness?: string,
+    @Query('partNumber') partNumber?: string,
   ) {
     return this.inspections.getPublicDashboard({
       from,
@@ -80,6 +83,7 @@ export class InspectionsController {
       search,
       timeZone,
       completeness,
+      partNumber,
     });
   }
 
@@ -97,6 +101,7 @@ export class InspectionsController {
     @Query('search') search?: string,
     @Query('timeZone') timeZone?: string,
     @Query('completeness') completeness?: string,
+    @Query('partNumber') partNumber?: string,
   ) {
     if (!['csv', 'xlsx', 'pdf'].includes(format)) {
       throw new BadRequestException('Obsługiwane formaty: csv, xlsx, pdf');
@@ -113,6 +118,7 @@ export class InspectionsController {
         search,
         timeZone,
         completeness,
+        partNumber,
       },
       format as 'csv' | 'xlsx' | 'pdf',
     );

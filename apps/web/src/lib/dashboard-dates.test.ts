@@ -60,3 +60,17 @@ test("empty, impossible and reversed dates cannot be applied", () => {
   }
   assert.equal(validDashboardRange("2026-10-20", "2026-10-20"), true);
 });
+
+test("analytics URLs retain part number alongside other product filters", () => {
+  const query = dashboardQuery({
+    from: "2026-10-20",
+    to: "2026-10-20",
+    partNumber: "PN/123 + A",
+    search: "SN-100",
+    stationId: "ST-01",
+  });
+  const decoded = new URLSearchParams(query.toString());
+  assert.equal(decoded.get("partNumber"), "PN/123 + A");
+  assert.equal(decoded.get("search"), "SN-100");
+  assert.equal(decoded.get("stationId"), "ST-01");
+});

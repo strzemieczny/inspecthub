@@ -334,6 +334,7 @@ export default function Dashboard() {
     formIds: [] as string[],
     result: "",
     search: "",
+    partNumber: "",
     completeness: "",
   });
   const [appliedFilters, setAppliedFilters] = useState(filters);
@@ -688,6 +689,17 @@ export default function Dashboard() {
                 }
               />
             </label>
+            <label className="search-filter">
+              {t("common.partNumber")}
+              <input
+                type="search"
+                placeholder="Part number"
+                value={filters.partNumber}
+                onChange={(event) =>
+                  setFilters({ ...filters, partNumber: event.target.value })
+                }
+              />
+            </label>
             <div className="filter-actions">
               <button
                 className="filter-reset"
@@ -701,6 +713,7 @@ export default function Dashboard() {
                     formIds: [],
                     result: "",
                     search: "",
+                    partNumber: "",
                     completeness: "",
                   };
                   setFilters(next);
