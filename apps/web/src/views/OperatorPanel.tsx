@@ -149,6 +149,8 @@ export default function OperatorPanel({
   const [answers, setAnswers] = useState<Record<string, InspectionAnswerValue>>(
     {},
   );
+  const questionTimes = useRef<Record<string, number>>({});
+  const flushQuestionTime = useRef<() => void>(() => {});
   const inspectionStartedAt = useRef<number | null>(null);
   const correctedQuestions = useRef(new Set<string>());
   const answerAtFocus = useRef(new Map<string, InspectionAnswerValue>());
@@ -202,6 +204,32 @@ export default function OperatorPanel({
     ? Math.round((answeredCount / form.questions.length) * 100)
     : 0;
   const currentQuestionSource = form?.questions[questionIndex];
+  const timedQuestionId =
+    !loading && availableForms.length > 0 && productIdentified && !showSummary
+      ? currentQuestionSource?.id
+      : undefined;
+  useEffect(() => {
+    if (!timedQuestionId) return;
+    let startedAt =
+      document.visibilityState === "visible" ? performance.now() : null;
+    const flush = () => {
+      if (startedAt === null) return;
+      questionTimes.current[timedQuestionId] =
+        (questionTimes.current[timedQuestionId] ?? 0) +
+        Math.max(0, performance.now() - startedAt);
+      startedAt = null;
+    };
+    flushQuestionTime.current = flush;
+    const visibility = () => {
+      flush();
+      if (document.visibilityState === "visible") startedAt = performance.now();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      flush();
+      document.removeEventListener("visibilitychange", visibility);
+    };
+  }, [timedQuestionId, formId]);
   const currentQuestion = currentQuestionSource
     ? localizeQuestion(currentQuestionSource, language)
     : undefined;
@@ -452,6 +480,8 @@ export default function OperatorPanel({
   }
 
   function resetInspectionTelemetry() {
+    flushQuestionTime.current();
+    questionTimes.current = {};
     inspectionStartedAt.current = null;
     correctedQuestions.current.clear();
     answerAtFocus.current.clear();
@@ -630,6 +660,7 @@ export default function OperatorPanel({
     setBusy(true);
     setNotice("");
     const clientSubmissionId = createClientId();
+    flushQuestionTime.current();
     const payload = {
       clientSubmissionId,
       formId,
@@ -652,6 +683,14 @@ export default function OperatorPanel({
       answers: form.questions.map((q) => ({
         questionId: q.id,
         value: answers[q.id] ?? null,
+        ...(questionTimes.current[q.id] !== undefined
+          ? {
+              durationSeconds: Math.min(
+                86400,
+                Math.round(questionTimes.current[q.id] / 1000),
+              ),
+            }
+          : {}),
       })),
     };
     try {
@@ -721,6 +760,7 @@ export default function OperatorPanel({
       setRouteCheckId(result.routeCheckId);
       setProduct(result.integrationEnabled ? result.product : null);
       setProductIdentified(true);
+      questionTimes.current = {};
       inspectionStartedAt.current = inspectionStart;
       correctedQuestions.current.clear();
       setNotice(t("inspection.allowed"));

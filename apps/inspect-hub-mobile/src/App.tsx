@@ -4,6 +4,7 @@ import { LanguageProvider, useI18n } from "./i18n";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Animated,
   Image,
   Keyboard,
@@ -189,7 +190,33 @@ function OperatorApp() {
     );
     return () => listener.remove();
   }, [loginOpen]);
+  const questionClock = useRef<{
+    draftId: string;
+    questionId: string;
+    startedAt: number;
+  } | null>(null);
   function commitDraft(value: Draft | null): Promise<void> {
+    const now = performance.now();
+    const clock = questionClock.current;
+    if (value && clock?.draftId === value.id && !value.submission) {
+      value = {
+        ...value,
+        questionTimes: {
+          ...value.questionTimes,
+          [clock.questionId]:
+            (value.questionTimes?.[clock.questionId] ?? 0) +
+            Math.max(0, now - clock.startedAt),
+        },
+      };
+    }
+    const questionId =
+      value && !value.summary && !value.submission
+        ? value.form.questions[value.index]?.id
+        : undefined;
+    questionClock.current =
+      value && questionId && AppState.currentState === "active"
+        ? { draftId: value.id, questionId, startedAt: now }
+        : null;
     draftRef.current = value;
     setDraft(value);
     const write = writes.current
@@ -270,6 +297,21 @@ function OperatorApp() {
         setStationCode(savedDraft?.stationCode ?? savedStation?.code ?? "");
         draftRef.current = savedDraft;
         setDraft(savedDraft);
+        const restoredQuestion =
+          savedDraft && !savedDraft.summary && !savedDraft.submission
+            ? savedDraft.form.questions[savedDraft.index]
+            : undefined;
+        if (
+          savedDraft &&
+          restoredQuestion &&
+          AppState.currentState === "active"
+        ) {
+          questionClock.current = {
+            draftId: savedDraft.id,
+            questionId: restoredQuestion.id,
+            startedAt: performance.now(),
+          };
+        }
         if (savedDraft)
           message(translateRestored("Przywrócono niedokończoną inspekcję."));
         try {
@@ -312,9 +354,7 @@ function OperatorApp() {
         }
         if (expired) {
           message(
-            translateRestored(
-              "Wylogowano po ponad 5 minutach bez aktywności.",
-            ),
+            translateRestored("Wylogowano po ponad 5 minutach bez aktywności."),
           );
         }
       } catch {
@@ -333,6 +373,18 @@ function OperatorApp() {
     return () => {
       active = false;
     };
+  }, []);
+
+  const persistQuestionTime = useEffectEvent(() => {
+    if (draftRef.current && !draftRef.current.submission) {
+      void commitDraft(draftRef.current).catch(() => {});
+    }
+  });
+  useEffect(() => {
+    const listener = AppState.addEventListener("change", () =>
+      persistQuestionTime(),
+    );
+    return () => listener.remove();
   }, []);
 
   const currentQuestion = draft?.form.questions[draft.index];

@@ -340,6 +340,12 @@ export default function PublicReport({
                     ? answer.label
                     : answer.translations?.[language]?.label || answer.label}
                 </h3>
+                <p className="answer-duration">
+                  {t("report.questionDuration")}:{" "}
+                  {answer.durationSeconds == null
+                    ? "—"
+                    : `${Math.floor(answer.durationSeconds / 60)}:${String(answer.durationSeconds % 60).padStart(2, "0")}`}
+                </p>
                 {answer.severity !== "NORMAL" && (
                   <span
                     className={`question-severity ${answer.severity.toLowerCase()}`}

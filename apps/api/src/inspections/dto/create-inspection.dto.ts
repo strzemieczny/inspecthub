@@ -12,6 +12,12 @@ import {
 } from 'class-validator';
 
 export class InspectionAnswerDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(86400)
+  durationSeconds?: number;
+
   @IsString()
   questionId!: string;
 

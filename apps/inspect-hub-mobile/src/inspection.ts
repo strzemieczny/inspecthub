@@ -18,6 +18,7 @@ export type Draft = {
   serial: string;
   routeCheckId: string | null;
   startedAt: number;
+  questionTimes?: Record<string, number>;
   answers: Answers;
   correctedIds: string[];
   status: string;
@@ -35,7 +36,11 @@ export type Submission = {
   durationSeconds: number;
   answerCorrections: number;
   status: string;
-  answers: { questionId: string; value: InspectionAnswerValue }[];
+  answers: {
+    questionId: string;
+    value: InspectionAnswerValue;
+    durationSeconds?: number;
+  }[];
 };
 export function hasValue(value: InspectionAnswerValue | undefined): boolean {
   return (
@@ -113,6 +118,14 @@ export function submissionFor(draft: Draft, now: number): Submission {
     answers: draft.form.questions.map((q) => ({
       questionId: q.id,
       value: draft.answers[q.id] ?? null,
+      ...(draft.questionTimes?.[q.id] !== undefined
+        ? {
+            durationSeconds: Math.min(
+              86400,
+              Math.max(0, Math.round(draft.questionTimes[q.id] / 1000)),
+            ),
+          }
+        : {}),
     })),
   };
 }

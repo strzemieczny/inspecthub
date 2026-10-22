@@ -858,7 +858,8 @@ export class InspectionsService {
         .map((question) => {
           const value = answerMap.get(question.id) ?? null;
           const assessment = this.assessAnswer(question, value);
-          return `${question.label}: ${String(value ?? '')}${assessment ? ` [${assessment}]` : ''}`;
+          const duration = answers.find((answer) => answer.questionId === question.id)?.durationSeconds;
+          return `${question.label}: ${String(value ?? '')}${assessment ? ` [${assessment}]` : ''}${duration == null ? '' : ` [${duration} s]`}`;
         })
         .join(' | ');
       return {
@@ -1264,12 +1265,16 @@ export class InspectionsService {
     const answerMap = new Map(
       savedAnswers.map((answer) => [answer.questionId, answer.value]),
     );
+    const durationMap = new Map(
+      savedAnswers.map((answer) => [answer.questionId, answer.durationSeconds]),
+    );
     const answers = questions.map((question) => {
       const value = answerMap.get(question.id) ?? null;
       return {
         questionId: question.id,
         label: question.label,
         type: question.type,
+        durationSeconds: durationMap.get(question.id) ?? null,
         value,
         assessment: this.assessAnswer(question, value),
         severity: this.questionSeverity(question),

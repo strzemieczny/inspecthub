@@ -110,6 +110,8 @@ export interface MesTraceabilityPayload {
 export type InspectionAnswerValue = string | number | boolean | null;
 
 export interface InspectionAnswer {
+  /** Accumulated time displaying this question, including revisits. */
+  durationSeconds?: number;
   questionId: string;
   value: InspectionAnswerValue;
 }
@@ -155,6 +157,7 @@ export interface ScadaInspectionResultRequest {
 export type PublicAnswerAssessment = "OK" | "NOK" | null;
 
 export interface PublicReportAnswer {
+  durationSeconds?: number | null;
   questionId: string;
   label: string;
   type: FieldType;

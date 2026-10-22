@@ -578,7 +578,7 @@ describe('InspectionsService public reports', () => {
       stationId: 'ST-01',
       status: 'PASSED',
       answers: [
-        { questionId: 'q1', value: true },
+        { questionId: 'q1', value: true, durationSeconds: 75 },
         { questionId: 'q2', value: 11 },
         { questionId: 'photo', value: 'actual.jpg' },
       ],
@@ -656,6 +656,8 @@ describe('InspectionsService public reports', () => {
       report.answers.find((answer) => answer.questionId === 'photo')
         ?.assessment,
     ).toBeNull();
+    expect(report.answers.find((answer) => answer.questionId === 'q1')?.durationSeconds).toBe(75);
+    expect(report.answers.find((answer) => answer.questionId === 'q2')?.durationSeconds).toBeNull();
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain('operatorId');
     expect(serialized).not.toContain('email');

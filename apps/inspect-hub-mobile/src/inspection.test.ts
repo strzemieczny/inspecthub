@@ -161,3 +161,23 @@ for (const expectedValue of [undefined, "legacy expected photo"]) {
     });
   }
 }
+
+test("question times survive restored drafts and frozen retries; old drafts omit them", () => {
+  const timed = { ...draft(), questionTimes: { q1: 75400 } };
+  const restored = JSON.parse(JSON.stringify(timed)) as Draft;
+  const submission = submissionFor(restored, 100000);
+  assert.equal(submission.answers[0]?.durationSeconds, 75);
+  assert.deepEqual(
+    submissionFor({ ...restored, submission }, 999999),
+    submission,
+  );
+  assert.equal(
+    submissionFor(draft(), 100000).answers[0]?.durationSeconds,
+    undefined,
+  );
+  assert.equal(
+    submissionFor({ ...draft(), questionTimes: { q1: 999999999 } }, 100000)
+      .answers[0]?.durationSeconds,
+    86400,
+  );
+});
