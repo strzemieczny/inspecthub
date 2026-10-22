@@ -16,6 +16,7 @@ export function ReportPhotoViewer({
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const thumbnailsRef = useRef<HTMLDivElement>(null);
   const zoomCenter = useRef<{ x: number; y: number } | null>(null);
   const ignoreNextClick = useRef(false);
   const gesture = useRef<{
@@ -29,6 +30,24 @@ export function ReportPhotoViewer({
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const photo = photos[index]!;
+
+  useLayoutEffect(() => {
+    const strip = thumbnailsRef.current;
+    const active = strip?.querySelector<HTMLButtonElement>(
+      '[aria-pressed="true"]',
+    );
+    if (!strip || !active) return;
+    const revealActive = () => {
+      strip.scrollTo({
+        left: active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2,
+        top: 0,
+      });
+    };
+    revealActive();
+    const observer = new ResizeObserver(revealActive);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [index]);
 
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -284,6 +303,7 @@ export function ReportPhotoViewer({
         {photos.length > 1 && (
           <div
             className="report-photo-thumbnails"
+            ref={thumbnailsRef}
             role="group"
             aria-label={t("report.photoViewer")}
           >

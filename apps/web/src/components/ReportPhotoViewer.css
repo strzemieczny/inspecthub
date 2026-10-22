@@ -195,21 +195,39 @@
   min-width: 0;
 }
 .report-photo-thumbnails {
+  position: relative;
   display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 8px;
+  height: 64px;
   max-width: 100%;
   width: fit-content;
   margin: 0 auto;
-  padding: 5px;
+  padding: 8px;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.report-photo-thumbnails::-webkit-scrollbar {
+  display: none;
 }
 .report-photo-thumbnails button {
+  flex: 0 0 60px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   width: 60px;
   height: 48px;
+  min-height: 0;
   padding: 3px;
   border: 2px solid transparent;
   border-radius: 8px;
   opacity: 0.55;
+  overflow: hidden;
+  scroll-snap-align: center;
 }
 .report-photo-thumbnails button[aria-pressed="true"] {
   border-color: #81dcb8;
@@ -217,8 +235,11 @@
   background: #81dcb81a;
 }
 .report-photo-thumbnails button img {
+  display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   object-fit: cover;
   border-radius: 3px;
 }
