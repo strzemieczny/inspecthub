@@ -362,11 +362,27 @@ function NokTrend({
   daily: DashboardData["daily"];
   onSelect: (date: string) => void;
 }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(720);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) {
+        setChartWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, []);
+
   const points = daily.map((item, index) => ({
     ...item,
     nok: item.total - item.passed,
     rate: item.total ? ((item.total - item.passed) / item.total) * 100 : null,
-    x: 48 + (index / Math.max(daily.length - 1, 1)) * 624,
+    x: 48 + (index / Math.max(daily.length - 1, 1)) * (chartWidth - 96),
   }));
   // Missing days break the line: no inspections does not mean 0% NOK.
   const path = points
@@ -384,9 +400,9 @@ function NokTrend({
           <p>Udział inspekcji NOK we wszystkich próbach, łącznie z retestami</p>
         </div>
       </div>
-      <div className="nok-trend-scroll">
+      <div className="nok-trend-scroll" ref={chartRef}>
         <svg
-          viewBox="0 0 720 210"
+          viewBox={`0 0 ${chartWidth} 210`}
           role="img"
           aria-label="Dzienny udział inspekcji NOK. Szczegółowe wartości i liczebność próby w tabeli poniżej."
         >
@@ -394,7 +410,7 @@ function NokTrend({
             <g key={value}>
               <line
                 x1="48"
-                x2="672"
+                x2={chartWidth - 48}
                 y1={172 - value * 1.4}
                 y2={172 - value * 1.4}
                 stroke="currentColor"

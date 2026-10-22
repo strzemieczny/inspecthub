@@ -7548,13 +7548,12 @@ label.check {
   margin: 1rem 0 0;
 }
 .nok-trend-scroll {
-  overflow-x: auto;
+  min-width: 0;
 }
 .nok-trend-scroll svg {
   display: block;
   width: 100%;
-  min-width: 420px;
-  max-height: 280px;
+  height: 210px;
 }
 .nok-trend-scroll text {
   fill: currentColor;
