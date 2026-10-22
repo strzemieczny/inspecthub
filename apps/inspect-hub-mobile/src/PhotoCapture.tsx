@@ -18,9 +18,11 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { File } from "expo-file-system";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import Feather from "@expo/vector-icons/Feather";
 import { mediaUrl } from "./api";
 import { Button, colors, s } from "./ui";
+import { photoFrame } from "./photo";
 
 export function PhotoCapture({
   disabled,
@@ -39,6 +41,7 @@ export function PhotoCapture({
   const capturing = useRef(false);
   const sending = useRef(false);
   const temporaryPhoto = useRef<string | null>(null);
+  const viewport = useRef({ width: 0, height: 0 });
   const [preview, setPreview] = useState<string | null>(savedUri ?? null);
   const [accepted, setAccepted] = useState(!!savedUri);
   const [foreground, setForeground] = useState(
@@ -114,20 +117,48 @@ export function PhotoCapture({
 
   async function takePhoto() {
     if (!camera.current || !ready || disabled || capturing.current) return;
+    const frame = { ...viewport.current };
+    if (frame.width <= 0 || frame.height <= 0) return;
     capturing.current = true;
     setTaking(true);
     setError("");
     try {
-      const photo = await camera.current.takePictureAsync({ quality: 0.75 });
+      // Keep orientation processing enabled so the crop uses upright dimensions.
+      const photo = await camera.current.takePictureAsync({ quality: 1 });
       temporaryPhoto.current = photo.uri;
       if (!mounted.current) {
         deletePhoto();
         return;
       }
       setReady(false);
-      setPreview(photo.uri);
-      await savePhoto(photo.uri);
+      const { crop, resize } = photoFrame(photo, frame);
+      const context = ImageManipulator.manipulate(photo.uri);
+      let processed: string;
+      try {
+        const image = await context.crop(crop).resize(resize).renderAsync();
+        try {
+          processed = (
+            await image.saveAsync({
+              format: SaveFormat.JPEG,
+              compress: 0.75,
+            })
+          ).uri;
+        } finally {
+          image.release();
+        }
+      } finally {
+        context.release();
+      }
+      deletePhoto();
+      temporaryPhoto.current = processed;
+      if (!mounted.current) {
+        deletePhoto();
+        return;
+      }
+      setPreview(processed);
+      await savePhoto(processed);
     } catch {
+      deletePhoto();
       if (mounted.current)
         setError("Nie udało się zrobić zdjęcia. Spróbuj ponownie.");
     } finally {
@@ -166,7 +197,12 @@ export function PhotoCapture({
 
   return (
     <View style={styles.container}>
-      <View style={styles.viewport}>
+      <View
+        style={styles.viewport}
+        onLayout={({ nativeEvent: { layout } }) => {
+          viewport.current = { width: layout.width, height: layout.height };
+        }}
+      >
         {preview ? (
           <Image
             source={{ uri: mediaUrl(preview) }}
